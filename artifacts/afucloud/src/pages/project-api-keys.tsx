@@ -65,7 +65,7 @@ export default function ProjectApiKeysPage() {
   const handleRevoke = (keyId: string, keyName: string) => {
     if (!confirm(`Revoke API key "${keyName}"? This cannot be undone.`)) return;
     revokeMutation.mutate(
-      { projectId, keyId },
+      { projectId, id: keyId },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListApiKeysQueryKey(projectId) });

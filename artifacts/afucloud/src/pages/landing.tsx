@@ -59,9 +59,37 @@ await fetch(
 );`;
 
 const plans = [
-  { name: 'Starter', price: 'Free', storage: '5 GB', images: '10,000', api: '100K req/mo', cta: 'Get started' },
-  { name: 'Pro', price: '$19/mo', storage: '100 GB', images: 'Unlimited', api: '5M req/mo', cta: 'Start free trial', highlight: true },
-  { name: 'Enterprise', price: 'Custom', storage: 'Unlimited', images: 'Unlimited', api: 'Unlimited', cta: 'Contact us' },
+  {
+    name: 'Free',
+    price: '$0',
+    period: 'forever',
+    description: 'For personal projects',
+    storage: '5 GB',
+    images: '10,000',
+    api: 'Dashboard only',
+    cta: 'Get started',
+  },
+  {
+    name: 'Developer',
+    price: '$1',
+    period: '/month',
+    description: 'For devs building on AfuCloud',
+    storage: '10 GB',
+    images: 'Unlimited',
+    api: '500K API req/mo',
+    cta: 'Start building',
+    highlight: true,
+  },
+  {
+    name: 'Pro',
+    price: '$19',
+    period: '/month',
+    description: 'For production applications',
+    storage: '100 GB',
+    images: 'Unlimited',
+    api: '5M API req/mo',
+    cta: 'Start free trial',
+  },
 ];
 
 export default function LandingPage() {

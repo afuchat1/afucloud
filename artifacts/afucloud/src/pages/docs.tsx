@@ -228,7 +228,7 @@ console.log(image.url); // https://cdn.afuchat.com/...`} />
                       ['PATCH', '/v1/projects/{id}/images/{imageId}/favorite', 'Toggle favorite'],
                       ['POST', '/v1/projects/{id}/images/{imageId}/restore', 'Restore from trash'],
                     ].map(([method, path, desc]) => (
-                      <tr key={path} className="hover:bg-muted/20">
+                      <tr key={method + path} className="hover:bg-muted/20">
                         <td className="px-4 py-2.5">
                           <span className={cn(
                             'rounded px-1.5 py-0.5 font-mono font-semibold',

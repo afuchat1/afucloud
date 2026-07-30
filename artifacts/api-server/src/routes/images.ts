@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq, and, isNull, sql, desc } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, sql, desc } from "drizzle-orm";
 import { db, imagesTable, projectsTable } from "@workspace/db";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
-import { generateUploadUrl, buildStorageKey, getPublicUrl } from "../lib/storage";
+import { generateUploadUrl, buildStorageKey, getPublicUrl, deleteObject } from "../lib/storage";
 import crypto from "crypto";
 
 const router: IRouter = Router();
@@ -28,13 +28,24 @@ function toApiImage(img: typeof imagesTable.$inferSelect) {
   };
 }
 
-async function assertProjectOwner(projectId: string, userId: string, res: Parameters<Parameters<typeof router.get>[1]>[1]): Promise<boolean> {
-  const [p] = await db.select().from(projectsTable).where(and(eq(projectsTable.id, projectId), eq(projectsTable.userId, userId))).limit(1);
-  if (!p) { res.status(404).json({ error: "Project not found" }); return false; }
+async function assertProjectOwner(
+  projectId: string,
+  userId: string,
+  res: Parameters<Parameters<typeof router.get>[1]>[1],
+): Promise<boolean> {
+  const [p] = await db
+    .select()
+    .from(projectsTable)
+    .where(and(eq(projectsTable.id, projectId), eq(projectsTable.userId, userId)))
+    .limit(1);
+  if (!p) {
+    res.status(404).json({ error: "Project not found" });
+    return false;
+  }
   return true;
 }
 
-// GET /v1/projects/:projectId/images
+// ─── List images ──────────────────────────────────────────────────────────────
 router.get("/v1/projects/:projectId/images", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const projectId = req.params.projectId as string;
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
@@ -55,7 +66,33 @@ router.get("/v1/projects/:projectId/images", requireAuth, async (req: AuthReques
   res.json({ images: images.map(toApiImage), total: Number(total), page: pg, limit: lim });
 });
 
-// GET /v1/projects/:projectId/images/:id
+// ─── Trash: list deleted images ───────────────────────────────────────────────
+// NOTE: must come BEFORE /:id to avoid "trash" matching as an image ID
+router.get("/v1/projects/:projectId/images/trash", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const projectId = req.params.projectId as string;
+  if (!await assertProjectOwner(projectId, req.userId!, res)) return;
+  const images = await db
+    .select()
+    .from(imagesTable)
+    .where(and(eq(imagesTable.projectId, projectId), isNotNull(imagesTable.deletedAt)))
+    .orderBy(desc(imagesTable.deletedAt));
+  res.json({ images: images.map(toApiImage), total: images.length });
+});
+
+// ─── Trash: empty (bulk permanent delete) ─────────────────────────────────────
+router.delete("/v1/projects/:projectId/images/trash", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const projectId = req.params.projectId as string;
+  if (!await assertProjectOwner(projectId, req.userId!, res)) return;
+  const deleted = await db
+    .delete(imagesTable)
+    .where(and(eq(imagesTable.projectId, projectId), isNotNull(imagesTable.deletedAt)))
+    .returning();
+  // Fire-and-forget R2 deletions (don't block the response)
+  Promise.allSettled(deleted.map(img => deleteObject(img.storageKey)));
+  res.json({ message: `${deleted.length} images permanently deleted`, count: deleted.length });
+});
+
+// ─── Get single image ─────────────────────────────────────────────────────────
 router.get("/v1/projects/:projectId/images/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const { projectId, id } = req.params as { projectId: string; id: string };
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
@@ -64,7 +101,7 @@ router.get("/v1/projects/:projectId/images/:id", requireAuth, async (req: AuthRe
   res.json(toApiImage(img));
 });
 
-// PATCH /v1/projects/:projectId/images/:id
+// ─── Update image ─────────────────────────────────────────────────────────────
 router.patch("/v1/projects/:projectId/images/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const { projectId, id } = req.params as { projectId: string; id: string };
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
@@ -79,16 +116,20 @@ router.patch("/v1/projects/:projectId/images/:id", requireAuth, async (req: Auth
   res.json(toApiImage(updated));
 });
 
-// DELETE /v1/projects/:projectId/images/:id (soft delete)
+// ─── Soft delete ──────────────────────────────────────────────────────────────
 router.delete("/v1/projects/:projectId/images/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const { projectId, id } = req.params as { projectId: string; id: string };
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
-  const [updated] = await db.update(imagesTable).set({ deletedAt: new Date() }).where(and(eq(imagesTable.id, id), eq(imagesTable.projectId, projectId))).returning();
+  const [updated] = await db
+    .update(imagesTable)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(imagesTable.id, id), eq(imagesTable.projectId, projectId)))
+    .returning();
   if (!updated) { res.status(404).json({ error: "Image not found" }); return; }
-  res.json({ message: "Image deleted" });
+  res.json({ message: "Image moved to trash" });
 });
 
-// PATCH /v1/projects/:projectId/images/:id/favorite
+// ─── Toggle favorite ──────────────────────────────────────────────────────────
 router.patch("/v1/projects/:projectId/images/:id/favorite", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const { projectId, id } = req.params as { projectId: string; id: string };
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
@@ -98,16 +139,34 @@ router.patch("/v1/projects/:projectId/images/:id/favorite", requireAuth, async (
   res.json(toApiImage(updated));
 });
 
-// POST /v1/projects/:projectId/images/:id/restore
+// ─── Restore from trash ───────────────────────────────────────────────────────
 router.post("/v1/projects/:projectId/images/:id/restore", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const { projectId, id } = req.params as { projectId: string; id: string };
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
-  const [updated] = await db.update(imagesTable).set({ deletedAt: null }).where(and(eq(imagesTable.id, id), eq(imagesTable.projectId, projectId))).returning();
+  const [updated] = await db
+    .update(imagesTable)
+    .set({ deletedAt: null })
+    .where(and(eq(imagesTable.id, id), eq(imagesTable.projectId, projectId)))
+    .returning();
   if (!updated) { res.status(404).json({ error: "Image not found" }); return; }
   res.json(toApiImage(updated));
 });
 
-// POST /v1/projects/:projectId/images/upload-url
+// ─── Permanent delete (hard delete from R2 + DB) ──────────────────────────────
+router.delete("/v1/projects/:projectId/images/:id/permanent", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const { projectId, id } = req.params as { projectId: string; id: string };
+  if (!await assertProjectOwner(projectId, req.userId!, res)) return;
+  const [img] = await db
+    .delete(imagesTable)
+    .where(and(eq(imagesTable.id, id), eq(imagesTable.projectId, projectId)))
+    .returning();
+  if (!img) { res.status(404).json({ error: "Image not found" }); return; }
+  // Delete from R2 (fire-and-forget, don't fail if R2 is unavailable)
+  deleteObject(img.storageKey).catch(() => {});
+  res.json({ message: "Image permanently deleted" });
+});
+
+// ─── Get pre-signed upload URL ────────────────────────────────────────────────
 router.post("/v1/projects/:projectId/images/upload-url", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const projectId = req.params.projectId as string;
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
@@ -117,21 +176,14 @@ router.post("/v1/projects/:projectId/images/upload-url", requireAuth, async (req
   const imageId = crypto.randomUUID();
   const key = buildStorageKey(req.userId!, projectId, imageId, ext);
   const uploadUrl = await generateUploadUrl(key, contentType);
-  // Pre-create image record in pending state
   await db.insert(imagesTable).values({
-    id: imageId,
-    projectId,
-    name: name ?? filename,
-    originalName: filename,
-    storageKey: key,
-    format: ext,
-    size: 0,
-    tags: [],
+    id: imageId, projectId, name: name ?? filename, originalName: filename,
+    storageKey: key, format: ext, size: 0, tags: [],
   });
   res.json({ uploadUrl, imageId, key });
 });
 
-// POST /v1/projects/:projectId/images/confirm-upload
+// ─── Confirm upload ───────────────────────────────────────────────────────────
 router.post("/v1/projects/:projectId/images/confirm-upload", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const projectId = req.params.projectId as string;
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
