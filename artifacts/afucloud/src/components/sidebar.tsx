@@ -11,6 +11,7 @@ import {
   BookOpen,
   Cloud,
   LogOut,
+  X,
 } from 'lucide-react';
 
 const navigation = [
@@ -26,7 +27,14 @@ const bottomNav = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  /** Mobile only — whether the drawer is open */
+  open?: boolean;
+  /** Mobile only — called when the user closes the drawer */
+  onClose?: () => void;
+}
+
+function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location, setLocation] = useLocation();
   const { data: user } = useGetMe({ query: { retry: false } });
   const logoutMutation = useLogout();
@@ -40,11 +48,16 @@ export function Sidebar() {
     });
   };
 
+  const handleNavClick = () => {
+    // Close drawer on mobile after navigating
+    onClose?.();
+  };
+
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-sidebar-border bg-sidebar">
-      <div className="flex h-full flex-col">
-        {/* Logo */}
-        <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-6">
+    <div className="flex h-full flex-col">
+      {/* Logo */}
+      <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-6">
+        <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
             <Cloud className="h-4 w-4 text-primary-foreground" strokeWidth={2.5} />
           </div>
@@ -52,90 +65,133 @@ export function Sidebar() {
             AfuCloud
           </span>
         </div>
+        {/* Close button — only visible on mobile */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden rounded-md p-1 text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
+      </div>
 
-        {/* Main Navigation */}
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
-            Platform
-          </p>
-          {navigation.map((item) => {
-            const isActive =
-              location === item.href || location.startsWith(`${item.href}/`);
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-                )}
-              >
-                <item.icon
-                  className={cn(
-                    'h-4 w-4 shrink-0',
-                    isActive ? 'opacity-100' : 'opacity-70'
-                  )}
-                  strokeWidth={isActive ? 2.5 : 2}
-                />
-                {item.name}
-              </Link>
-            );
-          })}
-
-          <div className="my-3 border-t border-sidebar-border/60" />
-
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
-            Account
-          </p>
-          {bottomNav.map((item) => {
-            const isActive = location === item.href;
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-                )}
-              >
-                <item.icon
-                  className={cn('h-4 w-4 shrink-0', isActive ? 'opacity-100' : 'opacity-70')}
-                  strokeWidth={isActive ? 2.5 : 2}
-                />
-                {item.name}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* User section */}
-        <div className="border-t border-sidebar-border p-3">
-          <div className="flex items-center gap-3 rounded-md px-2 py-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
-              {user?.name?.[0]?.toUpperCase() ?? 'U'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-sidebar-foreground truncate">
-                {user?.name ?? 'Loading…'}
-              </p>
-              <p className="text-[11px] text-sidebar-foreground/55 truncate">
-                {user?.email ?? ''}
-              </p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="rounded p-1 text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors"
-              title="Sign out"
+      {/* Main Navigation */}
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
+        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
+          Platform
+        </p>
+        {navigation.map((item) => {
+          const isActive =
+            location === item.href || location.startsWith(`${item.href}/`);
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              onClick={handleNavClick}
+              className={cn(
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+              )}
             >
-              <LogOut className="h-3.5 w-3.5" />
-            </button>
+              <item.icon
+                className={cn(
+                  'h-4 w-4 shrink-0',
+                  isActive ? 'opacity-100' : 'opacity-70'
+                )}
+                strokeWidth={isActive ? 2.5 : 2}
+              />
+              {item.name}
+            </Link>
+          );
+        })}
+
+        <div className="my-3 border-t border-sidebar-border/60" />
+
+        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
+          Account
+        </p>
+        {bottomNav.map((item) => {
+          const isActive = location === item.href;
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              onClick={handleNavClick}
+              className={cn(
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+              )}
+            >
+              <item.icon
+                className={cn('h-4 w-4 shrink-0', isActive ? 'opacity-100' : 'opacity-70')}
+                strokeWidth={isActive ? 2.5 : 2}
+              />
+              {item.name}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* User section */}
+      <div className="border-t border-sidebar-border p-3">
+        <div className="flex items-center gap-3 rounded-md px-2 py-2">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+            {user?.name?.[0]?.toUpperCase() ?? 'U'}
           </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-sidebar-foreground truncate">
+              {user?.name ?? 'Loading…'}
+            </p>
+            <p className="text-[11px] text-sidebar-foreground/55 truncate">
+              {user?.email ?? ''}
+            </p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="rounded p-1 text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors"
+            title="Sign out"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
-    </aside>
+    </div>
+  );
+}
+
+export function Sidebar({ open = false, onClose }: SidebarProps) {
+  return (
+    <>
+      {/* ── Desktop sidebar (always visible ≥ lg) ── */}
+      <aside className="hidden lg:flex fixed left-0 top-0 z-40 h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar">
+        <SidebarContent />
+      </aside>
+
+      {/* ── Mobile drawer overlay ── */}
+      {/* Backdrop */}
+      <div
+        className={cn(
+          'fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 lg:hidden',
+          open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        )}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      {/* Drawer panel */}
+      <aside
+        className={cn(
+          'fixed left-0 top-0 z-50 h-screen w-72 border-r border-sidebar-border bg-sidebar transition-transform duration-250 ease-in-out lg:hidden',
+          open ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        <SidebarContent onClose={onClose} />
+      </aside>
+    </>
   );
 }

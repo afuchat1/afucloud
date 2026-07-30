@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter, Redirect } from 'wouter';
 import { AuthGuard } from '@/components/auth-guard';
 import { Sidebar } from '@/components/sidebar';
+import { Menu, Cloud } from 'lucide-react';
 import LandingPage from '@/pages/landing';
 import LoginPage from '@/pages/login';
 import RegisterPage from '@/pages/register';
@@ -30,11 +32,31 @@ const queryClient = new QueryClient({
 });
 
 function AppLayout({ children }: { children: React.ReactNode }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <div className="flex min-h-[100dvh] bg-background">
-      <Sidebar />
-      <main className="flex-1 pl-64 min-h-[100dvh]">
-        <div className="mx-auto max-w-[1200px] px-8 py-8">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <main className="flex-1 lg:pl-64 min-h-[100dvh]">
+        {/* Mobile top bar — hidden on desktop */}
+        <header className="lg:hidden sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/95 backdrop-blur px-4">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary">
+              <Cloud className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={2.5} />
+            </div>
+            <span className="text-sm font-semibold tracking-tight">AfuCloud</span>
+          </div>
+        </header>
+
+        <div className="mx-auto max-w-[1200px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </div>
       </main>
