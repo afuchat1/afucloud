@@ -4,11 +4,15 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter, Redirect } from 'wouter';
 import { AuthGuard } from '@/components/auth-guard';
 import { Sidebar } from '@/components/sidebar';
+import LandingPage from '@/pages/landing';
 import LoginPage from '@/pages/login';
 import RegisterPage from '@/pages/register';
 import DashboardPage from '@/pages/dashboard';
 import ProjectsPage from '@/pages/projects';
 import ProjectDetailPage from '@/pages/project-detail';
+import ProjectApiKeysPage from '@/pages/project-api-keys';
+import ProjectWebhooksPage from '@/pages/project-webhooks';
+import ProjectAnalyticsPage from '@/pages/project-analytics';
 import AnalyticsPage from '@/pages/analytics';
 import ActivityPage from '@/pages/activity';
 import TokensPage from '@/pages/tokens';
@@ -50,11 +54,12 @@ function Router() {
   return (
     <Switch>
       {/* Public */}
+      <Route path="/" component={LandingPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
-      <Route path="/">
-        <Redirect to="/dashboard" />
-      </Route>
+
+      {/* Docs — public, no sidebar */}
+      <Route path="/docs" component={DocsPage} />
 
       {/* Protected */}
       <Route path="/dashboard">
@@ -62,6 +67,15 @@ function Router() {
       </Route>
       <Route path="/projects">
         <Protected><ProjectsPage /></Protected>
+      </Route>
+      <Route path="/projects/:id/api-keys">
+        <Protected><ProjectApiKeysPage /></Protected>
+      </Route>
+      <Route path="/projects/:id/webhooks">
+        <Protected><ProjectWebhooksPage /></Protected>
+      </Route>
+      <Route path="/projects/:id/analytics">
+        <Protected><ProjectAnalyticsPage /></Protected>
       </Route>
       <Route path="/projects/:id">
         <Protected><ProjectDetailPage /></Protected>
@@ -77,9 +91,6 @@ function Router() {
       </Route>
       <Route path="/settings">
         <Protected><SettingsPage /></Protected>
-      </Route>
-      <Route path="/docs">
-        <Protected><DocsPage /></Protected>
       </Route>
 
       <Route component={NotFound} />

@@ -5,7 +5,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { User, Mail, Shield } from 'lucide-react';
+import { User, Shield } from 'lucide-react';
+
+const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, '') || '';
+
+async function changePassword(currentPassword: string, newPassword: string, token: string) {
+  const res = await fetch(`${API_BASE}/api/v1/auth/me/password`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to change password');
+  }
+  return res.json();
+}
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -21,6 +36,12 @@ export default function SettingsPage() {
     setEmail(user.email || '');
   }
 
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     updateMutation.mutate(
@@ -30,6 +51,31 @@ export default function SettingsPage() {
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
       }
     );
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast({ title: 'Passwords do not match', variant: 'destructive' });
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast({ title: 'Password too short', description: 'Must be at least 8 characters', variant: 'destructive' });
+      return;
+    }
+    const token = localStorage.getItem('afucloud_token') || '';
+    setChangingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword, token);
+      toast({ title: 'Password changed', description: 'Your password has been updated successfully' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   return (
@@ -74,11 +120,53 @@ export default function SettingsPage() {
               <div className="rounded-lg bg-primary/10 p-2">
                 <Shield className="h-4 w-4 text-primary" strokeWidth={2} />
               </div>
-              <h2 className="text-sm font-semibold text-foreground">Security</h2>
+              <h2 className="text-sm font-semibold text-foreground">Change Password</h2>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Password management and two-factor authentication coming soon.
-            </p>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="currentPassword">Current password</Label>
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  value={currentPassword}
+                  onChange={e => setCurrentPassword(e.target.value)}
+                  placeholder="Your current password"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">New password</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="At least 8 characters"
+                  required
+                  minLength={8}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm new password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Repeat new password"
+                  required
+                />
+              </div>
+              {newPassword && confirmPassword && newPassword !== confirmPassword && (
+                <p className="text-xs text-destructive">Passwords do not match</p>
+              )}
+              <Button
+                type="submit"
+                disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
+              >
+                {changingPassword ? 'Updating…' : 'Update password'}
+              </Button>
+            </form>
           </section>
         </div>
 
@@ -97,6 +185,15 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+          </div>
+          <div className="rounded-lg border border-card-border bg-card p-5 space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Security Tips</h3>
+            <ul className="space-y-1.5 text-xs text-muted-foreground">
+              <li>• Use a strong, unique password</li>
+              <li>• Never share your API keys</li>
+              <li>• Rotate keys regularly</li>
+              <li>• Use scoped keys per service</li>
+            </ul>
           </div>
         </aside>
       </div>

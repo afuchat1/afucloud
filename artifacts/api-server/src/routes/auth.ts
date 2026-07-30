@@ -131,6 +131,29 @@ router.patch("/v1/auth/me/update", requireAuth, async (req: AuthRequest, res): P
   res.json({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.emailVerified, createdAt: user.createdAt });
 });
 
+// PATCH /v1/auth/me/password
+router.patch("/v1/auth/me/password", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const { currentPassword, newPassword } = req.body ?? {};
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "currentPassword and newPassword are required" });
+    return;
+  }
+  if (newPassword.length < 8) {
+    res.status(400).json({ error: "Password must be at least 8 characters" });
+    return;
+  }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  const valid = await verifyPassword(currentPassword, user.passwordHash);
+  if (!valid) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+  const passwordHash = await hashPassword(newPassword);
+  await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, req.userId!));
+  res.json({ message: "Password updated successfully" });
+});
+
 // POST /v1/auth/forgot-password (stub)
 router.post("/v1/auth/forgot-password", async (_req, res): Promise<void> => {
   res.json({ message: "If that email exists, a reset link has been sent." });
