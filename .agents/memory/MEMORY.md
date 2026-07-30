@@ -1,0 +1,2 @@
+- [Supabase pooler SSL](supabase-pooler-ssl.md) — direct DB hostname may not resolve from Replit; use session pooler URL, strip sslmode from URL
+- [AfuCloud bootstrap](afucloud-bootstrap.md) — Supabase project wjdkeiazhlxcnqtxjdry, R2 bucket afucloud-images, POSTGRES_URL uses pooler
