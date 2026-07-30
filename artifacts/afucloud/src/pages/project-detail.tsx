@@ -226,37 +226,57 @@ export default function ProjectDetailPage() {
 
   const handleSoftDelete = async (imageId: string) => {
     if (!confirm('Move this image to the Recycle Bin?')) return;
-    const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${imageId}`, {
-      method: 'DELETE', headers: authHeaders(),
-    });
-    if (res.ok) {
-      queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
-      queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey(projectId) });
-      setSelectedImage(null);
-      toast({ title: 'Moved to Recycle Bin', description: 'You can restore it from the Trash tab' });
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${imageId}`, {
+        method: 'DELETE', headers: authHeaders(),
+      });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
+        queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey(projectId) });
+        setSelectedImage(null);
+        toast({ title: 'Moved to Recycle Bin', description: 'You can restore it from the Trash tab' });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: 'Delete failed', description: data.error || `Server returned ${res.status}`, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Delete failed', description: 'Network error — please try again', variant: 'destructive' });
     }
   };
 
   const handleRestore = async (imageId: string) => {
-    const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${imageId}/restore`, {
-      method: 'POST', headers: authHeaders(),
-    });
-    if (res.ok) {
-      queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
-      queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
-      queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey(projectId) });
-      toast({ title: 'Image restored' });
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${imageId}/restore`, {
+        method: 'POST', headers: authHeaders(),
+      });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
+        queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
+        queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey(projectId) });
+        toast({ title: 'Image restored' });
+      } else {
+        toast({ title: 'Restore failed', description: 'Please try again', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Restore failed', description: 'Network error', variant: 'destructive' });
     }
   };
 
   const handlePermanentDelete = async (imageId: string, name: string) => {
     if (!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
-    const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${imageId}/permanent`, {
-      method: 'DELETE', headers: authHeaders(),
-    });
-    if (res.ok) {
-      queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
-      toast({ title: 'Permanently deleted' });
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${imageId}/permanent`, {
+        method: 'DELETE', headers: authHeaders(),
+      });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
+        toast({ title: 'Permanently deleted' });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: 'Delete failed', description: data.error || `Server returned ${res.status}`, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Delete failed', description: 'Network error — please try again', variant: 'destructive' });
     }
   };
 
@@ -264,13 +284,19 @@ export default function ProjectDetailPage() {
     const count = trashData?.images.length ?? 0;
     if (count === 0) return;
     if (!confirm(`Permanently delete all ${count} images in the Recycle Bin? This cannot be undone.`)) return;
-    const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/trash`, {
-      method: 'DELETE', headers: authHeaders(),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
-      toast({ title: 'Recycle Bin emptied', description: `${data.count} images permanently deleted` });
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/trash`, {
+        method: 'DELETE', headers: authHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
+        toast({ title: 'Recycle Bin emptied', description: `${data.count} images permanently deleted` });
+      } else {
+        toast({ title: 'Failed to empty Recycle Bin', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to empty Recycle Bin', description: 'Network error', variant: 'destructive' });
     }
   };
 

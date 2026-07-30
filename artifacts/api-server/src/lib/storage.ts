@@ -13,8 +13,39 @@ const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL ?? "";
 
 export function getPublicUrl(key: string): string {
   if (R2_PUBLIC_URL) return `${R2_PUBLIC_URL}/${key}`;
+  // Fallback: route through the API server image-serving endpoint
   return `/api/v1/storage/${encodeURIComponent(key)}`;
 }
+
+export function hasCredentials(): boolean {
+  return Boolean(ACCOUNT_ID && ACCESS_KEY_ID && SECRET_ACCESS_KEY);
+}
+
+// ── Shared SigV4 helpers ──────────────────────────────────────────────────────
+
+function getSignatureKey(key: string, dateStamp: string, region: string, service: string): Buffer {
+  const kDate = hmac(`AWS4${key}`, dateStamp);
+  const kRegion = hmac(kDate, region);
+  const kService = hmac(kRegion, service);
+  return hmac(kService, "aws4_request");
+}
+
+function hmac(key: string | Buffer, data: string): Buffer {
+  return crypto.createHmac("sha256", key).update(data).digest();
+}
+
+function r2Host(): string {
+  return `${ACCOUNT_ID}.r2.cloudflarestorage.com`;
+}
+
+function amzTimestamps(): { dateStamp: string; amzDate: string } {
+  const now = new Date();
+  const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "").slice(0, 15) + "Z";
+  return { dateStamp, amzDate };
+}
+
+// ── Pre-signed PUT URL (browser upload) ───────────────────────────────────────
 
 /**
  * Generate an S3-compatible pre-signed PUT URL for Cloudflare R2.
@@ -24,17 +55,14 @@ export async function generateUploadUrl(
   contentType: string,
   expiresInSeconds = 3600,
 ): Promise<string> {
-  if (!ACCOUNT_ID || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY) {
+  if (!hasCredentials()) {
     return `/api/v1/storage/dev-upload/${encodeURIComponent(key)}`;
   }
 
-  const endpoint = `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`;
+  const host = r2Host();
   const region = "auto";
   const service = "s3";
-
-  const now = new Date();
-  const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "").slice(0, 15) + "Z";
+  const { dateStamp, amzDate } = amzTimestamps();
 
   const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
   const credential = `${ACCESS_KEY_ID}/${credentialScope}`;
@@ -47,7 +75,6 @@ export async function generateUploadUrl(
     "X-Amz-SignedHeaders": "host",
   });
 
-  const host = `${ACCOUNT_ID}.r2.cloudflarestorage.com`;
   const canonicalRequest = [
     "PUT",
     `/${BUCKET_NAME}/${key}`,
@@ -68,27 +95,161 @@ export async function generateUploadUrl(
   const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
 
   params.append("X-Amz-Signature", signature);
-  return `${endpoint}/${BUCKET_NAME}/${key}?${params.toString()}`;
+  return `https://${host}/${BUCKET_NAME}/${key}?${params.toString()}`;
 }
 
+// ── Pre-signed GET URL (image serving) ───────────────────────────────────────
+
 /**
- * Permanently delete an object from R2. No-op in dev mode (missing creds).
+ * Generate a pre-signed GET URL so the API can redirect browsers to the object
+ * without exposing long-lived credentials.
+ */
+export async function generateSignedGetUrl(key: string, expiresInSeconds = 3600): Promise<string> {
+  if (!hasCredentials()) {
+    throw new Error("R2 credentials not configured");
+  }
+
+  const host = r2Host();
+  const region = "auto";
+  const service = "s3";
+  const { dateStamp, amzDate } = amzTimestamps();
+
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const credential = `${ACCESS_KEY_ID}/${credentialScope}`;
+
+  const params = new URLSearchParams({
+    "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+    "X-Amz-Credential": credential,
+    "X-Amz-Date": amzDate,
+    "X-Amz-Expires": String(expiresInSeconds),
+    "X-Amz-SignedHeaders": "host",
+  });
+
+  const canonicalRequest = [
+    "GET",
+    `/${BUCKET_NAME}/${key}`,
+    params.toString(),
+    `host:${host}\n`,
+    "host",
+    "UNSIGNED-PAYLOAD",
+  ].join("\n");
+
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    crypto.createHash("sha256").update(canonicalRequest).digest("hex"),
+  ].join("\n");
+
+  const signingKey = getSignatureKey(SECRET_ACCESS_KEY, dateStamp, region, service);
+  const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+
+  params.append("X-Amz-Signature", signature);
+  return `https://${host}/${BUCKET_NAME}/${key}?${params.toString()}`;
+}
+
+// ── Bucket CORS configuration (called once at server startup) ─────────────────
+
+/**
+ * Configure CORS on the R2 bucket so browsers can PUT directly via pre-signed URLs.
+ * This is idempotent — safe to call on every startup.
+ */
+export async function configureBucketCors(): Promise<void> {
+  if (!hasCredentials()) {
+    return; // Skip in environments without R2 credentials
+  }
+
+  const corsXml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    "<CORSConfiguration>",
+    "<CORSRule>",
+    "<AllowedOrigin>*</AllowedOrigin>",
+    "<AllowedMethod>GET</AllowedMethod>",
+    "<AllowedMethod>PUT</AllowedMethod>",
+    "<AllowedMethod>DELETE</AllowedMethod>",
+    "<AllowedMethod>HEAD</AllowedMethod>",
+    "<AllowedHeader>*</AllowedHeader>",
+    "<MaxAgeSeconds>86400</MaxAgeSeconds>",
+    "</CORSRule>",
+    "</CORSConfiguration>",
+  ].join("");
+
+  const host = r2Host();
+  const region = "auto";
+  const service = "s3";
+  const { dateStamp, amzDate } = amzTimestamps();
+
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const payloadHash = crypto.createHash("sha256").update(corsXml).digest("hex");
+  const contentMd5 = crypto.createHash("md5").update(corsXml).digest("base64");
+  const contentType = "application/xml";
+
+  const canonicalHeaders = [
+    `content-md5:${contentMd5}`,
+    `content-type:${contentType}`,
+    `host:${host}`,
+    `x-amz-content-sha256:${payloadHash}`,
+    `x-amz-date:${amzDate}`,
+  ].join("\n") + "\n";
+
+  const signedHeaders = "content-md5;content-type;host;x-amz-content-sha256;x-amz-date";
+
+  const canonicalRequest = [
+    "PUT",
+    `/${BUCKET_NAME}`,
+    "cors=",
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join("\n");
+
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    crypto.createHash("sha256").update(canonicalRequest).digest("hex"),
+  ].join("\n");
+
+  const signingKey = getSignatureKey(SECRET_ACCESS_KEY, dateStamp, region, service);
+  const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+
+  const authorization = `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+  const res = await fetch(`https://${host}/${BUCKET_NAME}?cors`, {
+    method: "PUT",
+    headers: {
+      Authorization: authorization,
+      "Content-MD5": contentMd5,
+      "Content-Type": contentType,
+      "x-amz-content-sha256": payloadHash,
+      "x-amz-date": amzDate,
+      Host: host,
+    },
+    body: corsXml,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Failed to configure R2 bucket CORS: HTTP ${res.status} — ${text}`);
+  }
+}
+
+// ── Delete object ─────────────────────────────────────────────────────────────
+
+/**
+ * Permanently delete an object from R2.
  */
 export async function deleteObject(key: string): Promise<void> {
-  if (!ACCOUNT_ID || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY) {
-    // Dev mode: skip actual deletion
-    return;
+  if (!hasCredentials()) {
+    return; // Dev mode: skip actual deletion
   }
 
   const region = "auto";
   const service = "s3";
-  const host = `${ACCOUNT_ID}.r2.cloudflarestorage.com`;
-  const endpoint = `https://${host}`;
+  const host = r2Host();
   const EMPTY_HASH = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
-  const now = new Date();
-  const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "").slice(0, 15) + "Z";
+  const { dateStamp, amzDate } = amzTimestamps();
   const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
 
   const canonicalRequest = [
@@ -116,7 +277,7 @@ export async function deleteObject(key: string): Promise<void> {
     `Signature=${signature}`,
   ].join(", ");
 
-  const res = await fetch(`${endpoint}/${BUCKET_NAME}/${key}`, {
+  const fetchRes = await fetch(`https://${host}/${BUCKET_NAME}/${key}`, {
     method: "DELETE",
     headers: {
       Authorization: authorization,
@@ -127,20 +288,9 @@ export async function deleteObject(key: string): Promise<void> {
   });
 
   // R2 returns 204 on success; 404 is also fine (already gone)
-  if (!res.ok && res.status !== 204 && res.status !== 404) {
-    throw new Error(`R2 delete failed: ${res.status}`);
+  if (!fetchRes.ok && fetchRes.status !== 204 && fetchRes.status !== 404) {
+    throw new Error(`R2 delete failed: ${fetchRes.status}`);
   }
-}
-
-function getSignatureKey(key: string, dateStamp: string, region: string, service: string): Buffer {
-  const kDate = hmac(`AWS4${key}`, dateStamp);
-  const kRegion = hmac(kDate, region);
-  const kService = hmac(kRegion, service);
-  return hmac(kService, "aws4_request");
-}
-
-function hmac(key: string | Buffer, data: string): Buffer {
-  return crypto.createHmac("sha256", key).update(data).digest();
 }
 
 export function buildStorageKey(userId: string, projectId: string, imageId: string, ext: string): string {

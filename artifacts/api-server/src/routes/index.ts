@@ -8,6 +8,7 @@ import tokensRouter from "./tokens";
 import analyticsRouter from "./analytics";
 import webhooksRouter from "./webhooks";
 import activityRouter from "./activity";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(tokensRouter);
 router.use(analyticsRouter);
 router.use(webhooksRouter);
 router.use(activityRouter);
+router.use(storageRouter);
 
 export default router;

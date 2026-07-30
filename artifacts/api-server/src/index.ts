@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { configureBucketCors } from "./lib/storage";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,9 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Configure R2 bucket CORS so browsers can PUT directly via pre-signed URLs.
+  configureBucketCors()
+    .then(() => logger.info("R2 bucket CORS configured"))
+    .catch((e) => logger.warn({ err: e }, "R2 CORS setup skipped or failed — uploads may be blocked by CORS"));
 });
