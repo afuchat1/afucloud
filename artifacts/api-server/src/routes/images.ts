@@ -1,0 +1,151 @@
+import { Router, type IRouter } from "express";
+import { eq, and, isNull, sql, desc } from "drizzle-orm";
+import { db, imagesTable, projectsTable } from "@workspace/db";
+import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { generateUploadUrl, buildStorageKey, getPublicUrl } from "../lib/storage";
+import crypto from "crypto";
+
+const router: IRouter = Router();
+
+function toApiImage(img: typeof imagesTable.$inferSelect) {
+  return {
+    id: img.id,
+    projectId: img.projectId,
+    name: img.name,
+    originalName: img.originalName,
+    url: getPublicUrl(img.storageKey),
+    publicUrl: getPublicUrl(img.storageKey),
+    format: img.format,
+    size: img.size,
+    width: img.width,
+    height: img.height,
+    favorite: img.favorite,
+    tags: img.tags ?? [],
+    album: img.album,
+    deletedAt: img.deletedAt?.toISOString() ?? null,
+    createdAt: img.createdAt.toISOString(),
+    updatedAt: img.updatedAt?.toISOString() ?? null,
+  };
+}
+
+async function assertProjectOwner(projectId: string, userId: string, res: Parameters<Parameters<typeof router.get>[1]>[1]): Promise<boolean> {
+  const [p] = await db.select().from(projectsTable).where(and(eq(projectsTable.id, projectId), eq(projectsTable.userId, userId))).limit(1);
+  if (!p) { res.status(404).json({ error: "Project not found" }); return false; }
+  return true;
+}
+
+// GET /v1/projects/:projectId/images
+router.get("/v1/projects/:projectId/images", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const projectId = req.params.projectId as string;
+  if (!await assertProjectOwner(projectId, req.userId!, res)) return;
+  const { search, tag, album, format, favorite, page = "1", limit = "50" } = req.query as Record<string, string>;
+  const pg = Math.max(1, parseInt(page, 10) || 1);
+  const lim = Math.min(200, parseInt(limit, 10) || 50);
+  const offset = (pg - 1) * lim;
+
+  const conditions = [eq(imagesTable.projectId, projectId), isNull(imagesTable.deletedAt)];
+  if (search) conditions.push(sql`${imagesTable.name} ilike ${"%" + search + "%"}`);
+  if (tag) conditions.push(sql`${tag} = any(${imagesTable.tags})`);
+  if (album) conditions.push(eq(imagesTable.album, album));
+  if (format) conditions.push(eq(imagesTable.format, format));
+  if (favorite === "true") conditions.push(eq(imagesTable.favorite, true));
+
+  const images = await db.select().from(imagesTable).where(and(...conditions)).orderBy(desc(imagesTable.createdAt)).limit(lim).offset(offset);
+  const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(imagesTable).where(and(...conditions));
+  res.json({ images: images.map(toApiImage), total: Number(total), page: pg, limit: lim });
+});
+
+// GET /v1/projects/:projectId/images/:id
+router.get("/v1/projects/:projectId/images/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const { projectId, id } = req.params as { projectId: string; id: string };
+  if (!await assertProjectOwner(projectId, req.userId!, res)) return;
+  const [img] = await db.select().from(imagesTable).where(and(eq(imagesTable.id, id), eq(imagesTable.projectId, projectId))).limit(1);
+  if (!img) { res.status(404).json({ error: "Image not found" }); return; }
+  res.json(toApiImage(img));
+});
+
+// PATCH /v1/projects/:projectId/images/:id
+router.patch("/v1/projects/:projectId/images/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const { projectId, id } = req.params as { projectId: string; id: string };
+  if (!await assertProjectOwner(projectId, req.userId!, res)) return;
+  const [img] = await db.select().from(imagesTable).where(and(eq(imagesTable.id, id), eq(imagesTable.projectId, projectId))).limit(1);
+  if (!img) { res.status(404).json({ error: "Image not found" }); return; }
+  const { name, tags, album } = req.body ?? {};
+  const updates: Record<string, unknown> = {};
+  if (name != null) updates.name = name;
+  if (tags != null) updates.tags = tags;
+  if (album !== undefined) updates.album = album;
+  const [updated] = await db.update(imagesTable).set(updates).where(eq(imagesTable.id, id)).returning();
+  res.json(toApiImage(updated));
+});
+
+// DELETE /v1/projects/:projectId/images/:id (soft delete)
+router.delete("/v1/projects/:projectId/images/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const { projectId, id } = req.params as { projectId: string; id: string };
+  if (!await assertProjectOwner(projectId, req.userId!, res)) return;
+  const [updated] = await db.update(imagesTable).set({ deletedAt: new Date() }).where(and(eq(imagesTable.id, id), eq(imagesTable.projectId, projectId))).returning();
+  if (!updated) { res.status(404).json({ error: "Image not found" }); return; }
+  res.json({ message: "Image deleted" });
+});
+
+// PATCH /v1/projects/:projectId/images/:id/favorite
+router.patch("/v1/projects/:projectId/images/:id/favorite", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const { projectId, id } = req.params as { projectId: string; id: string };
+  if (!await assertProjectOwner(projectId, req.userId!, res)) return;
+  const [img] = await db.select().from(imagesTable).where(and(eq(imagesTable.id, id), eq(imagesTable.projectId, projectId))).limit(1);
+  if (!img) { res.status(404).json({ error: "Image not found" }); return; }
+  const [updated] = await db.update(imagesTable).set({ favorite: !img.favorite }).where(eq(imagesTable.id, id)).returning();
+  res.json(toApiImage(updated));
+});
+
+// POST /v1/projects/:projectId/images/:id/restore
+router.post("/v1/projects/:projectId/images/:id/restore", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const { projectId, id } = req.params as { projectId: string; id: string };
+  if (!await assertProjectOwner(projectId, req.userId!, res)) return;
+  const [updated] = await db.update(imagesTable).set({ deletedAt: null }).where(and(eq(imagesTable.id, id), eq(imagesTable.projectId, projectId))).returning();
+  if (!updated) { res.status(404).json({ error: "Image not found" }); return; }
+  res.json(toApiImage(updated));
+});
+
+// POST /v1/projects/:projectId/images/upload-url
+router.post("/v1/projects/:projectId/images/upload-url", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const projectId = req.params.projectId as string;
+  if (!await assertProjectOwner(projectId, req.userId!, res)) return;
+  const { filename, contentType, name } = req.body ?? {};
+  if (!filename || !contentType) { res.status(400).json({ error: "filename and contentType are required" }); return; }
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
+  const imageId = crypto.randomUUID();
+  const key = buildStorageKey(req.userId!, projectId, imageId, ext);
+  const uploadUrl = await generateUploadUrl(key, contentType);
+  // Pre-create image record in pending state
+  await db.insert(imagesTable).values({
+    id: imageId,
+    projectId,
+    name: name ?? filename,
+    originalName: filename,
+    storageKey: key,
+    format: ext,
+    size: 0,
+    tags: [],
+  });
+  res.json({ uploadUrl, imageId, key });
+});
+
+// POST /v1/projects/:projectId/images/confirm-upload
+router.post("/v1/projects/:projectId/images/confirm-upload", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const projectId = req.params.projectId as string;
+  if (!await assertProjectOwner(projectId, req.userId!, res)) return;
+  const { imageId, key, width, height, size, tags, album } = req.body ?? {};
+  if (!imageId || !key) { res.status(400).json({ error: "imageId and key are required" }); return; }
+  const updates: Record<string, unknown> = {};
+  if (width != null) updates.width = width;
+  if (height != null) updates.height = height;
+  if (size != null) updates.size = size;
+  if (tags != null) updates.tags = tags;
+  if (album != null) updates.album = album;
+  const [img] = await db.update(imagesTable).set(updates).where(and(eq(imagesTable.id, imageId), eq(imagesTable.projectId, projectId))).returning();
+  if (!img) { res.status(404).json({ error: "Image not found" }); return; }
+  res.status(201).json(toApiImage(img));
+});
+
+export default router;
