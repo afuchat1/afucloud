@@ -37,7 +37,7 @@ const features = [
 
 const uploadExample = `// Upload an image via pre-signed URL
 const { uploadUrl, imageId, key } = await fetch(
-  'https://api.afucloud.com/v1/projects/{projectId}/images/upload-url',
+  'https://api.afuchat.com/v1/projects/{projectId}/images/upload-url',
   {
     method: 'POST',
     headers: { Authorization: 'Bearer {token}', 'Content-Type': 'application/json' },
@@ -50,7 +50,7 @@ await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': f
 
 // Confirm the upload
 await fetch(
-  'https://api.afucloud.com/v1/projects/{projectId}/images/confirm-upload',
+  'https://api.afuchat.com/v1/projects/{projectId}/images/confirm-upload',
   {
     method: 'POST',
     headers: { Authorization: 'Bearer {token}', 'Content-Type': 'application/json' },

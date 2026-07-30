@@ -40,7 +40,7 @@ const sections = [
   { id: 'reference', icon: Code, title: 'API Reference' },
 ];
 
-const BASE = 'https://api.afucloud.com';
+const BASE = 'https://api.afuchat.com';
 
 export default function DocsPage() {
   const [activeSection, setActiveSection] = useState('quickstart');
@@ -199,7 +199,7 @@ const image = await fetch(
   }
 ).then(r => r.json());
 
-console.log(image.url); // https://cdn.afucloud.com/...`} />
+console.log(image.url); // https://img.afuchat.com/...`} />
             </article>
           )}
 
