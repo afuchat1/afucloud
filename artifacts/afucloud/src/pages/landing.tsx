@@ -109,6 +109,7 @@ export default function LandingPage() {
             <a href="#api" className="hover:text-foreground transition-colors">API</a>
             <a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a>
             <Link href="/docs" className="hover:text-foreground transition-colors">Docs</Link>
+            <Link href="/roadmap" className="hover:text-foreground transition-colors">Roadmap</Link>
           </nav>
           <div className="flex items-center gap-3">
             <Link href="/login">

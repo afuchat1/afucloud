@@ -20,6 +20,7 @@ import ActivityPage from '@/pages/activity';
 import TokensPage from '@/pages/tokens';
 import SettingsPage from '@/pages/settings';
 import DocsPage from '@/pages/docs';
+import RoadmapPage from '@/pages/roadmap';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient({
@@ -80,8 +81,9 @@ function Router() {
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
 
-      {/* Docs — public, no sidebar */}
+      {/* Public pages — no sidebar */}
       <Route path="/docs" component={DocsPage} />
+      <Route path="/roadmap" component={RoadmapPage} />
 
       {/* Protected */}
       <Route path="/dashboard">
