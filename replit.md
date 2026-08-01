@@ -26,13 +26,14 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 - **Database**: Supabase PostgreSQL (project: `wjdkeiazhlxcnqtxjdry`, region: us-east-1)
 - **Object storage**: Cloudflare R2 bucket `afucloud-images`
 - **Frontend**: React + Vite + shadcn/ui + Tailwind v4
-- **Backend**: Express 5 + Drizzle ORM
+- **Dev backend**: Express 5 + Drizzle ORM (`artifacts/api-server/`)
+- **Prod backend**: Cloudflare Worker (Hono) (`artifacts/cf-worker/`) — deployed to Cloudflare's edge
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5 with Zod validation
-- DB: PostgreSQL + Drizzle ORM
+- API: Express 5 with Zod validation (dev) / Hono on CF Workers (prod)
+- DB: PostgreSQL + Drizzle ORM (dev) / Supabase REST (prod worker)
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec in `lib/api-spec/openapi.yaml`)
 - Frontend auth: JWT stored in `localStorage` as `afucloud_token`
@@ -41,11 +42,47 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 ## Where Things Live
 
 - `artifacts/afucloud/` — React frontend (SaaS dashboard)
-- `artifacts/api-server/` — Express API server
+- `artifacts/api-server/` — Express API server (development)
+- `artifacts/cf-worker/` — Cloudflare Worker edge API (production)
 - `lib/db/` — Drizzle ORM schema + migrations (source of truth for DB schema)
 - `lib/api-spec/` — OpenAPI 3.1 spec (source of truth for API contract)
 - `lib/api-zod/` — Zod schemas generated from OpenAPI spec (for API validation)
 - `lib/api-client-react/` — React Query hooks generated from OpenAPI spec (for frontend)
+
+## Cloudflare Worker — Deployment
+
+The CF Worker in `artifacts/cf-worker/` is the production edge API. It uses Hono + Supabase REST + aws4fetch.
+
+### One-time secrets setup (run from `artifacts/cf-worker/`):
+
+```bash
+cd artifacts/cf-worker
+npx wrangler secret put JWT_SECRET
+npx wrangler secret put SUPABASE_SERVICE_KEY   # service_role key from Supabase dashboard
+npx wrangler secret put CLOUDFLARE_R2_SECRET_ACCESS_KEY
+```
+
+### Deploy:
+
+```bash
+pnpm --filter @workspace/cf-worker run deploy
+# or directly:
+cd artifacts/cf-worker && npx wrangler deploy
+```
+
+### Local dev (port 8787):
+
+```bash
+pnpm --filter @workspace/cf-worker run dev
+```
+
+### Environment variables in `wrangler.toml` (non-secret):
+
+- `SUPABASE_URL` — e.g. `https://wjdkeiazhlxcnqtxjdry.supabase.co`
+- `CLOUDFLARE_ACCOUNT_ID` — `42e79186125e8ff83e51f15816e074de`
+- `CLOUDFLARE_R2_ACCESS_KEY_ID` — R2 access key ID
+- `R2_BUCKET_NAME` — `afucloud-images`
+- `R2_PUBLIC_URL` — (optional) public CDN URL
 
 ## Architecture Decisions
 
@@ -54,6 +91,7 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 - JWT-only auth (no Supabase Auth) — custom auth through the AfuCloud API
 - Environment variable `POSTGRES_URL` is used instead of `DATABASE_URL` (Replit reserves that name for its built-in PG)
 - All secrets stored as Replit env vars (minimum required to run; Cloudflare R2 creds needed at server startup)
+- CF Worker uses PBKDF2 (Web Crypto) for password hashing; bcrypt hashes from the Express API will require a password reset
 
 ## Design
 

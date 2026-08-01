@@ -12,6 +12,7 @@ import {
   Cloud,
   LogOut,
   X,
+  Map,
 } from 'lucide-react';
 
 const navigation = [
@@ -23,6 +24,7 @@ const navigation = [
 ];
 
 const bottomNav = [
+  { name: 'Roadmap', href: '/roadmap', icon: Map },
   { name: 'Docs', href: '/docs', icon: BookOpen },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
