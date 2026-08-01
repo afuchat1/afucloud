@@ -32,11 +32,16 @@ export async function generateUploadUrl(key: string, contentType: string, env: E
   return signed.url;
 }
 
+/**
+ * Returns a relative URL that the CF Worker handles via the
+ * /v1/storage/:key redirect route (generates a short-lived presigned GET).
+ * When R2_PUBLIC_URL is explicitly set (CDN), use that directly instead.
+ */
 export function getPublicUrl(key: string, env: Env): string {
   if (env.R2_PUBLIC_URL) {
     return `${env.R2_PUBLIC_URL.replace(/\/$/, "")}/${key}`;
   }
-  return `${r2BaseUrl(env)}/${key}`;
+  return `/v1/storage/${encodeURIComponent(key)}`;
 }
 
 export async function generateDownloadUrl(key: string, env: Env, expiresIn = 3600): Promise<string> {
