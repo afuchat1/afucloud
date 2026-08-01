@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Cloudflare Worker local secrets
+.dev.vars
+artifacts/cf-worker/.dev.vars

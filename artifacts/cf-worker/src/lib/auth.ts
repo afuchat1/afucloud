@@ -48,18 +48,37 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  if (!stored.startsWith("pbkdf2:")) return false;
-  const [, saltHex, expectedHash] = stored.split(":");
-  const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map(b => parseInt(b, 16)));
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: 100_000, hash: "SHA-256" },
-    key,
-    256,
-  );
-  const hashHex = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, "0")).join("");
-  return hashHex === expectedHash;
+  // PBKDF2 path — new hashes created by this Worker
+  if (stored.startsWith("pbkdf2:")) {
+    const [, saltHex, expectedHash] = stored.split(":");
+    const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map(b => parseInt(b, 16)));
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits(
+      { name: "PBKDF2", salt, iterations: 100_000, hash: "SHA-256" },
+      key,
+      256,
+    );
+    const hashHex = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, "0")).join("");
+    return hashHex === expectedHash;
+  }
+
+  // bcrypt path — hashes created by the Express API server ($2b$ prefix)
+  // nodejs_compat makes bcryptjs available in Workers
+  if (stored.startsWith("$2")) {
+    const { default: bcrypt } = await import("bcryptjs");
+    return bcrypt.compare(password, stored);
+  }
+
+  return false;
+}
+
+/**
+ * Returns true when a stored hash was created with bcrypt (Express server).
+ * Use to trigger re-hash to PBKDF2 on successful login.
+ */
+export function isBcryptHash(stored: string): boolean {
+  return stored.startsWith("$2");
 }
 
 export function generateSecureToken(): string {

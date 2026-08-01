@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
 import {
-  hashPassword, verifyPassword, signAccessToken,
+  hashPassword, verifyPassword, isBcryptHash, signAccessToken,
   generateSecureToken, hashToken, refreshTokenExpiresAt,
   extractBearerToken,
 } from "../lib/auth";
@@ -44,11 +44,12 @@ auth.post("/login", async (c) => {
   if (!user) return c.json({ error: "Invalid credentials" }, 401);
 
   const valid = await verifyPassword(password, user.password_hash);
-  if (!valid) {
-    if (user.password_hash?.startsWith("$2")) {
-      return c.json({ error: "Please use the web dashboard to sign in for the first time after migration." }, 401);
-    }
-    return c.json({ error: "Invalid credentials" }, 401);
+  if (!valid) return c.json({ error: "Invalid credentials" }, 401);
+
+  // Transparently re-hash bcrypt passwords → PBKDF2 on first Worker login
+  if (isBcryptHash(user.password_hash)) {
+    const newHash = await hashPassword(password);
+    await db.updateUser(user.id, { password_hash: newHash });
   }
 
   const accessToken = await signAccessToken({ userId: user.id, email: user.email }, c.env);
