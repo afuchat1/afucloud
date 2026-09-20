@@ -57,12 +57,21 @@ function toApiUser(
 }
 
 async function findSharedAuthUser(email: string) {
-  const [authUser] = await db
-    .select()
-    .from(authUsersTable)
-    .where(sql`lower(${authUsersTable.email}) = ${email}`)
-    .limit(1);
-  return authUser;
+  try {
+    const [authUser] = await db
+      .select()
+      .from(authUsersTable)
+      .where(sql`lower(${authUsersTable.email}) = ${email}`)
+      .limit(1);
+    return authUser;
+  } catch (error) {
+    const cause = error instanceof Error && "cause" in error ? (error as Error & { cause?: unknown }).cause : undefined;
+    console.error("Shared auth lookup failed", {
+      code: cause && typeof cause === "object" && "code" in cause ? (cause as { code?: unknown }).code : undefined,
+      message: cause instanceof Error ? cause.message : error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }
 
 // POST /v1/auth/register

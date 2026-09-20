@@ -6,6 +6,13 @@ const supabaseHost = process.env.SUPABASE_DB_HOST;
 const supabaseUser = process.env.SUPABASE_DB_USER;
 const supabasePort = process.env.SUPABASE_DB_PORT ?? "5432";
 const supabaseDatabase = process.env.SUPABASE_DB_NAME ?? "postgres";
+const hasSupabaseTarget = Boolean(supabaseHost || process.env.SUPABASE_PROJECT_ID);
+
+if (hasSupabaseTarget && (!supabasePassword || !supabaseHost || !supabaseUser)) {
+  throw new Error(
+    "Supabase is configured but SUPABASE_DB_PASSWORD is missing. Refusing to fall back to the local DATABASE_URL.",
+  );
+}
 
 const dbUrl =
   supabasePassword && supabaseHost && supabaseUser
