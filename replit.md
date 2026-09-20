@@ -9,11 +9,15 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only, requires POSTGRES_URL)
+- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only, requires the target Supabase connection variables)
 
 ## Required Environment Variables
 
-- `POSTGRES_URL` — Supabase PostgreSQL connection string (set in Replit env vars)
+- `SUPABASE_DB_PASSWORD` — target Supabase database password (secret)
+- `SUPABASE_DB_HOST` — target Supabase pooler host
+- `SUPABASE_DB_USER` — target Supabase project-qualified database user
+- `SUPABASE_DB_PORT` — target Supabase database port
+- `SUPABASE_DB_NAME` — target Supabase database name
 - `JWT_SECRET` — JWT signing secret (set in Replit env vars)
 - `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account ID for R2 (set in Replit env vars)
 - `CLOUDFLARE_R2_ACCESS_KEY_ID` — R2 S3-compatible access key (set in Replit env vars)
@@ -23,7 +27,7 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 
 ## Infrastructure
 
-- **Database**: Supabase PostgreSQL (project: `wjdkeiazhlxcnqtxjdry`, region: us-east-1)
+- **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), AfuCloud data isolated in the `afucloud` schema
 - **Object storage**: Cloudflare R2 bucket `afucloud-images`
 - **Frontend**: React + Vite + shadcn/ui + Tailwind v4
 - **Dev backend**: Express 5 + Drizzle ORM (`artifacts/api-server/`)
@@ -89,7 +93,7 @@ pnpm --filter @workspace/cf-worker run dev
 - API-first design: all behavior defined in `lib/api-spec/openapi.yaml`, code generated from it
 - Storage abstraction in `artifacts/api-server/src/lib/storage.ts` — provider-agnostic interface
 - JWT-only auth (no Supabase Auth) — custom auth through the AfuCloud API
-- Environment variable `POSTGRES_URL` is used instead of `DATABASE_URL` (Replit reserves that name for its built-in PG)
+- The app uses the target Supabase connection variables and `search_path=afucloud,public`; existing target `public` tables are intentionally preserved
 - All secrets stored as Replit env vars (minimum required to run; Cloudflare R2 creds needed at server startup)
 - CF Worker uses PBKDF2 (Web Crypto) for password hashing; bcrypt hashes from the Express API will require a password reset
 
