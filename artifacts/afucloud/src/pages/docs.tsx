@@ -46,6 +46,18 @@ export default function DocsPage() {
   const [activeSection, setActiveSection] = useState('quickstart');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
+  const handleSectionSelect = (sectionId: string) => {
+    setActiveSection(sectionId);
+    setMobileNavOpen(false);
+
+    if (window.innerWidth < 1024) {
+      document.getElementById(`docs-${sectionId}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }
+  };
+
   return (
     <div className="mx-auto max-w-6xl space-y-5 px-4 sm:space-y-6 sm:px-0">
       <PageHeader
@@ -82,10 +94,7 @@ export default function DocsPage() {
             {sections.map((s) => (
               <button
                 key={s.id}
-                onClick={() => {
-                  setActiveSection(s.id);
-                  setMobileNavOpen(false);
-                }}
+                onClick={() => handleSectionSelect(s.id)}
                 className={cn(
                   'flex min-h-9 w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors',
                   activeSection === s.id
@@ -109,8 +118,10 @@ export default function DocsPage() {
         <div className="min-w-0 flex-1 space-y-6 sm:space-y-8">
 
           {/* Quick Start */}
-          {activeSection === 'quickstart' && (
-            <article className="space-y-6">
+          <article
+            id="docs-quickstart"
+            className={cn('scroll-mt-4 space-y-6', activeSection === 'quickstart' ? 'block' : 'block lg:hidden')}
+          >
               <div className="space-y-4 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Quick Start</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -137,12 +148,13 @@ curl -X POST ${BASE}/v1/projects \\
   -H "Authorization: Bearer <token>" \\
   -H "Content-Type: application/json" \\
   -d '{"name":"My App","slug":"my-app"}'`} />
-            </article>
-          )}
+          </article>
 
           {/* Auth */}
-          {activeSection === 'auth' && (
-            <article className="space-y-6">
+          <article
+            id="docs-auth"
+            className={cn('scroll-mt-4 space-y-6', activeSection === 'auth' ? 'block' : 'block lg:hidden')}
+          >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Authentication</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -176,12 +188,13 @@ Authorization: Bearer <accessToken>`} />
 PATCH ${BASE}/v1/auth/me/password
 Authorization: Bearer <token>
 { "currentPassword": "old", "newPassword": "new" }`} />
-            </article>
-          )}
+          </article>
 
           {/* Upload */}
-          {activeSection === 'upload' && (
-            <article className="space-y-6">
+          <article
+            id="docs-upload"
+            className={cn('scroll-mt-4 space-y-6', activeSection === 'upload' ? 'block' : 'block lg:hidden')}
+          >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Uploading Images</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -228,12 +241,13 @@ const image = await fetch(
 ).then(r => r.json());
 
 console.log(image.url); // https://img.afuchat.com/...`} />
-            </article>
-          )}
+          </article>
 
           {/* Images */}
-          {activeSection === 'images' && (
-            <article className="space-y-6">
+          <article
+            id="docs-images"
+            className={cn('scroll-mt-4 space-y-6', activeSection === 'images' ? 'block' : 'block lg:hidden')}
+          >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Managing Images</h2>
                 <p className="text-sm text-muted-foreground">List, update, delete, restore, favorite, search, and filter images within a project.</p>
@@ -282,12 +296,13 @@ PATCH ${BASE}/v1/projects/{projectId}/images/{imageId}
 
 # Favorite
 PATCH ${BASE}/v1/projects/{projectId}/images/{imageId}/favorite`} />
-            </article>
-          )}
+          </article>
 
           {/* API Keys */}
-          {activeSection === 'apikeys' && (
-            <article className="space-y-6">
+          <article
+            id="docs-apikeys"
+            className={cn('scroll-mt-4 space-y-6', activeSection === 'apikeys' ? 'block' : 'block lg:hidden')}
+          >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">API Keys</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -323,12 +338,13 @@ DELETE ${BASE}/v1/projects/{projectId}/api-keys/{keyId}
 
 # Using an API key (instead of JWT)
 Authorization: Bearer afu_prod_abc123...`} />
-            </article>
-          )}
+          </article>
 
           {/* Webhooks */}
-          {activeSection === 'webhooks' && (
-            <article className="space-y-6">
+          <article
+            id="docs-webhooks"
+            className={cn('scroll-mt-4 space-y-6', activeSection === 'webhooks' ? 'block' : 'block lg:hidden')}
+          >
               <div className="rounded-lg border border-card-border bg-card p-6 space-y-3">
                 <h2 className="text-base font-semibold">Webhooks</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
@@ -367,12 +383,13 @@ const expected = crypto.createHmac('sha256', secret)
 const isValid = crypto.timingSafeEqual(
   Buffer.from(signature), Buffer.from('sha256=' + expected)
 );`} />
-            </article>
-          )}
+          </article>
 
           {/* API Reference */}
-          {activeSection === 'reference' && (
-            <article className="space-y-6">
+          <article
+            id="docs-reference"
+            className={cn('scroll-mt-4 space-y-6', activeSection === 'reference' ? 'block' : 'block lg:hidden')}
+          >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">API Reference</h2>
                 <p className="text-sm text-muted-foreground">
@@ -449,8 +466,7 @@ const isValid = crypto.timingSafeEqual(
                   </tbody>
                 </table>
               </div>
-            </article>
-          )}
+          </article>
         </div>
       </div>
     </div>
