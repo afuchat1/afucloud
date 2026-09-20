@@ -29,7 +29,14 @@ app.use(
   cors({
     origin: (origin) => {
       if (!origin) return origin;
-      if (allowedOrigins.has(origin) || origin.endsWith(".afuchat.com")) return origin;
+      if (
+        allowedOrigins.has(origin) ||
+        origin.endsWith(".afuchat.com") ||
+        origin.endsWith(".replit.dev") ||
+        origin.endsWith(".replit.app")
+      ) {
+        return origin;
+      }
       return null;
     },
     allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
