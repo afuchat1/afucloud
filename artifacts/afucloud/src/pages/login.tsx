@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Database, AlertCircle } from 'lucide-react';
+import { AuthHeader } from '@/components/auth-header';
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -63,6 +64,7 @@ export default function LoginPage() {
       {/* Right side - Form */}
       <div className="flex-1 flex items-center justify-center p-6 bg-background">
         <div className="w-full max-w-sm space-y-6">
+          <AuthHeader />
           <div className="space-y-2 text-center lg:text-left">
             <h1 className="text-2xl font-semibold tracking-tight">Sign in to your account</h1>
             <p className="text-sm text-muted-foreground">

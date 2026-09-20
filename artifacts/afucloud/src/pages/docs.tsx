@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/page-header';
 import { BookOpen, Code, Zap, Lock, Upload, Image, Webhook, Key, ArrowRight, Copy, Check, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { PublicHeader } from '@/components/public-header';
 
 function CodeBlock({ code, language = 'bash' }: { code: string; language?: string }) {
   const [copied, setCopied] = useState(false);
@@ -59,14 +60,16 @@ export default function DocsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5 px-4 sm:space-y-6 sm:px-0">
-      <PageHeader
-        title="Developer Documentation"
-        description="Everything you need to integrate AfuCloud into your applications"
-        className="[&_h1]:text-xl sm:[&_h1]:text-2xl [&_p]:max-w-xl"
-      />
+    <div className="min-h-screen">
+      <PublicHeader />
+      <main className="mx-auto max-w-6xl space-y-5 px-4 py-6 sm:space-y-6 sm:px-6 lg:py-8">
+        <PageHeader
+          title="Developer Documentation"
+          description="Everything you need to integrate AfuCloud into your applications"
+          className="[&_h1]:text-xl sm:[&_h1]:text-2xl [&_p]:max-w-xl"
+        />
 
-      <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:gap-6">
+        <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:gap-6">
         {/* Documentation sidebar */}
         <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-48 lg:self-start">
           <button
@@ -468,7 +471,8 @@ const isValid = crypto.timingSafeEqual(
               </div>
           </article>
         </div>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
