@@ -1,21 +1,18 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { authUsersTable, db, usersTable, refreshTokensTable } from "@workspace/db";
+import { authUsersTable, db, profilesTable, refreshTokensTable } from "@workspace/db";
 import {
   hashPassword,
   verifyPassword,
-  isBcryptHash,
-  hashPbkdf2Password,
   signAccessToken,
   generateSecureToken,
   hashToken,
   refreshTokenExpiresAt,
 } from "../lib/auth";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import crypto from "crypto";
 
 const router: IRouter = Router();
-
-const SUPABASE_PROFILE_PASSWORD_MARKER = "supabase-auth:";
 
 type AuthMetadata = Record<string, unknown>;
 
@@ -26,22 +23,21 @@ function getAuthName(email: string, metadata: unknown): string {
 }
 
 async function ensureAfuCloudProfile(authUser: typeof authUsersTable.$inferSelect) {
-  const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, authUser.id)).limit(1);
+  const [existing] = await db.select().from(profilesTable).where(eq(profilesTable.id, authUser.id)).limit(1);
   if (existing) return existing;
 
   const email = authUser.email?.trim().toLowerCase();
   if (!email) throw new Error("Supabase Auth user has no email address");
 
-  const [emailMatch] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+  const [emailMatch] = await db.select().from(profilesTable).where(eq(profilesTable.email, email)).limit(1);
   if (emailMatch) {
     throw new Error("Supabase Auth email is already linked to a different AfuCloud user");
   }
 
-  const [profile] = await db.insert(usersTable).values({
+  const [profile] = await db.insert(profilesTable).values({
     id: authUser.id,
     email,
     name: getAuthName(email, authUser.rawUserMetaData),
-    passwordHash: `${SUPABASE_PROFILE_PASSWORD_MARKER}${authUser.id}`,
     emailVerified: Boolean(authUser.emailConfirmedAt),
   }).returning();
   return profile;
@@ -64,13 +60,26 @@ router.post("/v1/auth/register", async (req, res): Promise<void> => {
     res.status(400).json({ error: "email, password, and name are required" });
     return;
   }
-  const existing = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-  if (existing.length > 0) {
+  if (typeof password !== "string" || password.length < 8) {
+    res.status(400).json({ error: "Password must be at least 8 characters" });
+    return;
+  }
+  const existing = await findSharedAuthUser(email);
+  if (existing) {
     res.status(409).json({ error: "Email already registered" });
     return;
   }
-  const passwordHash = await hashPassword(password);
-  const [user] = await db.insert(usersTable).values({ email, name, passwordHash }).returning();
+  const encryptedPassword = await hashPassword(password);
+  const now = new Date();
+  const [authUser] = await db.insert(authUsersTable).values({
+    id: crypto.randomUUID(),
+    email,
+    encryptedPassword,
+    createdAt: now,
+    updatedAt: now,
+    rawUserMetaData: { name },
+  }).returning();
+  const user = await ensureAfuCloudProfile(authUser);
   const accessToken = signAccessToken({ userId: user.id, email: user.email });
   const rawRefresh = generateSecureToken();
   await db.insert(refreshTokensTable).values({
@@ -94,32 +103,16 @@ router.post("/v1/auth/login", async (req, res): Promise<void> => {
     return;
   }
   const sharedAuthUser = await findSharedAuthUser(email);
-  let user;
-
-  if (sharedAuthUser) {
-    const valid = await verifyPassword(password, sharedAuthUser.encryptedPassword);
-    if (!valid) {
-      res.status(401).json({ error: "Invalid credentials" });
-      return;
-    }
-    user = await ensureAfuCloudProfile(sharedAuthUser);
-  } else {
-    // Compatibility for the two older accounts created before Supabase Auth
-    // became the shared identity source.
-    [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-    if (!user || !(await verifyPassword(password, user.passwordHash))) {
-      res.status(401).json({ error: "Invalid credentials" });
-      return;
-    }
+  if (!sharedAuthUser) {
+    res.status(401).json({ error: "Invalid credentials" });
+    return;
   }
-  // The shared worker uses PBKDF2. Migrate older bcrypt credentials after a
-  // successful login so every AfuCloud service can verify the same account.
-  if (isBcryptHash(user.passwordHash)) {
-    await db
-      .update(usersTable)
-      .set({ passwordHash: await hashPbkdf2Password(password) })
-      .where(eq(usersTable.id, user.id));
+  const valid = await verifyPassword(password, sharedAuthUser.encryptedPassword);
+  if (!valid) {
+    res.status(401).json({ error: "Invalid credentials" });
+    return;
   }
+  const user = await ensureAfuCloudProfile(sharedAuthUser);
   const accessToken = signAccessToken({ userId: user.id, email: user.email });
   const rawRefresh = generateSecureToken();
   await db.insert(refreshTokensTable).values({
@@ -156,7 +149,7 @@ router.post("/v1/auth/refresh", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Invalid or expired refresh token" });
     return;
   }
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, record.userId)).limit(1);
+  const [user] = await db.select().from(profilesTable).where(eq(profilesTable.id, record.userId)).limit(1);
   if (!user) {
     res.status(401).json({ error: "User not found" });
     return;
@@ -178,7 +171,7 @@ router.post("/v1/auth/refresh", async (req, res): Promise<void> => {
 
 // GET /v1/auth/me
 router.get("/v1/auth/me", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!)).limit(1);
+  const [user] = await db.select().from(profilesTable).where(eq(profilesTable.id, req.userId!)).limit(1);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   res.json({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.emailVerified, createdAt: user.createdAt });
 });
@@ -189,7 +182,7 @@ router.patch("/v1/auth/me/update", requireAuth, async (req: AuthRequest, res): P
   const updates: Record<string, unknown> = {};
   if (name != null) updates.name = name;
   if (avatar !== undefined) updates.avatar = avatar;
-  const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, req.userId!)).returning();
+  const [user] = await db.update(profilesTable).set(updates).where(eq(profilesTable.id, req.userId!)).returning();
   res.json({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.emailVerified, createdAt: user.createdAt });
 });
 
@@ -204,15 +197,17 @@ router.patch("/v1/auth/me/password", requireAuth, async (req: AuthRequest, res):
     res.status(400).json({ error: "Password must be at least 8 characters" });
     return;
   }
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.userId!)).limit(1);
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  const valid = await verifyPassword(currentPassword, user.passwordHash);
+  const [authUser] = await db.select().from(authUsersTable).where(eq(authUsersTable.id, req.userId!)).limit(1);
+  if (!authUser) { res.status(404).json({ error: "User not found" }); return; }
+  const valid = await verifyPassword(currentPassword, authUser.encryptedPassword);
   if (!valid) {
     res.status(401).json({ error: "Current password is incorrect" });
     return;
   }
-  const passwordHash = await hashPassword(newPassword);
-  await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, req.userId!));
+  const encryptedPassword = await hashPassword(newPassword);
+  await db.update(authUsersTable)
+    .set({ encryptedPassword, updatedAt: new Date() })
+    .where(eq(authUsersTable.id, req.userId!));
   res.json({ message: "Password updated successfully" });
 });
 

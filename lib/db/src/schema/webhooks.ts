@@ -1,9 +1,11 @@
-import { pgTable, text, timestamp, uuid, boolean } from "drizzle-orm/pg-core";
+import { pgSchema, text, timestamp, uuid, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { projectsTable } from "./projects";
 
-export const webhooksTable = pgTable("webhooks", {
+const afucloudSchema = pgSchema("afucloud");
+
+export const webhooksTable = afucloudSchema.table("webhooks", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }),
   url: text("url").notNull(),

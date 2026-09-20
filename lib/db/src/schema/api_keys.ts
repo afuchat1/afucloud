@@ -1,9 +1,11 @@
-import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { pgSchema, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { projectsTable } from "./projects";
 
-export const apiKeysTable = pgTable("api_keys", {
+const afucloudSchema = pgSchema("afucloud");
+
+export const apiKeysTable = afucloudSchema.table("api_keys", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),

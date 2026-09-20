@@ -23,7 +23,9 @@ if (!connectionString) {
 export const pool = new Pool({
   connectionString,
   ssl: { rejectUnauthorized: false },
-  options: "-c search_path=afucloud,public",
+  // Keep both namespaces available for raw SQL, but all Drizzle tables are
+  // explicitly schema-qualified so auth never depends on search_path ordering.
+  options: "-c search_path=public,afucloud",
 });
 export const db = drizzle(pool, { schema });
 

@@ -21,6 +21,6 @@ export default defineConfig({
   dbCredentials: {
     url: dbUrl,
     ssl: true,
-    options: "-c search_path=afucloud,public",
+    options: "-c search_path=public,afucloud",
   },
 });
