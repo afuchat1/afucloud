@@ -45,6 +45,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     logoutMutation.mutate(undefined, {
       onSettled: () => {
         localStorage.removeItem('afucloud_token');
+        localStorage.removeItem('afucloud_refresh_token');
         setLocation('/login');
       },
     });
@@ -156,10 +157,13 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           </div>
           <button
             onClick={handleLogout}
-            className="rounded p-1 text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors"
+            disabled={logoutMutation.isPending}
+            className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs font-medium text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors disabled:opacity-50"
             title="Sign out"
+            aria-label="Sign out"
           >
             <LogOut className="h-3.5 w-3.5" />
+            <span>{logoutMutation.isPending ? 'Signing out…' : 'Sign out'}</span>
           </button>
         </div>
       </div>

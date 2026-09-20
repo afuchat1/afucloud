@@ -34,6 +34,7 @@ export default function RegisterPage() {
       {
         onSuccess: (data) => {
           localStorage.setItem('afucloud_token', data.accessToken);
+          localStorage.setItem('afucloud_refresh_token', data.refreshToken);
           toast({
             title: 'Account created',
             description: 'Welcome to AfuCloud',

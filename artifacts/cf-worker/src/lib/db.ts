@@ -78,6 +78,9 @@ export function createDbClient(env: Env) {
     async deleteRefreshTokenByHash(tokenHash: string) {
       await request(`/refresh_tokens?token_hash=eq.${encodeURIComponent(tokenHash)}`, "DELETE");
     },
+    async deleteRefreshTokensByUserId(userId: string) {
+      await request(`/refresh_tokens?user_id=eq.${encodeURIComponent(userId)}`, "DELETE");
+    },
 
     // ── Projects ────────────────────────────────────────────────────────────
     async getProjects(userId: string) {

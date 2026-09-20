@@ -89,11 +89,8 @@ auth.post("/login", async (c) => {
 
 // POST /v1/auth/logout
 auth.post("/logout", requireAuth, async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  if (body.refreshToken) {
-    const db = createDbClient(c.env);
-    await db.deleteRefreshTokenByHash(await hashToken(body.refreshToken));
-  }
+  const db = createDbClient(c.env);
+  await db.deleteRefreshTokensByUserId(c.get("userId"));
   return c.json({ message: "Logged out" });
 });
 

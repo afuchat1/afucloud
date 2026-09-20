@@ -28,6 +28,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     if (!isLoading) {
       if (error || !user) {
         localStorage.removeItem('afucloud_token');
+        localStorage.removeItem('afucloud_refresh_token');
         setLocation('/login');
       }
       setIsChecking(false);

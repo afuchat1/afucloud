@@ -24,6 +24,7 @@ export default function LoginPage() {
       {
         onSuccess: (data) => {
           localStorage.setItem('afucloud_token', data.accessToken);
+          localStorage.setItem('afucloud_refresh_token', data.refreshToken);
           toast({
             title: 'Welcome back',
             description: 'Successfully logged in',
