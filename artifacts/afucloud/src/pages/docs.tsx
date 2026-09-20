@@ -12,18 +12,18 @@ function CodeBlock({ code, language = 'bash' }: { code: string; language?: strin
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <div className="relative rounded-lg overflow-hidden border border-border">
-      <div className="flex items-center justify-between px-4 py-2 bg-[#1C1C1C] border-b border-white/10">
+    <div className="relative min-w-0 max-w-full overflow-hidden rounded-lg border border-border">
+      <div className="flex items-center justify-between gap-3 bg-[#1C1C1C] px-3 py-2 sm:px-4 border-b border-white/10">
         <span className="text-[11px] font-mono text-white/40">{language}</span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 text-[11px] text-white/40 hover:text-white/70 transition-colors"
+          className="flex shrink-0 items-center gap-1.5 text-[11px] text-white/40 hover:text-white/70 transition-colors"
         >
           {copied ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="bg-[#1C1C1C] px-4 py-3 text-[12px] leading-relaxed font-mono text-green-300/90 overflow-x-auto whitespace-pre">
+      <pre className="max-w-full overflow-x-auto bg-[#1C1C1C] px-3 py-3 text-[11px] leading-relaxed font-mono text-green-300/90 whitespace-pre sm:px-4 sm:text-[12px]">
         <code>{code}</code>
       </pre>
     </div>
@@ -46,21 +46,25 @@ export default function DocsPage() {
   const [activeSection, setActiveSection] = useState('quickstart');
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-5 px-4 sm:space-y-6 sm:px-0">
       <PageHeader
         title="Developer Documentation"
         description="Everything you need to integrate AfuCloud into your applications"
+        className="[&_h1]:text-xl sm:[&_h1]:text-2xl [&_p]:max-w-xl"
       />
 
-      <div className="flex gap-6">
+      <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:gap-6">
         {/* Sidebar nav */}
-        <nav className="w-48 shrink-0 space-y-1 sticky top-6 self-start">
+        <nav
+          aria-label="Documentation sections"
+          className="flex w-full shrink-0 gap-1 overflow-x-auto border-b border-border pb-2 lg:sticky lg:top-6 lg:block lg:w-48 lg:space-y-1 lg:self-start lg:overflow-visible lg:border-0 lg:pb-0"
+        >
           {sections.map((s) => (
             <button
               key={s.id}
               onClick={() => setActiveSection(s.id)}
               className={cn(
-                'w-full flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-left transition-colors',
+                'flex min-h-9 shrink-0 items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs font-medium transition-colors sm:px-3 sm:text-sm lg:w-full lg:gap-2.5',
                 activeSection === s.id
                   ? 'bg-primary/8 text-primary'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -69,7 +73,7 @@ export default function DocsPage() {
               <s.icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
               {s.title}
               {s.badge && (
-                <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+                <span className="ml-auto hidden rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary sm:inline">
                   {s.badge}
                 </span>
               )}
@@ -78,12 +82,12 @@ export default function DocsPage() {
         </nav>
 
         {/* Content */}
-        <div className="flex-1 min-w-0 space-y-8">
+        <div className="min-w-0 flex-1 space-y-6 sm:space-y-8">
 
           {/* Quick Start */}
           {activeSection === 'quickstart' && (
             <article className="space-y-6">
-              <div className="rounded-lg border border-card-border bg-card p-6 space-y-4">
+              <div className="space-y-4 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Quick Start</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   Get your first image uploaded to AfuCloud in under 5 minutes.
@@ -115,7 +119,7 @@ curl -X POST ${BASE}/v1/projects \\
           {/* Auth */}
           {activeSection === 'auth' && (
             <article className="space-y-6">
-              <div className="rounded-lg border border-card-border bg-card p-6 space-y-3">
+              <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Authentication</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   AfuCloud uses JWT access tokens. Tokens expire after 15 minutes; use the refresh token to renew them.
@@ -154,7 +158,7 @@ Authorization: Bearer <token>
           {/* Upload */}
           {activeSection === 'upload' && (
             <article className="space-y-6">
-              <div className="rounded-lg border border-card-border bg-card p-6 space-y-3">
+              <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Uploading Images</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   Uploads use a 2-step pre-signed URL flow: request an upload URL, PUT the file directly to storage,
@@ -206,12 +210,12 @@ console.log(image.url); // https://img.afuchat.com/...`} />
           {/* Images */}
           {activeSection === 'images' && (
             <article className="space-y-6">
-              <div className="rounded-lg border border-card-border bg-card p-6 space-y-3">
+              <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Managing Images</h2>
                 <p className="text-sm text-muted-foreground">List, update, delete, restore, favorite, search, and filter images within a project.</p>
               </div>
-              <div className="rounded-lg border border-card-border bg-card overflow-hidden">
-                <table className="w-full text-xs">
+              <div className="max-w-full overflow-x-auto rounded-lg border border-card-border bg-card">
+                <table className="w-full min-w-[600px] text-xs">
                   <thead className="bg-muted/30">
                     <tr>
                       <th className="text-left px-4 py-2.5 font-semibold text-foreground">Method</th>
@@ -260,7 +264,7 @@ PATCH ${BASE}/v1/projects/{projectId}/images/{imageId}/favorite`} />
           {/* API Keys */}
           {activeSection === 'apikeys' && (
             <article className="space-y-6">
-              <div className="rounded-lg border border-card-border bg-card p-6 space-y-3">
+              <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">API Keys</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   Create per-project API keys for development, production, and testing environments.
@@ -308,7 +312,7 @@ Authorization: Bearer afu_prod_abc123...`} />
                   Deliveries are retried up to 3 times with exponential backoff on failure.
                 </p>
               </div>
-              <div className="rounded-lg border border-card-border bg-card p-5 space-y-2">
+              <div className="space-y-2 rounded-lg border border-card-border bg-card p-4 sm:p-5">
                 <p className="text-xs font-semibold text-foreground">Available Events</p>
                 <div className="flex flex-wrap gap-1.5">
                   {['image.uploaded','image.updated','image.deleted','project.created','token.created','token.revoked'].map(e => (
@@ -345,18 +349,18 @@ const isValid = crypto.timingSafeEqual(
           {/* API Reference */}
           {activeSection === 'reference' && (
             <article className="space-y-6">
-              <div className="rounded-lg border border-card-border bg-card p-6 space-y-3">
+              <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">API Reference</h2>
                 <p className="text-sm text-muted-foreground">
                   All endpoints are versioned under <code className="rounded bg-muted px-1.5 font-mono text-xs">/v1/</code>.
                   Every response includes standard fields.
                 </p>
               </div>
-              <div className="rounded-lg border border-card-border bg-card overflow-hidden">
+              <div className="max-w-full overflow-x-auto rounded-lg border border-card-border bg-card">
                 <div className="px-5 py-3 border-b border-card-border bg-muted/20">
                   <p className="text-xs font-semibold">All Endpoints</p>
                 </div>
-                <table className="w-full text-xs">
+                <table className="w-full min-w-[720px] text-xs">
                   <thead className="bg-muted/10">
                     <tr>
                       <th className="text-left px-4 py-2.5 font-semibold text-foreground">Method</th>
