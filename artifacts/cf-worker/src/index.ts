@@ -54,6 +54,15 @@ app.use("*", async (c, next) => {
 });
 
 // ── Health ────────────────────────────────────────────────────────────────────
+app.get("/", (c) =>
+  c.json({
+    name: "AfuCloud API",
+    status: "ok",
+    version: "v1",
+    health: "/healthz",
+  }),
+);
+
 app.get("/healthz", (c) =>
   c.json({ status: "ok", timestamp: new Date().toISOString(), version: "v1" }),
 );
