@@ -5,6 +5,7 @@ interface StatCardProps {
   label: string;
   value: string | number;
   icon?: LucideIcon;
+  description?: string;
   trend?: {
     value: string;
     positive: boolean;
@@ -12,7 +13,7 @@ interface StatCardProps {
   className?: string;
 }
 
-export function StatCard({ label, value, icon: Icon, trend, className }: StatCardProps) {
+export function StatCard({ label, value, icon: Icon, trend, description, className }: StatCardProps) {
   return (
     <div
       className={cn(
@@ -36,6 +37,7 @@ export function StatCard({ label, value, icon: Icon, trend, className }: StatCar
               {trend.value}
             </p>
           )}
+          {description && <p className="text-xs text-muted-foreground">{description}</p>}
         </div>
         {Icon && (
           <div className="rounded-lg bg-primary/10 p-2.5">

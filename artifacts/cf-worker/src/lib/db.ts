@@ -233,6 +233,109 @@ export function createDbClient(env: Env) {
       await request(`/webhooks?id=eq.${id}&project_id=eq.${projectId}`, "DELETE");
     },
 
+    // ── Domains and hostnames ────────────────────────────────────────────────
+    async getDomains(userId: string) {
+      const r = await request(`/domains?user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc`);
+      return r.json() as Promise<any[]>;
+    },
+    async getDomain(id: string, userId: string) {
+      const r = await request(`/domains?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async createDomain(data: Record<string, unknown>) {
+      const r = await request("/domains", "POST", data, { Prefer: "return=representation" });
+      const rows = await r.json() as any[];
+      return rows[0];
+    },
+    async updateDomain(id: string, userId: string, data: Record<string, unknown>) {
+      const r = await request(`/domains?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, "PATCH", data, { Prefer: "return=representation" });
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async deleteDomain(id: string, userId: string) {
+      await request(`/domains?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, "DELETE");
+    },
+    async getHostnames(domainId: string, userId: string) {
+      const r = await request(`/hostnames?domain_id=eq.${encodeURIComponent(domainId)}&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc`);
+      return r.json() as Promise<any[]>;
+    },
+    async getHostname(id: string, domainId: string, userId: string) {
+      const r = await request(`/hostnames?id=eq.${encodeURIComponent(id)}&domain_id=eq.${encodeURIComponent(domainId)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async getHostnamesForCdn(userId: string, id?: string) {
+      const idFilter = id ? `&id=eq.${encodeURIComponent(id)}` : "";
+      const r = await request(`/hostnames?user_id=eq.${encodeURIComponent(userId)}${idFilter}&service=eq.cdn&limit=1`);
+      return r.json() as Promise<any[]>;
+    },
+    async createHostname(data: Record<string, unknown>) {
+      const r = await request("/hostnames", "POST", data, { Prefer: "return=representation" });
+      const rows = await r.json() as any[];
+      return rows[0];
+    },
+    async updateHostname(id: string, userId: string, data: Record<string, unknown>) {
+      const r = await request(`/hostnames?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, "PATCH", data, { Prefer: "return=representation" });
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async deleteHostname(id: string, domainId: string, userId: string) {
+      await request(`/hostnames?id=eq.${encodeURIComponent(id)}&domain_id=eq.${encodeURIComponent(domainId)}&user_id=eq.${encodeURIComponent(userId)}`, "DELETE");
+    },
+
+    // ── Storage containers and objects ────────────────────────────────────────
+    async getStorageContainers(userId: string) {
+      const r = await request(`/storage_containers?user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc`);
+      return r.json() as Promise<any[]>;
+    },
+    async getStorageContainer(id: string, userId: string) {
+      const r = await request(`/storage_containers?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async createStorageContainer(data: Record<string, unknown>) {
+      const r = await request("/storage_containers", "POST", data, { Prefer: "return=representation" });
+      const rows = await r.json() as any[];
+      return rows[0];
+    },
+    async updateStorageContainer(id: string, userId: string, data: Record<string, unknown>) {
+      const r = await request(`/storage_containers?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, "PATCH", data, { Prefer: "return=representation" });
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async deleteStorageContainer(id: string, userId: string) {
+      await request(`/storage_containers?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, "DELETE");
+    },
+    async getStorageObjects(containerId: string, userId: string, prefix = "") {
+      const filters = [
+        `container_id=eq.${encodeURIComponent(containerId)}`,
+        `user_id=eq.${encodeURIComponent(userId)}`,
+        "order=is_folder.asc,name.asc",
+      ];
+      if (prefix) filters.push(`object_key=like.${encodeURIComponent(`${prefix.replace(/\/+$/, "")}/*`)}`);
+      const r = await request(`/storage_objects?${filters.join("&")}`);
+      return r.json() as Promise<any[]>;
+    },
+    async getStorageObject(id: string, containerId: string, userId: string) {
+      const r = await request(`/storage_objects?id=eq.${encodeURIComponent(id)}&container_id=eq.${encodeURIComponent(containerId)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async createStorageObject(data: Record<string, unknown>) {
+      const r = await request("/storage_objects", "POST", data, { Prefer: "return=representation" });
+      const rows = await r.json() as any[];
+      return rows[0];
+    },
+    async updateStorageObject(id: string, containerId: string, userId: string, data: Record<string, unknown>) {
+      const r = await request(`/storage_objects?id=eq.${encodeURIComponent(id)}&container_id=eq.${encodeURIComponent(containerId)}&user_id=eq.${encodeURIComponent(userId)}`, "PATCH", data, { Prefer: "return=representation" });
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async deleteStorageObject(id: string, containerId: string, userId: string) {
+      await request(`/storage_objects?id=eq.${encodeURIComponent(id)}&container_id=eq.${encodeURIComponent(containerId)}&user_id=eq.${encodeURIComponent(userId)}`, "DELETE");
+    },
+
     // ── Activity Logs ───────────────────────────────────────────────────────
     async getActivity(userId: string, limit = 50) {
       const r = await request(`/activity_logs?user_id=eq.${userId}&order=created_at.desc&limit=${limit}`);

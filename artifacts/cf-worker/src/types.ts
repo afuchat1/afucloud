@@ -11,6 +11,7 @@ export interface Env {
   CLOUDFLARE_R2_ACCESS_KEY_ID: string;
   NODE_ENV: string;
   R2_PUBLIC_URL?: string;
+  AFU_CDN_TARGET?: string;
 
   // Secrets
   SUPABASE_SERVICE_KEY: string;

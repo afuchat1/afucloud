@@ -13,6 +13,8 @@ import {
   LogOut,
   X,
   Map,
+  Globe2,
+  HardDrive,
 } from 'lucide-react';
 
 const navigation = [
@@ -21,6 +23,8 @@ const navigation = [
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Activity', href: '/activity', icon: Activity },
   { name: 'Tokens', href: '/tokens', icon: Key },
+  { name: 'Domains', href: '/domains', icon: Globe2 },
+  { name: 'CDN / Storage', href: '/storage', icon: HardDrive },
 ];
 
 const bottomNav = [
@@ -38,7 +42,7 @@ interface SidebarProps {
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location, setLocation] = useLocation();
-  const { data: user } = useGetMe({ query: { retry: false } });
+  const { data: user } = useGetMe({ query: { queryKey: ['/api/v1/auth/me'], retry: false } });
   const logoutMutation = useLogout();
 
   const handleLogout = () => {

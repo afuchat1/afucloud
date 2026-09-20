@@ -13,6 +13,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   
   const { data: user, isLoading, error } = useGetMe({
     query: {
+      queryKey: ['/api/v1/auth/me'],
       enabled: !!token,
       retry: false,
     },

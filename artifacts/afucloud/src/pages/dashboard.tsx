@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 export default function DashboardPage() {
   const { data: overview, isLoading: overviewLoading } = useGetAnalyticsOverview();
   const { data: projects, isLoading: projectsLoading } = useListProjects();
-  const { data: activity, isLoading: activityLoading } = useListActivity({ query: { limit: '5' } });
+  const { data: activity, isLoading: activityLoading } = useListActivity({ limit: '5' });
 
   return (
     <div className="space-y-8">

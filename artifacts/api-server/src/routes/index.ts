@@ -9,6 +9,8 @@ import analyticsRouter from "./analytics";
 import webhooksRouter from "./webhooks";
 import activityRouter from "./activity";
 import storageRouter from "./storage";
+import domainsRouter from "./domains";
+import storageContainersRouter from "./storage-containers";
 
 const router: IRouter = Router();
 
@@ -22,5 +24,7 @@ router.use(analyticsRouter);
 router.use(webhooksRouter);
 router.use(activityRouter);
 router.use(storageRouter);
+router.use(domainsRouter);
+router.use(storageContainersRouter);
 
 export default router;

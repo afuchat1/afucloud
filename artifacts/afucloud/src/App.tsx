@@ -21,6 +21,8 @@ import TokensPage from '@/pages/tokens';
 import SettingsPage from '@/pages/settings';
 import DocsPage from '@/pages/docs';
 import RoadmapPage from '@/pages/roadmap';
+import DomainsPage from '@/pages/domains';
+import StoragePage from '@/pages/storage';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient({
@@ -112,6 +114,12 @@ function Router() {
       </Route>
       <Route path="/tokens">
         <Protected><TokensPage /></Protected>
+      </Route>
+      <Route path="/domains">
+        <Protected><DomainsPage /></Protected>
+      </Route>
+      <Route path="/storage">
+        <Protected><StoragePage /></Protected>
       </Route>
       <Route path="/settings">
         <Protected><SettingsPage /></Protected>

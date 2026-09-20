@@ -77,7 +77,7 @@ export default function ProjectWebhooksPage() {
 
     if (editingId) {
       updateMutation.mutate(
-        { projectId, webhookId: editingId, data: { url: form.url, events: form.events, active: true, ...(form.secret ? { secret: form.secret } : {}) } },
+        { projectId, id: editingId, data: { url: form.url, events: form.events, active: true, ...(form.secret ? { secret: form.secret } : {}) } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getListWebhooksQueryKey(projectId) });
@@ -104,7 +104,7 @@ export default function ProjectWebhooksPage() {
 
   const handleToggleActive = (wh: any) => {
     updateMutation.mutate(
-      { projectId, webhookId: wh.id, data: { active: !wh.active } },
+      { projectId, id: wh.id, data: { active: !wh.active } },
       {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: getListWebhooksQueryKey(projectId) }),
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
@@ -115,7 +115,7 @@ export default function ProjectWebhooksPage() {
   const handleDelete = (id: string, url: string) => {
     if (!confirm(`Delete webhook for "${url}"?`)) return;
     deleteMutation.mutate(
-      { projectId, webhookId: id },
+      { projectId, id },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListWebhooksQueryKey(projectId) });

@@ -294,7 +294,7 @@ export default function ProjectDetailPage() {
   // ── Image actions (single) ────────────────────────────────────────────────
   const handleToggleFavorite = (imageId: string) => {
     toggleFavoriteMutation.mutate(
-      { projectId, imageId },
+      { projectId, id: imageId },
       { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) }) },
     );
   };

@@ -12,7 +12,7 @@ const actionIcons: Record<string, React.ElementType> = {
 };
 
 export default function ActivityPage() {
-  const { data: activity, isLoading } = useListActivity({ query: { limit: '50' } });
+  const { data: activity, isLoading } = useListActivity({ limit: '50' });
 
   return (
     <div className="space-y-6">

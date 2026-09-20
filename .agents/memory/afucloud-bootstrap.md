@@ -22,3 +22,10 @@ Supabase's `auth.users` is the only identity and credential source. `public.prof
 **Why:** AfuChat, AfuMail, AfuAI, AfuCloud, and AfuAds must resolve the same account UUID regardless of product schema; separate product users create broken ownership and duplicate credentials.
 
 **How to apply:** New product tables must reference `auth.users(id)` directly. Never add password columns to product schemas or use `public.profiles.id` as the Auth identity.
+
+## Development target caution
+- The Replit-provided local database may contain only `public.profiles` and no `auth` or `afucloud` schemas. Treat it as a compatibility target, not as evidence that the documented Supabase schema is absent.
+
+**Why:** Drizzle schema pushes against that local connection fail before applying DDL when they encounter the shared `auth.users` references.
+
+**How to apply:** Confirm the Supabase pooler target before applying AfuCloud product migrations; use the additive migration under `lib/db/migrations` from a trusted deployment environment.

@@ -293,6 +293,57 @@ export async function deleteObject(key: string): Promise<void> {
   }
 }
 
+export async function copyObject(sourceKey: string, destinationKey: string): Promise<void> {
+  if (!hasCredentials()) return;
+
+  const region = "auto";
+  const service = "s3";
+  const host = r2Host();
+  const emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  const { dateStamp, amzDate } = amzTimestamps();
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const copySource = `/${BUCKET_NAME}/${sourceKey}`;
+  const canonicalHeaders = [
+    `host:${host}`,
+    `x-amz-copy-source:${copySource}`,
+    `x-amz-content-sha256:${emptyHash}`,
+    `x-amz-date:${amzDate}`,
+  ].join("\n") + "\n";
+  const signedHeaders = "host;x-amz-copy-source;x-amz-content-sha256;x-amz-date";
+  const canonicalRequest = [
+    "PUT",
+    `/${BUCKET_NAME}/${destinationKey}`,
+    "",
+    canonicalHeaders,
+    signedHeaders,
+    emptyHash,
+  ].join("\n");
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    crypto.createHash("sha256").update(canonicalRequest).digest("hex"),
+  ].join("\n");
+  const signingKey = getSignatureKey(SECRET_ACCESS_KEY, dateStamp, region, service);
+  const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+  const authorization = [
+    `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY_ID}/${credentialScope}`,
+    `SignedHeaders=${signedHeaders}`,
+    `Signature=${signature}`,
+  ].join(", ");
+  const response = await fetch(`https://${host}/${BUCKET_NAME}/${destinationKey}`, {
+    method: "PUT",
+    headers: {
+      Authorization: authorization,
+      "x-amz-copy-source": copySource,
+      "x-amz-content-sha256": emptyHash,
+      "x-amz-date": amzDate,
+      Host: host,
+    },
+  });
+  if (!response.ok) throw new Error(`R2 copy failed: ${response.status}`);
+}
+
 export function buildStorageKey(userId: string, projectId: string, imageId: string, ext: string): string {
   return `${userId}/${projectId}/${imageId}.${ext}`;
 }

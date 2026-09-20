@@ -59,3 +59,15 @@ export async function deleteObject(key: string, env: Env): Promise<void> {
   const aws = getStorageClient(env);
   await aws.fetch(`${r2BaseUrl(env)}/${key}`, { method: "DELETE" });
 }
+
+export async function copyObject(sourceKey: string, destinationKey: string, env: Env): Promise<void> {
+  const aws = getStorageClient(env);
+  const destination = `${r2BaseUrl(env)}/${destinationKey}`;
+  const response = await aws.fetch(destination, {
+    method: "PUT",
+    headers: {
+      "x-amz-copy-source": `/${env.R2_BUCKET_NAME}/${sourceKey}`,
+    },
+  });
+  if (!response.ok) throw new Error(`R2 copy failed: ${response.status}`);
+}
