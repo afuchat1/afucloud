@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
+import { signInWithSupabase } from "../lib/supabase-auth";
 import {
   hashPassword, verifyPassword, isBcryptHash, signAccessToken,
   generateSecureToken, hashToken, refreshTokenExpiresAt,
@@ -9,6 +10,34 @@ import {
 import { requireAuth } from "../middleware/auth";
 
 const auth = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
+
+const SUPABASE_PROFILE_PASSWORD_MARKER = "supabase-auth:";
+
+function getAuthName(email: string, metadata: unknown): string {
+  const values = metadata && typeof metadata === "object" ? metadata as Record<string, unknown> : {};
+  const name = values.name ?? values.full_name ?? values.display_name;
+  return typeof name === "string" && name.trim() ? name.trim() : email.split("@")[0];
+}
+
+async function ensureAfuCloudProfile(
+  db: ReturnType<typeof createDbClient>,
+  authUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; email_confirmed_at?: string | null },
+) {
+  const existing = await db.getUserById(authUser.id);
+  if (existing) return existing;
+
+  const email = authUser.email?.trim().toLowerCase();
+  if (!email) throw new Error("Supabase Auth user has no email address");
+
+  const profile = await db.createUser({
+    id: authUser.id,
+    email,
+    name: getAuthName(email, authUser.user_metadata),
+    password_hash: `${SUPABASE_PROFILE_PASSWORD_MARKER}${authUser.id}`,
+    email_verified: Boolean(authUser.email_confirmed_at),
+  });
+  return profile;
+}
 
 // POST /v1/auth/register
 auth.post("/register", async (c) => {
@@ -44,16 +73,25 @@ auth.post("/login", async (c) => {
   if (!email || !password) return c.json({ error: "email and password are required" }, 400);
 
   const db = createDbClient(c.env);
-  const user = await db.getUserByEmail(email);
-  if (!user) return c.json({ error: "Invalid credentials" }, 401);
+  const sharedAuthUser = await signInWithSupabase(c.env, email, password);
+  let user;
 
-  const valid = await verifyPassword(password, user.password_hash);
-  if (!valid) return c.json({ error: "Invalid credentials" }, 401);
+  if (sharedAuthUser) {
+    user = await ensureAfuCloudProfile(db, sharedAuthUser);
+  } else {
+    // Compatibility for the older AfuCloud-only accounts.
+    user = await db.getUserByEmail(email);
+    if (!user) return c.json({ error: "Invalid credentials" }, 401);
 
-  // Transparently re-hash bcrypt passwords → PBKDF2 on first Worker login
-  if (isBcryptHash(user.password_hash)) {
-    const newHash = await hashPassword(password);
-    await db.updateUser(user.id, { password_hash: newHash });
+    const valid = await verifyPassword(password, user.password_hash);
+    if (!valid) return c.json({ error: "Invalid credentials" }, 401);
+
+    // Transparently re-hash bcrypt passwords → PBKDF2 on first Worker login
+    if (isBcryptHash(user.password_hash)) {
+      const newHash = await hashPassword(password);
+      await db.updateUser(user.id, { password_hash: newHash });
+      user.password_hash = newHash;
+    }
   }
 
   const accessToken = await signAccessToken({ userId: user.id, email: user.email }, c.env);

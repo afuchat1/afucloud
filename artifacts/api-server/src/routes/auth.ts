@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, usersTable, refreshTokensTable } from "@workspace/db";
+import { authUsersTable, db, usersTable, refreshTokensTable } from "@workspace/db";
 import {
   hashPassword,
   verifyPassword,
@@ -14,6 +14,47 @@ import {
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
+
+const SUPABASE_PROFILE_PASSWORD_MARKER = "supabase-auth:";
+
+type AuthMetadata = Record<string, unknown>;
+
+function getAuthName(email: string, metadata: unknown): string {
+  const values = metadata && typeof metadata === "object" ? metadata as AuthMetadata : {};
+  const name = values.name ?? values.full_name ?? values.display_name;
+  return typeof name === "string" && name.trim() ? name.trim() : email.split("@")[0];
+}
+
+async function ensureAfuCloudProfile(authUser: typeof authUsersTable.$inferSelect) {
+  const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, authUser.id)).limit(1);
+  if (existing) return existing;
+
+  const email = authUser.email?.trim().toLowerCase();
+  if (!email) throw new Error("Supabase Auth user has no email address");
+
+  const [emailMatch] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+  if (emailMatch) {
+    throw new Error("Supabase Auth email is already linked to a different AfuCloud user");
+  }
+
+  const [profile] = await db.insert(usersTable).values({
+    id: authUser.id,
+    email,
+    name: getAuthName(email, authUser.rawUserMetaData),
+    passwordHash: `${SUPABASE_PROFILE_PASSWORD_MARKER}${authUser.id}`,
+    emailVerified: Boolean(authUser.emailConfirmedAt),
+  }).returning();
+  return profile;
+}
+
+async function findSharedAuthUser(email: string) {
+  const [authUser] = await db
+    .select()
+    .from(authUsersTable)
+    .where(eq(authUsersTable.email, email))
+    .limit(1);
+  return authUser;
+}
 
 // POST /v1/auth/register
 router.post("/v1/auth/register", async (req, res): Promise<void> => {
@@ -52,15 +93,24 @@ router.post("/v1/auth/login", async (req, res): Promise<void> => {
     res.status(400).json({ error: "email and password are required" });
     return;
   }
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-  if (!user) {
-    res.status(401).json({ error: "Invalid credentials" });
-    return;
-  }
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) {
-    res.status(401).json({ error: "Invalid credentials" });
-    return;
+  const sharedAuthUser = await findSharedAuthUser(email);
+  let user;
+
+  if (sharedAuthUser) {
+    const valid = await verifyPassword(password, sharedAuthUser.encryptedPassword);
+    if (!valid) {
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
+    }
+    user = await ensureAfuCloudProfile(sharedAuthUser);
+  } else {
+    // Compatibility for the two older accounts created before Supabase Auth
+    // became the shared identity source.
+    [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    if (!user || !(await verifyPassword(password, user.passwordHash))) {
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
+    }
   }
   // The shared worker uses PBKDF2. Migrate older bcrypt credentials after a
   // successful login so every AfuCloud service can verify the same account.

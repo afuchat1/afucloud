@@ -39,7 +39,13 @@ export function createDbClient(env: Env) {
       const rows = await r.json() as any[];
       return rows[0] ?? null;
     },
-    async createUser(data: { email: string; name: string; password_hash: string }) {
+    async createUser(data: {
+      id?: string;
+      email: string;
+      name: string;
+      password_hash: string;
+      email_verified?: boolean;
+    }) {
       const r = await request("/users", "POST", data, { Prefer: "return=representation" });
       const rows = await r.json() as any[];
       return rows[0];

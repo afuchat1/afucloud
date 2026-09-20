@@ -27,7 +27,7 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 
 ## Infrastructure
 
-- **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), with AfuCloud identity and platform data in the `afucloud` schema; other products use their own schemas and reference the same user ID
+- **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), with shared identities in Supabase's `auth.users`; AfuCloud profile and platform data lives in the `afucloud` schema, and other products reference the same auth user ID
 - **Object storage**: Cloudflare R2 bucket `afucloud-images`
 - **Frontend**: React + Vite + shadcn/ui + Tailwind v4
 - **Dev backend**: Express 5 + Drizzle ORM (`artifacts/api-server/`)
@@ -41,8 +41,8 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec in `lib/api-spec/openapi.yaml`)
 - Frontend auth: JWT stored in `localStorage` as `afucloud_token`
-- Shared auth: the API and Cloudflare Worker both authenticate against the shared `afucloud.users` table; other product schemas link their records by the same user ID; both bcrypt and the Worker-compatible `pbkdf2:<salt>:<hash>` password formats are supported
-- Password migration: successful API login transparently migrates legacy bcrypt hashes to PBKDF2 so the same user works across all AfuCloud platforms
+- Shared auth: Supabase's `auth.users` is the canonical identity source; the API verifies existing Supabase Auth bcrypt credentials, the Worker delegates login to Supabase Auth, and `afucloud.users` stores a profile keyed by the same user ID; older AfuCloud-only accounts remain supported
+- Password migration: legacy AfuCloud-only bcrypt hashes still migrate to the Worker-compatible PBKDF2 format; Supabase Auth accounts remain owned by Supabase Auth
 - Storage: Cloudflare R2 (S3-compatible) with pre-signed PUT URLs
 
 ## Where Things Live
@@ -95,7 +95,7 @@ pnpm --filter @workspace/cf-worker run dev
 - API-first design: all behavior defined in `lib/api-spec/openapi.yaml`, code generated from it
 - Storage abstraction in `artifacts/api-server/src/lib/storage.ts` — provider-agnostic interface
 - JWT-only auth (no Supabase Auth) — custom auth through the AfuCloud API
-- The app uses the target Supabase connection variables and `search_path=afucloud,public`; existing target `public` tables are intentionally preserved
+- The app uses the target Supabase connection variables and `search_path=afucloud,public`; the API explicitly reads `auth.users` for shared login while preserving existing target `public` tables
 - All secrets stored as Replit env vars (minimum required to run; Cloudflare R2 creds needed at server startup)
 - CF Worker uses PBKDF2 (Web Crypto) for password hashing; bcrypt hashes from the Express API will require a password reset
 
