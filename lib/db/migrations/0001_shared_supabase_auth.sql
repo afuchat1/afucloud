@@ -1,21 +1,70 @@
--- Shared Afu identity migration for the Supabase database.
--- The migration is transactional and preserves legacy AfuCloud rows.
+-- Shared Afu identity migration for Supabase PostgreSQL.
+--
+-- Identity and credentials live only in auth.users.
+-- Shared profile data lives in public.profiles.
+-- Product data lives in its product schema (afucloud.* here).
+--
+-- This migration is safe for:
+--   1. a fresh database with no legacy AfuCloud users table
+--   2. the previous AfuCloud database with public users/product tables
+--
+-- It intentionally does not create a product-specific credential table.
 
+-- Product namespaces share auth.users and public.profiles, but never share
+-- product-owned tables with one another.
+CREATE SCHEMA IF NOT EXISTS afuchat;
+CREATE SCHEMA IF NOT EXISTS afumail;
+CREATE SCHEMA IF NOT EXISTS afuai;
 CREATE SCHEMA IF NOT EXISTS afucloud;
+CREATE SCHEMA IF NOT EXISTS afuads;
 
--- This project already has a shared profile table. The fallback definition is
--- for environments where it has not been created yet.
 CREATE TABLE IF NOT EXISTS public.profiles (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
   email text,
+  email_verified boolean NOT NULL DEFAULT false,
   full_name text,
+  avatar_url text,
+  role_type text DEFAULT 'advertiser',
+  advertiser_id text,
+  publisher_id text,
+  storage_used bigint NOT NULL DEFAULT 0,
+  storage_limit bigint NOT NULL DEFAULT 1073741824,
+  suspended boolean NOT NULL DEFAULT false,
   name text,
   avatar text,
+  coins integer DEFAULT 0,
+  referral_code text,
+  referral_count integer DEFAULT 0,
+  store_count integer DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS profiles_user_id_key ON public.profiles(user_id);
+
+-- Add shared profile fields when this migration is applied to an older
+-- public.profiles table. These are deliberately profile fields, not credentials.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS user_id uuid;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_verified boolean NOT NULL DEFAULT false;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role_type text DEFAULT 'advertiser';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS advertiser_id text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS publisher_id text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS storage_used bigint NOT NULL DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS storage_limit bigint NOT NULL DEFAULT 1073741824;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS suspended boolean NOT NULL DEFAULT false;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS name text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS coins integer DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS referral_code text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS referral_count integer DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS store_count integer DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+
+CREATE UNIQUE INDEX IF NOT EXISTS profiles_user_id_key
+  ON public.profiles(user_id);
 
 -- Keep Supabase's signup trigger compatible with the shared profile shape.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -25,25 +74,52 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
 BEGIN
-  INSERT INTO public.profiles (user_id, email, name, full_name)
+  INSERT INTO public.profiles (
+    user_id,
+    email,
+    email_verified,
+    name,
+    full_name
+  )
   VALUES (
     new.id,
     new.email,
+    new.email_confirmed_at IS NOT NULL,
     COALESCE(new.raw_user_meta_data->>'name', split_part(COALESCE(new.email, 'user'), '@', 1)),
     COALESCE(new.raw_user_meta_data->>'name', split_part(COALESCE(new.email, 'user'), '@', 1))
   )
-  ON CONFLICT (user_id) DO NOTHING;
+  ON CONFLICT (user_id) DO UPDATE SET
+    email = COALESCE(public.profiles.email, EXCLUDED.email),
+    email_verified = EXCLUDED.email_verified,
+    name = COALESCE(public.profiles.name, EXCLUDED.name),
+    full_name = COALESCE(public.profiles.full_name, EXCLUDED.full_name),
+    updated_at = now();
   RETURN new;
 END;
 $function$;
 
--- Move product tables from public only when an afucloud copy does not exist.
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
+
+-- Move legacy AfuCloud tables out of public when an afucloud copy does not
+-- already exist. The old users table is handled below as users_legacy.
 DO $$
-DECLARE table_name text;
+DECLARE
+  table_name text;
 BEGIN
   FOREACH table_name IN ARRAY ARRAY[
-    'projects', 'images', 'api_keys', 'personal_tokens',
-    'refresh_tokens', 'password_reset_tokens', 'webhooks', 'activity_logs'
+    'users',
+    'projects',
+    'images',
+    'api_keys',
+    'personal_tokens',
+    'refresh_tokens',
+    'password_reset_tokens',
+    'webhooks',
+    'activity_logs'
   ] LOOP
     IF to_regclass('public.' || table_name) IS NOT NULL
        AND to_regclass('afucloud.' || table_name) IS NULL THEN
@@ -52,61 +128,149 @@ BEGIN
   END LOOP;
 END $$;
 
-CREATE TEMP TABLE afucloud_user_map (
-  old_id uuid PRIMARY KEY,
-  auth_id uuid NOT NULL UNIQUE
-) ON COMMIT DROP;
+-- Promote legacy AfuCloud-only identities into auth.users and remap all
+-- ownership rows to the shared Auth UUID. This block is a no-op on a fresh
+-- shared-auth database where afucloud.users does not exist.
+DO $$
+DECLARE
+  table_name text;
+BEGIN
+  IF to_regclass('afucloud.users') IS NULL THEN
+    RETURN;
+  END IF;
 
--- Existing AfuCloud-only identities are promoted into auth.users. Their
--- existing password hashes are preserved so users can still sign in.
-INSERT INTO afucloud_user_map (old_id, auth_id)
-SELECT u.id, COALESCE(a.id, gen_random_uuid())
-FROM afucloud.users u
-LEFT JOIN auth.users a ON lower(a.email) = lower(u.email);
+  CREATE TEMP TABLE afucloud_user_map (
+    old_id uuid PRIMARY KEY,
+    auth_id uuid NOT NULL UNIQUE
+  ) ON COMMIT DROP;
 
--- Drop legacy FKs before changing the IDs they protect.
-ALTER TABLE afucloud.projects DROP CONSTRAINT IF EXISTS projects_user_id_users_id_fk;
-ALTER TABLE afucloud.personal_tokens DROP CONSTRAINT IF EXISTS personal_tokens_user_id_users_id_fk;
-ALTER TABLE afucloud.refresh_tokens DROP CONSTRAINT IF EXISTS refresh_tokens_user_id_users_id_fk;
-ALTER TABLE afucloud.activity_logs DROP CONSTRAINT IF EXISTS activity_logs_user_id_users_id_fk;
-ALTER TABLE afucloud.password_reset_tokens DROP CONSTRAINT IF EXISTS password_reset_tokens_user_id_users_id_fk;
+  INSERT INTO afucloud_user_map (old_id, auth_id)
+  SELECT u.id, COALESCE(a.id, gen_random_uuid())
+  FROM afucloud.users u
+  LEFT JOIN auth.users a ON lower(a.email) = lower(u.email);
 
-INSERT INTO auth.users (
-  id, aud, role, email, encrypted_password, email_confirmed_at,
-  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-)
-SELECT m.auth_id, 'authenticated', 'authenticated', u.email, u.password_hash,
-       CASE WHEN u.email_verified THEN COALESCE(u.updated_at, now()) END,
-       '{"provider":"email","providers":["email"]}'::jsonb,
-       jsonb_build_object('name', u.name), u.created_at, u.updated_at
-FROM afucloud_user_map m
-JOIN afucloud.users u ON u.id = m.old_id
-WHERE NOT EXISTS (SELECT 1 FROM auth.users a WHERE a.id = m.auth_id);
+  INSERT INTO auth.users (
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  )
+  SELECT
+    m.auth_id,
+    'authenticated',
+    'authenticated',
+    u.email,
+    u.password_hash,
+    CASE WHEN u.email_verified THEN COALESCE(u.updated_at, now()) END,
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    jsonb_build_object('name', u.name),
+    u.created_at,
+    u.updated_at
+  FROM afucloud_user_map m
+  JOIN afucloud.users u ON u.id = m.old_id
+  WHERE NOT EXISTS (SELECT 1 FROM auth.users a WHERE a.id = m.auth_id);
 
-INSERT INTO public.profiles (user_id, email, name, full_name, avatar, created_at, updated_at)
-SELECT m.auth_id, u.email, u.name, u.name, u.avatar, u.created_at, u.updated_at
-FROM afucloud_user_map m
-JOIN afucloud.users u ON u.id = m.old_id
-ON CONFLICT (user_id) DO UPDATE SET
-  email = COALESCE(public.profiles.email, EXCLUDED.email),
-  name = COALESCE(public.profiles.name, EXCLUDED.name),
-  full_name = COALESCE(public.profiles.full_name, EXCLUDED.full_name),
-  avatar = COALESCE(public.profiles.avatar, EXCLUDED.avatar),
-  updated_at = GREATEST(public.profiles.updated_at, EXCLUDED.updated_at);
+  INSERT INTO public.profiles (
+    user_id,
+    email,
+    email_verified,
+    name,
+    full_name,
+    avatar,
+    created_at,
+    updated_at
+  )
+  SELECT
+    m.auth_id,
+    u.email,
+    u.email_verified,
+    u.name,
+    u.name,
+    u.avatar,
+    u.created_at,
+    u.updated_at
+  FROM afucloud_user_map m
+  JOIN afucloud.users u ON u.id = m.old_id
+  ON CONFLICT (user_id) DO UPDATE SET
+    email = COALESCE(public.profiles.email, EXCLUDED.email),
+    email_verified = public.profiles.email_verified OR EXCLUDED.email_verified,
+    name = COALESCE(public.profiles.name, EXCLUDED.name),
+    full_name = COALESCE(public.profiles.full_name, EXCLUDED.full_name),
+    avatar = COALESCE(public.profiles.avatar, EXCLUDED.avatar),
+    updated_at = GREATEST(public.profiles.updated_at, EXCLUDED.updated_at);
 
-UPDATE afucloud.projects t SET user_id = m.auth_id FROM afucloud_user_map m WHERE t.user_id = m.old_id;
-UPDATE afucloud.personal_tokens t SET user_id = m.auth_id FROM afucloud_user_map m WHERE t.user_id = m.old_id;
-UPDATE afucloud.refresh_tokens t SET user_id = m.auth_id FROM afucloud_user_map m WHERE t.user_id = m.old_id;
-UPDATE afucloud.activity_logs t SET user_id = m.auth_id FROM afucloud_user_map m WHERE t.user_id = m.old_id;
-UPDATE afucloud.password_reset_tokens t SET user_id = m.auth_id FROM afucloud_user_map m WHERE t.user_id = m.old_id;
+  FOREACH table_name IN ARRAY ARRAY[
+    'projects',
+    'personal_tokens',
+    'refresh_tokens',
+    'activity_logs',
+    'password_reset_tokens'
+  ] LOOP
+    IF to_regclass('afucloud.' || table_name) IS NOT NULL THEN
+      EXECUTE format(
+        'UPDATE afucloud.%I target SET user_id = map.auth_id FROM afucloud_user_map map WHERE target.user_id = map.old_id',
+        table_name
+      );
+    END IF;
+  END LOOP;
 
-ALTER TABLE afucloud.projects ADD CONSTRAINT projects_user_id_auth_users_id_fk FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE afucloud.personal_tokens ADD CONSTRAINT personal_tokens_user_id_auth_users_id_fk FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE afucloud.refresh_tokens ADD CONSTRAINT refresh_tokens_user_id_auth_users_id_fk FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE afucloud.activity_logs ADD CONSTRAINT activity_logs_user_id_auth_users_id_fk FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-ALTER TABLE afucloud.password_reset_tokens ADD CONSTRAINT password_reset_tokens_user_id_auth_users_id_fk FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+  IF to_regclass('afucloud.users_legacy') IS NULL THEN
+    ALTER TABLE afucloud.users RENAME TO users_legacy;
+  END IF;
 
--- Keep non-credential legacy data for audit/rollback, but remove the old
--- password source so auth.users is the only credential store.
-ALTER TABLE afucloud.users RENAME TO users_legacy;
-ALTER TABLE afucloud.users_legacy DROP COLUMN IF EXISTS password_hash;
+  IF to_regclass('afucloud.users_legacy') IS NOT NULL THEN
+    ALTER TABLE afucloud.users_legacy DROP COLUMN IF EXISTS password_hash;
+  END IF;
+END $$;
+
+-- Replace old ownership foreign keys with direct auth.users references.
+DO $$
+DECLARE
+  table_name text;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'projects',
+    'personal_tokens',
+    'refresh_tokens',
+    'activity_logs',
+    'password_reset_tokens'
+  ] LOOP
+    IF to_regclass('afucloud.' || table_name) IS NOT NULL THEN
+      EXECUTE format(
+        'ALTER TABLE afucloud.%I DROP CONSTRAINT IF EXISTS %I',
+        table_name,
+        table_name || '_user_id_users_id_fk'
+      );
+      EXECUTE format(
+        'ALTER TABLE afucloud.%I DROP CONSTRAINT IF EXISTS %I',
+        table_name,
+        table_name || '_user_id_auth_users_id_fk'
+      );
+      EXECUTE format(
+        'ALTER TABLE afucloud.%I ADD CONSTRAINT %I FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE',
+        table_name,
+        table_name || '_user_id_auth_users_id_fk'
+      );
+    END IF;
+  END LOOP;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'profiles_user_id_auth_users_id_fk'
+      AND conrelid = 'public.profiles'::regclass
+  ) THEN
+    ALTER TABLE public.profiles
+      ADD CONSTRAINT profiles_user_id_auth_users_id_fk
+      FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+  END IF;
+END $$;

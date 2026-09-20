@@ -9,10 +9,13 @@ import { authUsersTable } from "./auth-users";
  * Authentication is owned by Supabase Auth. This table deliberately has no
  * password or credential columns; user_id is the auth.users UUID.
  */
+// pgTable uses PostgreSQL's default public schema. The migration explicitly
+// creates public.profiles; product tables use pgSchema("afucloud").
 export const profilesTable = pgTable("profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().unique().references(() => authUsersTable.id, { onDelete: "cascade" }),
   email: text("email"),
+  emailVerified: boolean("email_verified").notNull().default(false),
   fullName: text("full_name"),
   avatarUrl: text("avatar_url"),
   roleType: text("role_type").default("advertiser"),

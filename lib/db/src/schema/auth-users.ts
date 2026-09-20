@@ -8,9 +8,12 @@ const authSchema = pgSchema("auth");
  */
 export const authUsersTable = authSchema.table("users", {
   id: uuid("id").primaryKey(),
+  aud: text("aud"),
+  role: text("role"),
   email: text("email"),
   encryptedPassword: text("encrypted_password").notNull(),
   emailConfirmedAt: timestamp("email_confirmed_at", { withTimezone: true }),
+  rawAppMetaData: jsonb("raw_app_meta_data"),
   rawUserMetaData: jsonb("raw_user_meta_data"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),

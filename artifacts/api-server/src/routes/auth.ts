@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { authUsersTable, db, profilesTable, refreshTokensTable } from "@workspace/db";
 import {
   hashPassword,
@@ -60,7 +60,7 @@ async function findSharedAuthUser(email: string) {
   const [authUser] = await db
     .select()
     .from(authUsersTable)
-    .where(eq(authUsersTable.email, email))
+    .where(sql`lower(${authUsersTable.email}) = ${email}`)
     .limit(1);
   return authUser;
 }
@@ -86,8 +86,11 @@ router.post("/v1/auth/register", async (req, res): Promise<void> => {
   const now = new Date();
   const [authUser] = await db.insert(authUsersTable).values({
     id: crypto.randomUUID(),
+    aud: "authenticated",
+    role: "authenticated",
     email,
     encryptedPassword,
+    rawAppMetaData: { provider: "email", providers: ["email"] },
     createdAt: now,
     updatedAt: now,
     rawUserMetaData: { name },

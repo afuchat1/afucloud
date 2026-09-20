@@ -28,7 +28,7 @@ async function ensureAfuCloudProfile(
   if (!email) throw new Error("Supabase Auth user has no email address");
 
   const profile = await db.createUser({
-    id: authUser.id,
+    user_id: authUser.id,
     email,
     name: getAuthName(email, authUser.user_metadata),
     email_verified: Boolean(authUser.email_confirmed_at),
@@ -51,13 +51,13 @@ auth.post("/register", async (c) => {
   const authUser = await signUpWithSupabase(c.env, email, password, name);
   if (!authUser) return c.json({ error: "Unable to create account" }, 400);
   const user = await ensureAfuCloudProfile(db, authUser);
-  const accessToken = await signAccessToken({ userId: user.id, email: user.email }, c.env);
+  const accessToken = await signAccessToken({ userId: user.user_id, email: user.email }, c.env);
   const rawRefresh = generateSecureToken();
-  await db.createRefreshToken({ user_id: user.id, token_hash: await hashToken(rawRefresh), expires_at: refreshTokenExpiresAt() });
-  await db.logActivity({ user_id: user.id, action: "register", resource: "user", resource_id: user.id });
+  await db.createRefreshToken({ user_id: user.user_id, token_hash: await hashToken(rawRefresh), expires_at: refreshTokenExpiresAt() });
+  await db.logActivity({ user_id: user.user_id, action: "register", resource: "user", resource_id: user.user_id });
 
   return c.json({
-    user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.email_verified, createdAt: user.created_at },
+    user: { id: user.user_id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.email_verified, createdAt: user.created_at },
     accessToken,
     refreshToken: rawRefresh,
   }, 201);
@@ -75,13 +75,13 @@ auth.post("/login", async (c) => {
   if (!sharedAuthUser) return c.json({ error: "Invalid credentials" }, 401);
   const user = await ensureAfuCloudProfile(db, sharedAuthUser);
 
-  const accessToken = await signAccessToken({ userId: user.id, email: user.email }, c.env);
+  const accessToken = await signAccessToken({ userId: user.user_id, email: user.email }, c.env);
   const rawRefresh = generateSecureToken();
-  await db.createRefreshToken({ user_id: user.id, token_hash: await hashToken(rawRefresh), expires_at: refreshTokenExpiresAt() });
-  await db.logActivity({ user_id: user.id, action: "login", resource: "user", resource_id: user.id });
+  await db.createRefreshToken({ user_id: user.user_id, token_hash: await hashToken(rawRefresh), expires_at: refreshTokenExpiresAt() });
+  await db.logActivity({ user_id: user.user_id, action: "login", resource: "user", resource_id: user.user_id });
 
   return c.json({
-    user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.email_verified, createdAt: user.created_at },
+    user: { id: user.user_id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.email_verified, createdAt: user.created_at },
     accessToken,
     refreshToken: rawRefresh,
   });
@@ -110,13 +110,13 @@ auth.post("/refresh", async (c) => {
   const user = await db.getUserById(record.user_id);
   if (!user) return c.json({ error: "User not found" }, 401);
 
-  const accessToken = await signAccessToken({ userId: user.id, email: user.email }, c.env);
+  const accessToken = await signAccessToken({ userId: user.user_id, email: user.email }, c.env);
   const newRaw = generateSecureToken();
   await db.deleteRefreshToken(record.id);
-  await db.createRefreshToken({ user_id: user.id, token_hash: await hashToken(newRaw), expires_at: refreshTokenExpiresAt() });
+  await db.createRefreshToken({ user_id: user.user_id, token_hash: await hashToken(newRaw), expires_at: refreshTokenExpiresAt() });
 
   return c.json({
-    user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.email_verified, createdAt: user.created_at },
+    user: { id: user.user_id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.email_verified, createdAt: user.created_at },
     accessToken,
     refreshToken: newRaw,
   });
@@ -127,7 +127,7 @@ auth.get("/me", requireAuth, async (c) => {
   const db = createDbClient(c.env);
   const user = await db.getUserById(c.get("userId"));
   if (!user) return c.json({ error: "User not found" }, 404);
-  return c.json({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.email_verified, createdAt: user.created_at });
+  return c.json({ id: user.user_id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.email_verified, createdAt: user.created_at });
 });
 
 // PATCH /v1/auth/me/update
@@ -138,7 +138,7 @@ auth.patch("/me/update", requireAuth, async (c) => {
   if (avatar !== undefined) updates.avatar = avatar;
   const db = createDbClient(c.env);
   const user = await db.updateUser(c.get("userId"), updates);
-  return c.json({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.email_verified, createdAt: user.created_at });
+  return c.json({ id: user.user_id, email: user.email, name: user.name, avatar: user.avatar, emailVerified: user.email_verified, createdAt: user.created_at });
 });
 
 // PATCH /v1/auth/me/password
