@@ -12,7 +12,9 @@ const auth = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
 // POST /v1/auth/register
 auth.post("/register", async (c) => {
-  const { email, password, name } = await c.req.json().catch(() => ({}));
+  const body = await c.req.json().catch(() => ({}));
+  const { password, name } = body;
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!email || !password || !name) {
     return c.json({ error: "email, password, and name are required" }, 400);
   }
@@ -36,7 +38,9 @@ auth.post("/register", async (c) => {
 
 // POST /v1/auth/login
 auth.post("/login", async (c) => {
-  const { email, password } = await c.req.json().catch(() => ({}));
+  const body = await c.req.json().catch(() => ({}));
+  const { password } = body;
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!email || !password) return c.json({ error: "email and password are required" }, 400);
 
   const db = createDbClient(c.env);

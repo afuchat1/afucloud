@@ -4,6 +4,8 @@ import { db, usersTable, refreshTokensTable } from "@workspace/db";
 import {
   hashPassword,
   verifyPassword,
+  isBcryptHash,
+  hashPbkdf2Password,
   signAccessToken,
   generateSecureToken,
   hashToken,
@@ -15,7 +17,8 @@ const router: IRouter = Router();
 
 // POST /v1/auth/register
 router.post("/v1/auth/register", async (req, res): Promise<void> => {
-  const { email, password, name } = req.body ?? {};
+  const { password, name } = req.body ?? {};
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   if (!email || !password || !name) {
     res.status(400).json({ error: "email, password, and name are required" });
     return;
@@ -43,7 +46,8 @@ router.post("/v1/auth/register", async (req, res): Promise<void> => {
 
 // POST /v1/auth/login
 router.post("/v1/auth/login", async (req, res): Promise<void> => {
-  const { email, password } = req.body ?? {};
+  const { password } = req.body ?? {};
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   if (!email || !password) {
     res.status(400).json({ error: "email and password are required" });
     return;
@@ -57,6 +61,14 @@ router.post("/v1/auth/login", async (req, res): Promise<void> => {
   if (!valid) {
     res.status(401).json({ error: "Invalid credentials" });
     return;
+  }
+  // The shared worker uses PBKDF2. Migrate older bcrypt credentials after a
+  // successful login so every AfuCloud service can verify the same account.
+  if (isBcryptHash(user.passwordHash)) {
+    await db
+      .update(usersTable)
+      .set({ passwordHash: await hashPbkdf2Password(password) })
+      .where(eq(usersTable.id, user.id));
   }
   const accessToken = signAccessToken({ userId: user.id, email: user.email });
   const rawRefresh = generateSecureToken();

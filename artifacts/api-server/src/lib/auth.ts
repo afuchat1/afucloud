@@ -11,7 +11,50 @@ export function hashPassword(password: string): Promise<string> {
 }
 
 export function verifyPassword(password: string, hash: string): Promise<boolean> {
+  if (hash.startsWith("pbkdf2:")) {
+    return verifyPbkdf2Password(password, hash);
+  }
   return bcrypt.compare(password, hash);
+}
+
+/**
+ * Matches the password format used by the Cloudflare Worker and other
+ * AfuCloud services. Keeping this in the API server means users can use the
+ * same credentials across every platform connected to the shared database.
+ */
+async function verifyPbkdf2Password(password: string, stored: string): Promise<boolean> {
+  const [, saltHex, expectedHash] = stored.split(":");
+  if (!saltHex || !expectedHash || !/^[0-9a-f]+$/i.test(saltHex) || !/^[0-9a-f]+$/i.test(expectedHash)) {
+    return false;
+  }
+
+  const derived = await new Promise<Buffer>((resolve, reject) => {
+    crypto.pbkdf2(
+      password,
+      Buffer.from(saltHex, "hex"),
+      100_000,
+      32,
+      "sha256",
+      (error, key) => (error ? reject(error) : resolve(key)),
+    );
+  });
+
+  const expected = Buffer.from(expectedHash, "hex");
+  return expected.length === derived.length && crypto.timingSafeEqual(derived, expected);
+}
+
+export function isBcryptHash(hash: string): boolean {
+  return hash.startsWith("$2");
+}
+
+export async function hashPbkdf2Password(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16);
+  const derived = await new Promise<Buffer>((resolve, reject) => {
+    crypto.pbkdf2(password, salt, 100_000, 32, "sha256", (error, key) => {
+      error ? reject(error) : resolve(key);
+    });
+  });
+  return `pbkdf2:${salt.toString("hex")}:${derived.toString("hex")}`;
 }
 
 export interface JwtPayload {

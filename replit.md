@@ -41,6 +41,8 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec in `lib/api-spec/openapi.yaml`)
 - Frontend auth: JWT stored in `localStorage` as `afucloud_token`
+- Shared auth: the API and Cloudflare Worker both authenticate against the shared `public.users` table; both bcrypt and the Worker-compatible `pbkdf2:<salt>:<hash>` password formats are supported
+- Password migration: successful API login transparently migrates legacy bcrypt hashes to PBKDF2 so the same user works across all AfuCloud platforms
 - Storage: Cloudflare R2 (S3-compatible) with pre-signed PUT URLs
 
 ## Where Things Live

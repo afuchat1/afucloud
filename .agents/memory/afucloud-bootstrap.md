@@ -13,3 +13,6 @@ description: Infrastructure IDs and key decisions for AfuCloud
 
 ## Key Decision
 POSTGRES_URL used instead of DATABASE_URL (Replit reserves DATABASE_URL for built-in PG). Code in lib/db/src/index.ts reads `process.env.POSTGRES_URL ?? process.env.DATABASE_URL`.
+
+## Shared authentication
+All AfuCloud platforms use the shared `public.users` table. The API accepts both bcrypt and the Worker-compatible PBKDF2 password format; successful API login migrates bcrypt credentials to PBKDF2.
