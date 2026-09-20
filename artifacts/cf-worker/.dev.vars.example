@@ -2,7 +2,7 @@
 # These values are only needed for local development.
 # In production, set secrets via: wrangler secret put <NAME>
 
-# Supabase — get from https://supabase.com/dashboard/project/wjdkeiazhlxcnqtxjdry/settings/api
+# Supabase — get from https://supabase.com/dashboard/project/poijhidfekwfthyksatp/settings/api
 SUPABASE_SERVICE_KEY=your_supabase_service_role_key_here
 
 # JWT — must match the value used by the Express API server

@@ -27,7 +27,7 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 
 ## Infrastructure
 
-- **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), AfuCloud data isolated in the `afucloud` schema
+- **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), with AfuCloud identity and platform data in the `afucloud` schema; other products use their own schemas and reference the same user ID
 - **Object storage**: Cloudflare R2 bucket `afucloud-images`
 - **Frontend**: React + Vite + shadcn/ui + Tailwind v4
 - **Dev backend**: Express 5 + Drizzle ORM (`artifacts/api-server/`)
@@ -41,7 +41,7 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec in `lib/api-spec/openapi.yaml`)
 - Frontend auth: JWT stored in `localStorage` as `afucloud_token`
-- Shared auth: the API and Cloudflare Worker both authenticate against the shared `public.users` table; both bcrypt and the Worker-compatible `pbkdf2:<salt>:<hash>` password formats are supported
+- Shared auth: the API and Cloudflare Worker both authenticate against the shared `afucloud.users` table; other product schemas link their records by the same user ID; both bcrypt and the Worker-compatible `pbkdf2:<salt>:<hash>` password formats are supported
 - Password migration: successful API login transparently migrates legacy bcrypt hashes to PBKDF2 so the same user works across all AfuCloud platforms
 - Storage: Cloudflare R2 (S3-compatible) with pre-signed PUT URLs
 
@@ -84,7 +84,7 @@ pnpm --filter @workspace/cf-worker run dev
 
 ### Environment variables in `wrangler.toml` (non-secret):
 
-- `SUPABASE_URL` — e.g. `https://wjdkeiazhlxcnqtxjdry.supabase.co`
+- `SUPABASE_URL` — `https://poijhidfekwfthyksatp.supabase.co`
 - `CLOUDFLARE_ACCOUNT_ID` — `42e79186125e8ff83e51f15816e074de`
 - `CLOUDFLARE_R2_ACCESS_KEY_ID` — R2 access key ID
 - `R2_BUCKET_NAME` — `afucloud-images`

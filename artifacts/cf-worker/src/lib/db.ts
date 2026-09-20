@@ -5,10 +5,13 @@ export type DbClient = ReturnType<typeof createDbClient>;
 
 export function createDbClient(env: Env) {
   const baseUrl = `${env.SUPABASE_URL}/rest/v1`;
+  const schema = env.SUPABASE_DB_SCHEMA ?? "afucloud";
   const headers: Record<string, string> = {
     apikey: env.SUPABASE_SERVICE_KEY,
     Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
     "Content-Type": "application/json",
+    "Accept-Profile": schema,
+    "Content-Profile": schema,
   };
 
   async function request(
