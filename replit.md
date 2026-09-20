@@ -11,26 +11,21 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only, requires the target Supabase connection variables)
 
-## Required Environment Variables
+## Replit Boundary
 
-- `SUPABASE_DB_PASSWORD` — target Supabase database password (secret)
-- `SUPABASE_DB_HOST` — target Supabase pooler host
-- `SUPABASE_DB_USER` — target Supabase project-qualified database user
-- `SUPABASE_DB_PORT` — target Supabase database port
-- `SUPABASE_DB_NAME` — target Supabase database name
-- `JWT_SECRET` — JWT signing secret (set in Replit env vars)
-- `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account ID for R2 (set in Replit env vars)
-- `CLOUDFLARE_R2_ACCESS_KEY_ID` — R2 S3-compatible access key (set in Replit env vars)
-- `CLOUDFLARE_R2_SECRET_ACCESS_KEY` — R2 S3-compatible secret key (set in Replit env vars)
-- `R2_BUCKET_NAME` — R2 bucket name, defaults to `afucloud-images`
-- `R2_PUBLIC_URL` — (optional) public CDN URL for the R2 bucket
+- Replit is used only for source editing, dependency installation, and frontend preview.
+- The production frontend sends API requests directly to `https://api.afuchat.com`.
+- Replit does not host the production API, connect to Supabase, access R2, or handle production credentials.
+- Do not put AfuCloud secrets, database URLs, or storage credentials in `.replit`, Replit environment variables, or frontend build variables.
+- Production secrets are stored only in the Cloudflare Worker secret store.
+- The Express server under `artifacts/api-server/` is an inactive local compatibility server. It requires explicitly supplied local credentials and is not part of production.
 
 ## Infrastructure
 
 - **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), with shared identities in Supabase's `auth.users`; AfuCloud profile and platform data lives in the `afucloud` schema, and other products reference the same auth user ID
 - **Object storage**: Cloudflare R2 bucket `afucloud-images`
 - **Frontend**: React + Vite + shadcn/ui + Tailwind v4
-- **Dev backend**: Express 5 + Drizzle ORM (`artifacts/api-server/`)
+- **Local compatibility backend**: Express 5 + Drizzle ORM (`artifacts/api-server/`), inactive by default
 - **Prod backend**: Cloudflare Worker (Hono) (`artifacts/cf-worker/`) — deployed to Cloudflare's edge
 
 ## Stack
@@ -59,7 +54,7 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 
 The CF Worker in `artifacts/cf-worker/` is the production edge API. It uses Hono + Supabase REST + aws4fetch.
 
-### One-time secrets setup (run from `artifacts/cf-worker/`):
+### One-time secrets setup (run from a trusted deployment machine or CI, never stored in Replit):
 
 ```bash
 cd artifacts/cf-worker
@@ -96,7 +91,7 @@ pnpm --filter @workspace/cf-worker run dev
 - Storage abstraction in `artifacts/api-server/src/lib/storage.ts` — provider-agnostic interface
 - App sessions use AfuCloud access/refresh tokens, but credentials and identity remain in Supabase Auth's `auth.users`; no product schema may add a password or product-specific user table
 - The app uses the target Supabase connection variables and explicitly schema-qualified tables: `public.profiles` for shared profile data and `afucloud.*` for AfuCloud domain data
-- All secrets stored as Replit env vars (minimum required to run; Cloudflare R2 creds needed at server startup)
+- Production secrets exist only in the Cloudflare Worker secret store; Replit has no production secret dependency
 - CF Worker uses PBKDF2 (Web Crypto) for password hashing; bcrypt hashes from the Express API will require a password reset
 
 ## Design

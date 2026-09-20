@@ -1,4 +1,4 @@
-modules = ["nodejs-22", "web", "bash", "postgresql-16"]
+modules = ["nodejs-22", "web", "bash"]
 
 [deployment]
 router = "application"
@@ -21,19 +21,5 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
-packages = ["postgresql_17"]
 
 [userenv]
-
-[userenv.shared]
-CLOUDFLARE_ACCOUNT_ID = "42e79186125e8ff83e51f15816e074de"
-CLOUDFLARE_R2_ACCESS_KEY_ID = "40916680c4892042d4ce49396ef62819"
-CLOUDFLARE_R2_SECRET_ACCESS_KEY = "6f838ffd49ed7cb39e550ac54af69a15ec05d5d6d5cb8c1e07fc500598a49146"
-JWT_SECRET = "afu-cloud-jwt-secret-2024-xK9mP3qR7nL2wB5vY8jH1cF6dT4sA0eU"
-NODE_ENV = "development"
-R2_BUCKET_NAME = "afucloud-images"
-SUPABASE_PROJECT_ID = "poijhidfekwfthyksatp"
-SUPABASE_DB_HOST = "aws-1-eu-west-1.pooler.supabase.com"
-SUPABASE_DB_NAME = "postgres"
-SUPABASE_DB_PORT = "5432"
-SUPABASE_DB_USER = "postgres.poijhidfekwfthyksatp"

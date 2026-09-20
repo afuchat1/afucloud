@@ -19,10 +19,19 @@ const app = new Hono<{ Bindings: Env }>();
 // ── Global middleware ─────────────────────────────────────────────────────────
 app.use("*", logger());
 app.use("*", secureHeaders());
+const allowedOrigins = new Set([
+  "https://afuchat.com",
+  "https://www.afuchat.com",
+]);
+
 app.use(
   "*",
   cors({
-    origin: "*",
+    origin: (origin) => {
+      if (!origin) return origin;
+      if (allowedOrigins.has(origin) || origin.endsWith(".afuchat.com")) return origin;
+      return null;
+    },
     allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     exposeHeaders: ["Content-Range", "X-AfuCloud-Request-Id"],
@@ -88,7 +97,6 @@ app.onError((err, c) => {
   return c.json(
     {
       error: "Internal server error",
-      message: err.message,
       timestamp: new Date().toISOString(),
       api_version: "v1",
     },

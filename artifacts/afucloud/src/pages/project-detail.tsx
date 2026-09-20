@@ -41,7 +41,7 @@ type Tab = 'images' | 'trash';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const BASE_URL = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+const API_BASE = 'https://api.afuchat.com';
 const ALLOWED_TYPES = [
   'image/png', 'image/jpeg', 'image/jpg', 'image/webp',
   'image/gif', 'image/avif', 'image/svg+xml', 'image/heic',
@@ -55,13 +55,12 @@ function authHeaders() {
 function uploadWithProgress(
   url: string,
   file: File,
-  token: string,
   onProgress: (pct: number) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', url);
-    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
       if (xhr.status < 300) {
@@ -76,10 +75,7 @@ function uploadWithProgress(
       }
     };
     xhr.onerror = () => reject(new Error('Network error during upload'));
-    const form = new FormData();
-    form.append('file', file, file.name);
-    form.append('name', file.name);
-    xhr.send(form);
+    xhr.send(file);
   });
 }
 
@@ -127,7 +123,7 @@ export default function ProjectDetailPage() {
   const { data: trashData, isLoading: trashLoading, refetch: refetchTrash } = useQuery({
     queryKey: ['trash', projectId],
     queryFn: async () => {
-      const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/trash`, { headers: authHeaders() });
+      const res = await fetch(`${API_BASE}/v1/projects/${projectId}/images/trash`, { headers: authHeaders() });
       if (!res.ok) throw new Error('Failed to load trash');
       return res.json() as Promise<{ images: Image[]; total: number }>;
     },
@@ -172,12 +168,27 @@ export default function ProjectDetailPage() {
   const uploadFile = useCallback(async (item: UploadItem) => {
     updateQueueItem(item.id, { status: 'uploading', progress: 0 });
     try {
-      await uploadWithProgress(
-        `${BASE_URL}/api/v1/projects/${projectId}/images/upload`,
-        item.file,
-        localStorage.getItem('afucloud_token') ?? '',
-        (pct) => updateQueueItem(item.id, { progress: pct }),
-      );
+      const urlRes = await fetch(`${API_BASE}/v1/projects/${projectId}/images/upload-url`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          filename: item.file.name,
+          contentType: item.file.type || 'application/octet-stream',
+          name: item.file.name,
+        }),
+      });
+      if (!urlRes.ok) {
+        const body = await urlRes.json().catch(() => ({}));
+        throw new Error(body.error || `Failed to prepare upload (HTTP ${urlRes.status})`);
+      }
+      const { uploadUrl, imageId, key } = await urlRes.json();
+      await uploadWithProgress(uploadUrl, item.file, (pct) => updateQueueItem(item.id, { progress: Math.round(pct * 0.9) }));
+      const confirmRes = await fetch(`${API_BASE}/v1/projects/${projectId}/images/confirm-upload`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ imageId, key, size: item.file.size }),
+      });
+      if (!confirmRes.ok) throw new Error(`Failed to confirm upload (HTTP ${confirmRes.status})`);
       updateQueueItem(item.id, { status: 'done', progress: 100 });
       queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
       queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey(projectId) });
@@ -233,7 +244,7 @@ export default function ProjectDetailPage() {
     if (!confirm(`Move ${selectedIds.size} image${selectedIds.size !== 1 ? 's' : ''} to the Recycle Bin?`)) return;
     setIsBulkProcessing(true);
     await Promise.allSettled(Array.from(selectedIds).map(id =>
-      fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${id}`, { method: 'DELETE', headers: authHeaders() })
+      fetch(`${API_BASE}/v1/projects/${projectId}/images/${id}`, { method: 'DELETE', headers: authHeaders() })
     ));
     queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
     queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey(projectId) });
@@ -247,7 +258,7 @@ export default function ProjectDetailPage() {
     setIsBulkProcessing(true);
     const album = bulkAlbumInput.trim() || null;
     await Promise.allSettled(Array.from(selectedIds).map(id =>
-      fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${id}`, {
+      fetch(`${API_BASE}/v1/projects/${projectId}/images/${id}`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ album }),
@@ -267,7 +278,7 @@ export default function ProjectDetailPage() {
     const images = allImages.filter(img => selectedIds.has(img.id));
     await Promise.allSettled(images.map(img => {
       const newTags = Array.from(new Set([...(img.tags ?? []), tag]));
-      return fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${img.id}`, {
+      return fetch(`${API_BASE}/v1/projects/${projectId}/images/${img.id}`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ tags: newTags }),
@@ -291,7 +302,7 @@ export default function ProjectDetailPage() {
   const handleSoftDelete = async (imageId: string) => {
     if (!confirm('Move this image to the Recycle Bin?')) return;
     try {
-      const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${imageId}`, { method: 'DELETE', headers: authHeaders() });
+      const res = await fetch(`${API_BASE}/v1/projects/${projectId}/images/${imageId}`, { method: 'DELETE', headers: authHeaders() });
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
         queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey(projectId) });
@@ -308,7 +319,7 @@ export default function ProjectDetailPage() {
 
   const handleRestore = async (imageId: string) => {
     try {
-      const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${imageId}/restore`, { method: 'POST', headers: authHeaders() });
+      const res = await fetch(`${API_BASE}/v1/projects/${projectId}/images/${imageId}/restore`, { method: 'POST', headers: authHeaders() });
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
         queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
@@ -321,7 +332,7 @@ export default function ProjectDetailPage() {
   const handlePermanentDelete = async (imageId: string, name: string) => {
     if (!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
     try {
-      const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${imageId}/permanent`, { method: 'DELETE', headers: authHeaders() });
+      const res = await fetch(`${API_BASE}/v1/projects/${projectId}/images/${imageId}/permanent`, { method: 'DELETE', headers: authHeaders() });
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
         toast({ title: 'Permanently deleted' });
@@ -337,7 +348,7 @@ export default function ProjectDetailPage() {
     if (count === 0) return;
     if (!confirm(`Permanently delete all ${count} images in the Recycle Bin? This cannot be undone.`)) return;
     try {
-      const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/trash`, { method: 'DELETE', headers: authHeaders() });
+      const res = await fetch(`${API_BASE}/v1/projects/${projectId}/images/trash`, { method: 'DELETE', headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
         queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
@@ -350,7 +361,7 @@ export default function ProjectDetailPage() {
     const images = trashData?.images ?? [];
     if (images.length === 0) return;
     await Promise.all(images.map(img =>
-      fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${img.id}/restore`, { method: 'POST', headers: authHeaders() })
+      fetch(`${API_BASE}/v1/projects/${projectId}/images/${img.id}/restore`, { method: 'POST', headers: authHeaders() })
     ));
     queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
     queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
@@ -371,7 +382,7 @@ export default function ProjectDetailPage() {
     if (Object.keys(updates).length === 0) return;
     setIsSavingDetails(true);
     try {
-      const res = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/${selectedImage.id}`, {
+      const res = await fetch(`${API_BASE}/v1/projects/${projectId}/images/${selectedImage.id}`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify(updates),

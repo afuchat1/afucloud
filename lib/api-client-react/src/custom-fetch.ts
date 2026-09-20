@@ -66,7 +66,11 @@ function applyBaseUrl(input: RequestInfo | URL): RequestInfo | URL {
   // Only prepend to relative paths (starting with /)
   if (!url.startsWith("/")) return input;
 
-  const absolute = `${_baseUrl}${url}`;
+  // The generated client retains the Express-compatible /api prefix.
+  // The production Worker exposes the same API at /v1, so remove only that
+  // compatibility prefix when routing through the configured remote API.
+  const apiPath = url.startsWith("/api/") ? url.slice(4) : url;
+  const absolute = `${_baseUrl}${apiPath}`;
   if (typeof input === "string") return absolute;
   if (isUrl(input)) return new URL(absolute);
   return new Request(absolute, input as Request);

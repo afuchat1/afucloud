@@ -7,10 +7,10 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { User, Shield } from 'lucide-react';
 
-const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, '') || '';
+const API_BASE = 'https://api.afuchat.com';
 
 async function changePassword(currentPassword: string, newPassword: string, token: string) {
-  const res = await fetch(`${API_BASE}/api/v1/auth/me/password`, {
+  const res = await fetch(`${API_BASE}/v1/auth/me/password`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ currentPassword, newPassword }),
