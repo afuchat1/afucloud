@@ -1,13 +1,13 @@
 import { pgSchema, text, timestamp, uuid, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { profilesTable } from "./users";
+import { authUsersTable } from "./auth-users";
 
 const afucloudSchema = pgSchema("afucloud");
 
 export const activityLogsTable = afucloudSchema.table("activity_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => profilesTable.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => authUsersTable.id, { onDelete: "cascade" }),
   projectId: uuid("project_id"),
   action: text("action").notNull(),
   resource: text("resource").notNull(),

@@ -52,15 +52,34 @@ function authHeaders() {
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
-function uploadWithProgress(url: string, file: File, onProgress: (pct: number) => void): Promise<void> {
+function uploadWithProgress(
+  url: string,
+  file: File,
+  token: string,
+  onProgress: (pct: number) => void,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('PUT', url);
-    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.open('POST', url);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
-    xhr.onload = () => (xhr.status < 300 ? resolve() : reject(new Error(`HTTP ${xhr.status}`)));
+    xhr.onload = () => {
+      if (xhr.status < 300) {
+        resolve();
+        return;
+      }
+      try {
+        const body = JSON.parse(xhr.responseText);
+        reject(new Error(body.error || `HTTP ${xhr.status}`));
+      } catch {
+        reject(new Error(`HTTP ${xhr.status}`));
+      }
+    };
     xhr.onerror = () => reject(new Error('Network error during upload'));
-    xhr.send(file);
+    const form = new FormData();
+    form.append('file', file, file.name);
+    form.append('name', file.name);
+    xhr.send(form);
   });
 }
 
@@ -153,20 +172,12 @@ export default function ProjectDetailPage() {
   const uploadFile = useCallback(async (item: UploadItem) => {
     updateQueueItem(item.id, { status: 'uploading', progress: 0 });
     try {
-      const urlRes = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/upload-url`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ filename: item.file.name, contentType: item.file.type || 'application/octet-stream', name: item.file.name }),
-      });
-      if (!urlRes.ok) throw new Error((await urlRes.json()).error || 'Failed to get upload URL');
-      const { uploadUrl, imageId, key } = await urlRes.json();
-      await uploadWithProgress(uploadUrl, item.file, (pct) => updateQueueItem(item.id, { progress: Math.round(pct * 0.9) }));
-      const confirmRes = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/images/confirm-upload`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ imageId, key, size: item.file.size }),
-      });
-      if (!confirmRes.ok) throw new Error('Failed to confirm upload');
+      await uploadWithProgress(
+        `${BASE_URL}/api/v1/projects/${projectId}/images/upload`,
+        item.file,
+        localStorage.getItem('afucloud_token') ?? '',
+        (pct) => updateQueueItem(item.id, { progress: pct }),
+      );
       updateQueueItem(item.id, { status: 'done', progress: 100 });
       queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
       queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey(projectId) });

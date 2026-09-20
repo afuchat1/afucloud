@@ -1,17 +1,15 @@
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
-import { signInWithSupabase } from "../lib/supabase-auth";
+import { signInWithSupabase, signUpWithSupabase } from "../lib/supabase-auth";
 import {
-  hashPassword, verifyPassword, isBcryptHash, signAccessToken,
+  signAccessToken,
   generateSecureToken, hashToken, refreshTokenExpiresAt,
   extractBearerToken,
 } from "../lib/auth";
 import { requireAuth } from "../middleware/auth";
 
 const auth = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
-
-const SUPABASE_PROFILE_PASSWORD_MARKER = "supabase-auth:";
 
 function getAuthName(email: string, metadata: unknown): string {
   const values = metadata && typeof metadata === "object" ? metadata as Record<string, unknown> : {};
@@ -33,7 +31,6 @@ async function ensureAfuCloudProfile(
     id: authUser.id,
     email,
     name: getAuthName(email, authUser.user_metadata),
-    password_hash: `${SUPABASE_PROFILE_PASSWORD_MARKER}${authUser.id}`,
     email_verified: Boolean(authUser.email_confirmed_at),
   });
   return profile;
@@ -51,8 +48,9 @@ auth.post("/register", async (c) => {
   const existing = await db.getUserByEmail(email);
   if (existing) return c.json({ error: "Email already registered" }, 409);
 
-  const password_hash = await hashPassword(password);
-  const user = await db.createUser({ email, name, password_hash });
+  const authUser = await signUpWithSupabase(c.env, email, password, name);
+  if (!authUser) return c.json({ error: "Unable to create account" }, 400);
+  const user = await ensureAfuCloudProfile(db, authUser);
   const accessToken = await signAccessToken({ userId: user.id, email: user.email }, c.env);
   const rawRefresh = generateSecureToken();
   await db.createRefreshToken({ user_id: user.id, token_hash: await hashToken(rawRefresh), expires_at: refreshTokenExpiresAt() });
@@ -74,25 +72,8 @@ auth.post("/login", async (c) => {
 
   const db = createDbClient(c.env);
   const sharedAuthUser = await signInWithSupabase(c.env, email, password);
-  let user;
-
-  if (sharedAuthUser) {
-    user = await ensureAfuCloudProfile(db, sharedAuthUser);
-  } else {
-    // Compatibility for the older AfuCloud-only accounts.
-    user = await db.getUserByEmail(email);
-    if (!user) return c.json({ error: "Invalid credentials" }, 401);
-
-    const valid = await verifyPassword(password, user.password_hash);
-    if (!valid) return c.json({ error: "Invalid credentials" }, 401);
-
-    // Transparently re-hash bcrypt passwords → PBKDF2 on first Worker login
-    if (isBcryptHash(user.password_hash)) {
-      const newHash = await hashPassword(password);
-      await db.updateUser(user.id, { password_hash: newHash });
-      user.password_hash = newHash;
-    }
-  }
+  if (!sharedAuthUser) return c.json({ error: "Invalid credentials" }, 401);
+  const user = await ensureAfuCloudProfile(db, sharedAuthUser);
 
   const accessToken = await signAccessToken({ userId: user.id, email: user.email }, c.env);
   const rawRefresh = generateSecureToken();
@@ -168,11 +149,7 @@ auth.patch("/me/password", requireAuth, async (c) => {
   const db = createDbClient(c.env);
   const user = await db.getUserById(c.get("userId"));
   if (!user) return c.json({ error: "User not found" }, 404);
-  const valid = await verifyPassword(currentPassword, user.password_hash);
-  if (!valid) return c.json({ error: "Current password is incorrect" }, 401);
-  const password_hash = await hashPassword(newPassword);
-  await db.updateUser(user.id, { password_hash });
-  return c.json({ message: "Password updated successfully" });
+  return c.json({ error: "Password changes must be completed through Supabase Auth." }, 501);
 });
 
 auth.post("/forgot-password", async (c) => c.json({ message: "If that email exists, a reset link has been sent." }));

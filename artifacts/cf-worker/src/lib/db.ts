@@ -19,10 +19,16 @@ export function createDbClient(env: Env) {
     method = "GET",
     body?: unknown,
     extraHeaders?: Record<string, string>,
+    profileSchema = schema,
   ): Promise<Response> {
     return fetch(`${baseUrl}${path}`, {
       method,
-      headers: { ...headers, ...extraHeaders },
+      headers: {
+        ...headers,
+        "Accept-Profile": profileSchema,
+        "Content-Profile": profileSchema,
+        ...extraHeaders,
+      },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   }
@@ -30,28 +36,27 @@ export function createDbClient(env: Env) {
   return {
     // ── Users ──────────────────────────────────────────────────────────────
     async getUserByEmail(email: string) {
-      const r = await request(`/users?email=eq.${encodeURIComponent(email)}&limit=1`);
+      const r = await request(`/profiles?email=eq.${encodeURIComponent(email)}&limit=1`, "GET", undefined, undefined, "public");
       const rows = await r.json() as any[];
       return rows[0] ?? null;
     },
     async getUserById(id: string) {
-      const r = await request(`/users?id=eq.${id}&limit=1`);
+      const r = await request(`/profiles?id=eq.${id}&limit=1`, "GET", undefined, undefined, "public");
       const rows = await r.json() as any[];
       return rows[0] ?? null;
     },
     async createUser(data: {
-      id?: string;
+      id: string;
       email: string;
       name: string;
-      password_hash: string;
       email_verified?: boolean;
     }) {
-      const r = await request("/users", "POST", data, { Prefer: "return=representation" });
+      const r = await request("/profiles", "POST", data, { Prefer: "return=representation" }, "public");
       const rows = await r.json() as any[];
       return rows[0];
     },
     async updateUser(id: string, data: Record<string, unknown>) {
-      const r = await request(`/users?id=eq.${id}`, "PATCH", data, { Prefer: "return=representation" });
+      const r = await request(`/profiles?id=eq.${id}`, "PATCH", data, { Prefer: "return=representation" }, "public");
       const rows = await r.json() as any[];
       return rows[0];
     },

@@ -37,3 +37,17 @@ export async function signInWithSupabase(
   const response = await authRequest(env, "/token?grant_type=password", { email, password });
   return response?.user ?? null;
 }
+
+export async function signUpWithSupabase(
+  env: Env,
+  email: string,
+  password: string,
+  name: string,
+): Promise<SupabaseAuthUser | null> {
+  const response = await authRequest(env, "/signup", {
+    email,
+    password,
+    data: { name },
+  });
+  return response?.user ?? null;
+}
