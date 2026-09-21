@@ -11,13 +11,13 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only, requires the target Supabase connection variables)
 
-## Required Environment Variables
+## Development Environment Variables
 
-- `SUPABASE_DB_PASSWORD` — target Supabase database password (secret)
-- `SUPABASE_DB_HOST` — target Supabase pooler host
-- `SUPABASE_DB_USER` — target Supabase project-qualified database user
-- `SUPABASE_DB_PORT` — target Supabase database port
-- `SUPABASE_DB_NAME` — target Supabase database name
+- `SUPABASE_DB_PASSWORD` — target Supabase database password (secret; local Express adapter only)
+- `SUPABASE_DB_HOST` — target Supabase pooler host (local Express adapter only)
+- `SUPABASE_DB_USER` — target Supabase project-qualified database user (local Express adapter only)
+- `SUPABASE_DB_PORT` — target Supabase database port (local Express adapter only)
+- `SUPABASE_DB_NAME` — target Supabase database name (local Express adapter only)
 - `JWT_SECRET` — JWT signing secret (set in Replit env vars)
 - `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account ID for R2 (set in Replit env vars)
 - `CLOUDFLARE_R2_ACCESS_KEY_ID` — R2 S3-compatible access key (set in Replit env vars)
@@ -59,7 +59,21 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 
 The CF Worker in `artifacts/cf-worker/` is the production edge API. It uses Hono + Supabase REST + aws4fetch.
 
-### One-time secrets setup (run from `artifacts/cf-worker/`):
+### Canonical production deployment
+
+There is one permanent production Worker:
+
+- **Worker name:** `afucloud-api`
+- **Source:** `artifacts/cf-worker/wrangler.toml`
+- **Public API:** `https://api.afuchat.com`
+- **Route:** `api.afuchat.com/*`
+- **Database/Auth:** Supabase project `poijhidfekwfthyksatp`
+
+All AfuCloud products and projects must use this Worker. Do not create product-specific Workers or point clients at temporary `workers.dev` deployments.
+
+### Production secrets setup (Cloudflare only)
+
+Run from `artifacts/cf-worker/` using a Cloudflare deployment token:
 
 ```bash
 cd artifacts/cf-worker
@@ -96,7 +110,7 @@ pnpm --filter @workspace/cf-worker run dev
 - Storage abstraction in `artifacts/api-server/src/lib/storage.ts` — provider-agnostic interface
 - App sessions use AfuCloud access/refresh tokens, but credentials and identity remain in Supabase Auth's `auth.users`; no product schema may add a password or product-specific user table
 - The app uses the target Supabase connection variables and explicitly schema-qualified tables: `public.profiles` for shared profile data and `afucloud.*` for AfuCloud domain data
-- All secrets stored as Replit env vars (minimum required to run; Cloudflare R2 creds needed at server startup)
+- Production secrets are stored in Cloudflare Worker secrets, not Replit. Replit variables are only for the local Express development adapter.
 - CF Worker uses PBKDF2 (Web Crypto) for password hashing; bcrypt hashes from the Express API will require a password reset
 
 ## Design

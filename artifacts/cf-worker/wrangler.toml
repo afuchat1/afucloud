@@ -1,3 +1,5 @@
+# Canonical production API Worker. All AfuCloud projects use this Worker.
+# Do not create additional production Workers; add routes here instead.
 name = "afucloud-api"
 main = "src/index.ts"
 compatibility_date = "2025-07-01"
