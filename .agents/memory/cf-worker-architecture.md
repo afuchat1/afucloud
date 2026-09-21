@@ -37,5 +37,12 @@ wrangler secret put CLOUDFLARE_R2_SECRET_ACCESS_KEY
 2. Uncomment the `routes` block in `wrangler.toml` with `api.afuchat.com/*`
 3. `wrangler deploy`
 
+## Deployment token scope
+- Wrangler deploy requires a Cloudflare API token with `Account → Workers Scripts → Edit` for the target account and `Zone → Workers Routes → Edit` for the routed zone. A token can read/list a Worker while still being unable to upload a new version.
+
+**Why:** Cloudflare separates Worker read access from version upload and route mutation access; a successful token verification or Worker listing does not prove deployment authority.
+
+**How to apply:** Include the target account and zone explicitly when creating the token, leave client-IP filtering empty for Replit-originated deploys, and verify the live route returns an auth response rather than `Not found` after deployment.
+
 ## Env binding name
 - R2 binding is `IMAGES_BUCKET` (not `R2_BUCKET`) — defined in wrangler.toml `[[r2_buckets]]`
