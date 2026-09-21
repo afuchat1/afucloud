@@ -25,6 +25,7 @@ Supabase's `auth.users` is the only identity and credential source. `public.prof
 
 ## Development target caution
 - The Replit-provided local database may contain only `public.profiles` and no `auth` or `afucloud` schemas. Treat it as a compatibility target, not as evidence that the documented Supabase schema is absent.
+- A Supabase target can have `auth.users` and `public.profiles` provisioned while the `afucloud` namespace is still missing; product migrations must create their schema before session or domain tables.
 
 **Why:** Drizzle schema pushes against that local connection fail before applying DDL when they encounter the shared `auth.users` references.
 

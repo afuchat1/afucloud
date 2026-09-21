@@ -32,6 +32,7 @@ function authUnavailable(res: Parameters<Parameters<typeof router.post>[1]>[1], 
     code: cause && typeof cause === "object" && "code" in cause
       ? (cause as { code?: unknown }).code
       : undefined,
+    message: error instanceof Error ? error.message : String(error),
   }, "Authentication dependency unavailable");
   res.status(503).json({ error: "Authentication service temporarily unavailable" });
 }
