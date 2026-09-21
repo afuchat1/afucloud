@@ -921,7 +921,7 @@ export default function ProjectDetailPage() {
 
       {/* ── Image Detail Dialog ────────────────────────────────────────────────── */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100%-1rem)] max-w-3xl max-h-[calc(100dvh-1rem)] overflow-y-auto p-4 sm:max-h-[90vh] sm:p-6">
           {selectedImage && (
             <>
               <DialogHeader>
@@ -929,8 +929,12 @@ export default function ProjectDetailPage() {
               </DialogHeader>
               <div className="space-y-5">
                 {/* Preview */}
-                <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
-                  <img src={selectedImage.publicUrl || selectedImage.url} alt={selectedImage.name} className="w-full max-h-72 object-contain" />
+                <div className="flex min-h-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30 p-2 sm:p-3">
+                  <img
+                    src={selectedImage.publicUrl || selectedImage.url}
+                    alt={selectedImage.name}
+                    className="h-auto max-h-[38vh] w-auto max-w-full object-contain sm:max-h-72"
+                  />
                 </div>
 
                 {/* Name (editable) */}
