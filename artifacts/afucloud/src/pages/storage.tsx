@@ -8,12 +8,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { formatBytes, formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { API_BASE } from '@/lib/api-base';
 import {
   ChevronRight, Cloud, Copy, File, Folder, FolderPlus, HardDrive, MoreHorizontal,
   Pencil, Plus, RefreshCw, Settings2, Trash2, Upload, X,
 } from 'lucide-react';
 
-const API_BASE = 'https://api.afuchat.com';
 const authHeaders = () => ({
   Authorization: `Bearer ${localStorage.getItem('afucloud_token') ?? ''}`,
   'Content-Type': 'application/json',

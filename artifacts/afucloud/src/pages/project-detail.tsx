@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { formatBytes, formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { API_BASE } from '@/lib/api-base';
 import {
   Upload, Image as ImageIcon, HardDrive, Star, Search,
   Trash2, Download, BarChart3, Key, Webhook, ArrowLeft,
@@ -41,7 +42,6 @@ type Tab = 'images' | 'trash';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const API_BASE = 'https://api.afuchat.com';
 const ALLOWED_TYPES = [
   'image/png', 'image/jpeg', 'image/jpg', 'image/webp',
   'image/gif', 'image/avif', 'image/svg+xml', 'image/heic',

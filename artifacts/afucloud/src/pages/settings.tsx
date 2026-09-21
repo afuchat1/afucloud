@@ -6,8 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { User, Shield } from 'lucide-react';
-
-const API_BASE = 'https://api.afuchat.com';
+import { API_BASE } from '@/lib/api-base';
 
 async function changePassword(currentPassword: string, newPassword: string, token: string) {
   const res = await fetch(`${API_BASE}/v1/auth/me/password`, {

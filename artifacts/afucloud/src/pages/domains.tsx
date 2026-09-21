@@ -11,8 +11,7 @@ import {
   CheckCircle2, CircleAlert, Copy, Globe2, Link2, Plus, RefreshCw,
   ShieldCheck, Trash2, X,
 } from 'lucide-react';
-
-const API_BASE = 'https://api.afuchat.com';
+import { API_BASE } from '@/lib/api-base';
 const headers = () => ({
   Authorization: `Bearer ${localStorage.getItem('afucloud_token') ?? ''}`,
   'Content-Type': 'application/json',
