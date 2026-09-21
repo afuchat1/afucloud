@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
 import { requireAuth } from "../middleware/auth";
+import { dispatchWebhook } from "./webhooks";
 
 const projects = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
@@ -30,6 +31,7 @@ projects.post("/", requireAuth, async (c) => {
   const db = createDbClient(c.env);
   const project = await db.createProject({ name, slug: slugify(name), description, user_id: c.get("userId") });
   await db.logActivity({ user_id: c.get("userId"), project_id: project.id, action: "create", resource: "project", resource_id: project.id });
+  c.executionCtx.waitUntil(dispatchWebhook(project.id, "project.created", project, c.env));
   return c.json({ ...project, imageCount: 0, storageUsed: 0 }, 201);
 });
 

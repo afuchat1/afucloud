@@ -3,6 +3,7 @@ import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
 import { requireAuth } from "../middleware/auth";
 import { generateUploadUrl, buildStorageKey, getPublicUrl, deleteObject } from "../lib/storage";
+import { dispatchWebhook } from "./webhooks";
 
 const images = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
@@ -92,6 +93,7 @@ images.post("/confirm-upload", requireAuth, async (c) => {
   const img = await db.updateImage(imageId, updates);
   if (!img) return c.json({ error: "Image not found" }, 404);
   await db.logActivity({ user_id: c.get("userId"), project_id: projectId, action: "upload", resource: "image", resource_id: imageId });
+  c.executionCtx.waitUntil(dispatchWebhook(projectId, "image.uploaded", toApiImage(img, c.env), c.env));
   return c.json(toApiImage(img, c.env), 201);
 });
 
@@ -119,6 +121,7 @@ images.patch("/:id", requireAuth, async (c) => {
   if (album !== undefined) updates.album = album;
   const img = await db.updateImage(id, updates);
   if (!img) return c.json({ error: "Image not found" }, 404);
+  c.executionCtx.waitUntil(dispatchWebhook(projectId, "image.updated", toApiImage(img, c.env), c.env));
   return c.json(toApiImage(img, c.env));
 });
 
@@ -130,6 +133,7 @@ images.delete("/:id", requireAuth, async (c) => {
   if (!await assertProjectOwner(db, projectId, c.get("userId"))) return c.json({ error: "Project not found" }, 404);
   const img = await db.softDeleteImage(id);
   if (!img) return c.json({ error: "Image not found" }, 404);
+  c.executionCtx.waitUntil(dispatchWebhook(projectId, "image.deleted", { ...toApiImage(img, c.env), deleted: true }, c.env));
   return c.json({ message: "Image moved to trash" });
 });
 
@@ -142,6 +146,7 @@ images.patch("/:id/favorite", requireAuth, async (c) => {
   const current = await db.getImage(id, projectId);
   if (!current) return c.json({ error: "Image not found" }, 404);
   const img = await db.updateImage(id, { favorite: !current.favorite });
+  c.executionCtx.waitUntil(dispatchWebhook(projectId, "image.updated", toApiImage(img, c.env), c.env));
   return c.json(toApiImage(img, c.env));
 });
 
@@ -153,6 +158,7 @@ images.post("/:id/restore", requireAuth, async (c) => {
   if (!await assertProjectOwner(db, projectId, c.get("userId"))) return c.json({ error: "Project not found" }, 404);
   const img = await db.restoreImage(id);
   if (!img) return c.json({ error: "Image not found" }, 404);
+  c.executionCtx.waitUntil(dispatchWebhook(projectId, "image.updated", toApiImage(img, c.env), c.env));
   return c.json(toApiImage(img, c.env));
 });
 
@@ -165,6 +171,7 @@ images.delete("/:id/permanent", requireAuth, async (c) => {
   const img = await db.hardDeleteImage(id);
   if (!img) return c.json({ error: "Image not found" }, 404);
   deleteObject(img.storage_key, c.env).catch(() => {});
+  c.executionCtx.waitUntil(dispatchWebhook(projectId, "image.deleted", { imageId: id, projectId, deleted: true }, c.env));
   return c.json({ message: "Image permanently deleted" });
 });
 

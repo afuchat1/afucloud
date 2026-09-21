@@ -3,6 +3,7 @@ import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
 import { requireAuth } from "../middleware/auth";
 import { generateSecureToken, hashToken } from "../lib/auth";
+import { dispatchWebhook } from "./webhooks";
 
 const tokens = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
@@ -46,6 +47,10 @@ tokens.post("/", requireAuth, async (c) => {
     expires_at: expiresAt ?? null,
   });
   await db.logActivity({ user_id: c.get("userId"), action: "create", resource: "personal_token", resource_id: token.id });
+  const projects = await db.getProjects(c.get("userId"));
+  c.executionCtx.waitUntil(Promise.all(
+    projects.map(project => dispatchWebhook(project.id, "token.created", toToken(token), c.env)),
+  ));
   return c.json(toToken(token, rawToken), 201);
 });
 
@@ -55,6 +60,10 @@ tokens.delete("/:id", requireAuth, async (c) => {
   const id = c.req.param("id")!;
   await db.revokePersonalToken(id, c.get("userId"));
   await db.logActivity({ user_id: c.get("userId"), action: "revoke", resource: "personal_token", resource_id: id });
+  const projects = await db.getProjects(c.get("userId"));
+  c.executionCtx.waitUntil(Promise.all(
+    projects.map(project => dispatchWebhook(project.id, "token.revoked", { tokenId: id }, c.env)),
+  ));
   return c.json({ message: "Token revoked" });
 });
 
