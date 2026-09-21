@@ -4,60 +4,42 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/afucloud run dev` — run the frontend (React + Vite)
-- `pnpm --filter @workspace/api-server run dev` — run the API server (Express 5, port from $PORT)
+- `pnpm --filter @workspace/afucloud run build` — build the frontend bundle
+- `pnpm --filter @workspace/cf-worker run typecheck` — validate the production Worker
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only, requires the target Supabase connection variables)
 
-## Replit Boundary
+## Runtime Boundary
 
-- Replit is used only for source editing, dependency installation, and frontend preview.
+- Replit is source storage and editing only; no Replit server is part of the AfuCloud runtime.
 - The production frontend sends API requests directly to `https://api.afuchat.com`.
-- Replit does not host the production API, connect to Supabase, access R2, or handle production credentials.
-- Do not put AfuCloud secrets, database URLs, or storage credentials in `.replit`, Replit environment variables, or frontend build variables.
+- The Cloudflare Worker is the only API layer and is the only component allowed to access Supabase and R2.
+- Do not put AfuCloud secrets, database URLs, or storage credentials in frontend variables.
 - Production secrets are stored only in the Cloudflare Worker secret store.
-- The Express server under `artifacts/api-server/` is an inactive local compatibility server. It requires explicitly supplied local credentials and is not part of production.
-
-## Local Compatibility Server Variables
-
-- `SUPABASE_DB_PASSWORD` — target Supabase database password (secret; local Express adapter only)
-- `SUPABASE_DB_HOST` — target Supabase pooler host (local Express adapter only)
-- `SUPABASE_DB_USER` — target Supabase project-qualified database user (local Express adapter only)
-- `SUPABASE_DB_PORT` — target Supabase database port (local Express adapter only)
-- `SUPABASE_DB_NAME` — target Supabase database name (local Express adapter only)
-- `JWT_SECRET` — JWT signing secret for the local Express adapter
-- `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account ID for local R2 development
-- `CLOUDFLARE_R2_ACCESS_KEY_ID` — R2 S3-compatible access key for local development
-- `CLOUDFLARE_R2_SECRET_ACCESS_KEY` — R2 S3-compatible secret key for local development
-- `R2_BUCKET_NAME` — R2 bucket name, defaults to `afucloud-images`
-- `R2_PUBLIC_URL` — (optional) public CDN URL for local development
 
 ## Infrastructure
 
 - **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), with shared identities in Supabase's `auth.users`; AfuCloud profile and platform data lives in the `afucloud` schema, and other products reference the same auth user ID
 - **Object storage**: Cloudflare R2 bucket `afucloud-images`
-- **Frontend**: React + Vite + shadcn/ui + Tailwind v4
-- **Local compatibility backend**: Express 5 + Drizzle ORM (`artifacts/api-server/`), inactive by default
-- **Prod backend**: Cloudflare Worker (Hono) (`artifacts/cf-worker/`) — deployed to Cloudflare's edge
+- **Frontend**: React + Vite + shadcn/ui + Tailwind v4, deployed separately from the API
+- **Backend**: Cloudflare Worker (Hono) (`artifacts/cf-worker/`) — deployed to Cloudflare's edge
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5 with Zod validation (dev) / Hono on CF Workers (prod)
-- DB: PostgreSQL + Drizzle ORM (dev) / Supabase REST (prod worker)
+- API: Hono on Cloudflare Workers
+- DB: Supabase PostgreSQL and Auth through the Worker
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec in `lib/api-spec/openapi.yaml`)
 - Frontend auth: JWT stored in `localStorage` as `afucloud_token`
 - Shared auth: Supabase's `auth.users` is the only identity and credential source for AfuChat, AfuMail, AfuAI, AfuCloud, and AfuAds. Shared profile data lives in `public.profiles` keyed by `user_id`; AfuCloud domain tables live under `afucloud.*` and reference `auth.users(id)` directly
-- Password migration: legacy AfuCloud-only bcrypt hashes still migrate to the Worker-compatible PBKDF2 format; Supabase Auth accounts remain owned by Supabase Auth
+- Passwords and identity are managed by Supabase Auth; the Worker never creates a product-specific credential store
 - Storage: Cloudflare R2 (S3-compatible) with pre-signed PUT URLs
 
 ## Where Things Live
 
 - `artifacts/afucloud/` — React frontend (SaaS dashboard)
-- `artifacts/api-server/` — Express API server (development)
 - `artifacts/cf-worker/` — Cloudflare Worker edge API (production)
 - `lib/db/` — Drizzle ORM schema + migrations (source of truth for DB schema)
 - `lib/api-spec/` — OpenAPI 3.1 spec (source of truth for API contract)
@@ -99,12 +81,6 @@ pnpm --filter @workspace/cf-worker run deploy
 cd artifacts/cf-worker && npx wrangler deploy
 ```
 
-### Local dev (port 8787):
-
-```bash
-pnpm --filter @workspace/cf-worker run dev
-```
-
 ### Environment variables in `wrangler.toml` (non-secret):
 
 - `SUPABASE_URL` — `https://poijhidfekwfthyksatp.supabase.co`
@@ -116,11 +92,10 @@ pnpm --filter @workspace/cf-worker run dev
 ## Architecture Decisions
 
 - API-first design: all behavior defined in `lib/api-spec/openapi.yaml`, code generated from it
-- Storage abstraction in `artifacts/api-server/src/lib/storage.ts` — provider-agnostic interface
 - App sessions use AfuCloud access/refresh tokens, but credentials and identity remain in Supabase Auth's `auth.users`; no product schema may add a password or product-specific user table
-- The app uses the target Supabase connection variables and explicitly schema-qualified tables: `public.profiles` for shared profile data and `afucloud.*` for AfuCloud domain data
+- The Worker uses Supabase REST and explicitly schema-qualified tables: `public.profiles` for shared profile data and `afucloud.*` for AfuCloud domain data
 - Production secrets exist only in the Cloudflare Worker secret store; Replit has no production secret dependency
-- CF Worker uses PBKDF2 (Web Crypto) for password hashing; bcrypt hashes from the Express API will require a password reset
+- Supabase Auth owns password verification and password changes; the Worker is the only API layer
 
 ## Design
 
@@ -131,5 +106,5 @@ pnpm --filter @workspace/cf-worker run dev
 ## User Preferences
 
 - Cream + flat UI aesthetic with advanced UX and layouts
-- All infrastructure secrets stored as Replit env vars (Supabase + Cloudflare)
+- Production infrastructure secrets are stored in Cloudflare's secret store
 - Build as a full SaaS platform (developer-first cloud storage)

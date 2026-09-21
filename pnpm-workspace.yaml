@@ -1,5 +1,6 @@
 packages:
-  - artifacts/*
+  - artifacts/afucloud
+  - artifacts/cf-worker
   - lib/*
   - lib/integrations/*
   - scripts
