@@ -10,6 +10,7 @@ import {
   refreshTokenExpiresAt,
 } from "../lib/auth";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { logger } from "../lib/logger";
 import crypto from "crypto";
 
 const router: IRouter = Router();
@@ -20,6 +21,19 @@ function getAuthName(email: string, metadata: unknown): string {
   const values = metadata && typeof metadata === "object" ? metadata as AuthMetadata : {};
   const name = values.name ?? values.full_name ?? values.display_name;
   return typeof name === "string" && name.trim() ? name.trim() : email.split("@")[0];
+}
+
+function authUnavailable(res: Parameters<Parameters<typeof router.post>[1]>[1], operation: string, error: unknown): void {
+  const cause = error instanceof Error && "cause" in error
+    ? (error as Error & { cause?: unknown }).cause
+    : undefined;
+  logger.error({
+    operation,
+    code: cause && typeof cause === "object" && "code" in cause
+      ? (cause as { code?: unknown }).code
+      : undefined,
+  }, "Authentication dependency unavailable");
+  res.status(503).json({ error: "Authentication service temporarily unavailable" });
 }
 
 async function ensureAfuCloudProfile(authUser: typeof authUsersTable.$inferSelect) {
@@ -127,29 +141,33 @@ router.post("/v1/auth/login", async (req, res): Promise<void> => {
     res.status(400).json({ error: "email and password are required" });
     return;
   }
-  const sharedAuthUser = await findSharedAuthUser(email);
-  if (!sharedAuthUser) {
-    res.status(401).json({ error: "Invalid credentials" });
-    return;
+  try {
+    const sharedAuthUser = await findSharedAuthUser(email);
+    if (!sharedAuthUser) {
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
+    }
+    const valid = await verifyPassword(password, sharedAuthUser.encryptedPassword);
+    if (!valid) {
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
+    }
+    const user = await ensureAfuCloudProfile(sharedAuthUser);
+    const accessToken = signAccessToken({ userId: sharedAuthUser.id, email: sharedAuthUser.email ?? email });
+    const rawRefresh = generateSecureToken();
+    await db.insert(refreshTokensTable).values({
+      userId: sharedAuthUser.id,
+      tokenHash: hashToken(rawRefresh),
+      expiresAt: refreshTokenExpiresAt(),
+    });
+    res.json({
+      user: toApiUser(sharedAuthUser, user),
+      accessToken,
+      refreshToken: rawRefresh,
+    });
+  } catch (error) {
+    authUnavailable(res, "auth.login", error);
   }
-  const valid = await verifyPassword(password, sharedAuthUser.encryptedPassword);
-  if (!valid) {
-    res.status(401).json({ error: "Invalid credentials" });
-    return;
-  }
-  const user = await ensureAfuCloudProfile(sharedAuthUser);
-  const accessToken = signAccessToken({ userId: sharedAuthUser.id, email: sharedAuthUser.email ?? email });
-  const rawRefresh = generateSecureToken();
-  await db.insert(refreshTokensTable).values({
-    userId: sharedAuthUser.id,
-    tokenHash: hashToken(rawRefresh),
-    expiresAt: refreshTokenExpiresAt(),
-  });
-  res.json({
-    user: toApiUser(sharedAuthUser, user),
-    accessToken,
-    refreshToken: rawRefresh,
-  });
 });
 
 // POST /v1/auth/logout

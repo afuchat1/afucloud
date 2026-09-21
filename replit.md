@@ -4,11 +4,45 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 
 ## Run & Operate
 
+- `pnpm install --frozen-lockfile` — restore the exact workspace dependencies before validation
+- `pnpm run typecheck` — validate DB declarations, frontend, API server, Worker, and scripts
+- `pnpm run build` — run the full typecheck and build pipeline
 - `pnpm --filter @workspace/afucloud run build` — build the frontend bundle
+- `pnpm --filter @workspace/api-server run typecheck` — validate API server changes after `lib/db` changes
 - `pnpm --filter @workspace/cf-worker run typecheck` — validate the production Worker
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
+
+### Local API verification pipeline
+
+The managed `artifacts/api-server: API Server` workflow runs the API build once and
+then starts the generated bundle. Restart that workflow after changing API code,
+`lib/db` schemas, database environment variables, or dependencies; otherwise the
+running process can serve an older bundle than the source tree.
+
+Before testing login or protected routes:
+
+1. Confirm the workflow log contains `Server listening` and no startup error.
+2. Run `pnpm run typecheck`.
+3. Run `pnpm run build`.
+4. Smoke-test the local API without real credentials:
+
+```bash
+curl -sS -o /tmp/login-400.json -w 'status=%{http_code}\n' \
+  -X POST http://127.0.0.1:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  --data '{"email":"","password":""}'
+# Expected: status=400
+
+curl -sS -o /tmp/login-401.json -w 'status=%{http_code}\n' \
+  -X POST http://127.0.0.1:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  --data '{"email":"smoke-test.invalid@example.invalid","password":"not-a-real-password"}'
+# Expected: status=401
+```
+
+Never put a real password in shell history, logs, tests, or documentation. The
+API returns JSON for unexpected failures, and the login route returns a controlled
+503 when the shared authentication database is unavailable.
 
 ## Runtime Boundary
 
@@ -35,6 +69,7 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 - Frontend auth: JWT stored in `localStorage` as `afucloud_token`
 - Shared auth: Supabase's `auth.users` is the only identity and credential source for AfuChat, AfuMail, AfuAI, AfuCloud, and AfuAds. Shared profile data lives in `public.profiles` keyed by `user_id`; AfuCloud domain tables live under `afucloud.*` and reference `auth.users(id)` directly
 - Passwords and identity are managed by Supabase Auth; the Worker never creates a product-specific credential store
+- The Node API maps Supabase Auth explicitly with `pgSchema("auth")`; do not use an unqualified `users` table for login queries
 - Storage: Cloudflare R2 (S3-compatible) with pre-signed PUT URLs
 
 ## Where Things Live
