@@ -5,3 +5,4 @@
 - [Shared Afu authentication](shared-afu-auth.md) — auth.users is the only identity/credential source; public.profiles links by user_id and product tables reference auth.users directly
 - [Vercel frontend builds](vercel-vite-build.md) — static Vite builds need defaults for PORT and BASE_PATH because Vercel does not inject Replit preview variables
 - [API workflow database target](api-workflow-supabase-env.md) — keep the API package in the pnpm workspace and provide Supabase target variables so it cannot fall back to DATABASE_URL
+- [Local API token signing](local-api-token-signing.md) — development uses an in-memory JWT key when no persisted JWT_SECRET is available; production still requires explicit configuration

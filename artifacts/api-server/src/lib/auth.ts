@@ -2,12 +2,23 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
+let developmentJwtSecret: string | undefined;
+
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error("Local API server is disabled until JWT_SECRET is explicitly configured.");
+  if (secret) {
+    return secret;
   }
-  return secret;
+
+  if (process.env.NODE_ENV === "development") {
+    // Local preview sessions are intentionally ephemeral. This avoids
+    // requiring a persisted signing secret in Replit while keeping tokens
+    // unpredictable during the lifetime of the development process.
+    developmentJwtSecret ??= crypto.randomBytes(32).toString("hex");
+    return developmentJwtSecret;
+  }
+
+  throw new Error("JWT_SECRET must be configured outside development.");
 }
 const JWT_EXPIRES_IN = "1h";
 const REFRESH_EXPIRES_DAYS = 30;
