@@ -20,6 +20,20 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 - Production secrets are stored only in the Cloudflare Worker secret store.
 - The Express server under `artifacts/api-server/` is an inactive local compatibility server. It requires explicitly supplied local credentials and is not part of production.
 
+## Local Compatibility Server Variables
+
+- `SUPABASE_DB_PASSWORD` — target Supabase database password (secret; local Express adapter only)
+- `SUPABASE_DB_HOST` — target Supabase pooler host (local Express adapter only)
+- `SUPABASE_DB_USER` — target Supabase project-qualified database user (local Express adapter only)
+- `SUPABASE_DB_PORT` — target Supabase database port (local Express adapter only)
+- `SUPABASE_DB_NAME` — target Supabase database name (local Express adapter only)
+- `JWT_SECRET` — JWT signing secret for the local Express adapter
+- `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account ID for local R2 development
+- `CLOUDFLARE_R2_ACCESS_KEY_ID` — R2 S3-compatible access key for local development
+- `CLOUDFLARE_R2_SECRET_ACCESS_KEY` — R2 S3-compatible secret key for local development
+- `R2_BUCKET_NAME` — R2 bucket name, defaults to `afucloud-images`
+- `R2_PUBLIC_URL` — (optional) public CDN URL for local development
+
 ## Infrastructure
 
 - **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), with shared identities in Supabase's `auth.users`; AfuCloud profile and platform data lives in the `afucloud` schema, and other products reference the same auth user ID
@@ -54,7 +68,21 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 
 The CF Worker in `artifacts/cf-worker/` is the production edge API. It uses Hono + Supabase REST + aws4fetch.
 
-### One-time secrets setup (run from a trusted deployment machine or CI, never stored in Replit):
+### Canonical production deployment
+
+There is one permanent production Worker:
+
+- **Worker name:** `afucloud-api`
+- **Source:** `artifacts/cf-worker/wrangler.toml`
+- **Public API:** `https://api.afuchat.com`
+- **Route:** `api.afuchat.com/*`
+- **Database/Auth:** Supabase project `poijhidfekwfthyksatp`
+
+All AfuCloud products and projects must use this Worker. Do not create product-specific Workers or point clients at temporary `workers.dev` deployments.
+
+### Production secrets setup (Cloudflare only)
+
+Run from `artifacts/cf-worker/` using a Cloudflare deployment token:
 
 ```bash
 cd artifacts/cf-worker
