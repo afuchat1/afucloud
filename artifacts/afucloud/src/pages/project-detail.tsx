@@ -921,13 +921,13 @@ export default function ProjectDetailPage() {
 
       {/* ── Image Detail Dialog ────────────────────────────────────────────────── */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-        <DialogContent className="w-[calc(100%-1rem)] max-w-3xl max-h-[calc(100dvh-1rem)] overflow-y-auto p-4 sm:max-h-[90vh] sm:p-6">
+        <DialogContent className="w-[calc(100%-1rem)] max-w-3xl max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto p-4 sm:max-h-[90vh] sm:p-6">
           {selectedImage && (
             <>
               <DialogHeader>
                 <DialogTitle>Image details</DialogTitle>
               </DialogHeader>
-              <div className="space-y-5">
+              <div className="min-w-0 space-y-5">
                 {/* Preview */}
                 <div className="flex min-h-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30 p-2 sm:p-3">
                   <img
@@ -938,7 +938,7 @@ export default function ProjectDetailPage() {
                 </div>
 
                 {/* Name (editable) */}
-                <div className="space-y-1.5">
+                <div className="min-w-0 space-y-1.5">
                   <label className="text-xs text-muted-foreground font-medium">Name</label>
                   <Input
                     value={editName}
@@ -950,7 +950,7 @@ export default function ProjectDetailPage() {
                 {/* Album (editable) */}
                 <div className="space-y-1.5">
                   <label className="text-xs text-muted-foreground font-medium">Album</label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <Input
                       value={editAlbum}
                       onChange={e => setEditAlbum(e.target.value)}
@@ -1010,22 +1010,22 @@ export default function ProjectDetailPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 pt-2 border-t border-border">
-                  <Button variant="outline" size="sm" onClick={() => handleToggleFavorite(selectedImage.id)} className="gap-2">
+                <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2">
+                  <Button variant="outline" size="sm" onClick={() => handleToggleFavorite(selectedImage.id)} className="shrink-0 gap-2">
                     <Star className={cn('h-4 w-4', selectedImage.favorite && 'fill-yellow-400 text-yellow-400')} />
                     {selectedImage.favorite ? 'Unfavorite' : 'Favorite'}
                   </Button>
-                  <Button variant="outline" size="sm" asChild className="gap-2">
+                  <Button variant="outline" size="sm" asChild className="shrink-0 gap-2">
                     <a href={(selectedImage as Image & { downloadUrl?: string }).downloadUrl || selectedImage.url} download>
                       <Download className="h-4 w-4" />Download
                     </a>
                   </Button>
-                  <div className="flex items-center gap-2 ml-auto">
-                    <Button size="sm" onClick={handleSaveImageDetails} disabled={isSavingDetails} className="gap-2">
+                  <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+                    <Button size="sm" onClick={handleSaveImageDetails} disabled={isSavingDetails} className="min-w-0 flex-1 gap-2 sm:flex-none">
                       {isSavingDetails ? <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : null}
                       Save changes
                     </Button>
-                    <Button variant="destructive" size="sm" onClick={() => handleSoftDelete(selectedImage.id)} className="gap-2">
+                    <Button variant="destructive" size="sm" onClick={() => handleSoftDelete(selectedImage.id)} className="shrink-0 gap-2">
                       <Trash2 className="h-4 w-4" />Delete
                     </Button>
                   </div>
