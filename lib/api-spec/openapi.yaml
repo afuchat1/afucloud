@@ -958,6 +958,8 @@ components:
           type: string
         publicUrl:
           type: ["string", "null"]
+        downloadUrl:
+          type: string
         format:
           type: string
         size:

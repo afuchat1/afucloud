@@ -60,6 +60,7 @@ function uploadWithProgress(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
+    xhr.timeout = 5 * 60 * 1000;
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
     xhr.onload = () => {
@@ -75,8 +76,42 @@ function uploadWithProgress(
       }
     };
     xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.ontimeout = () => reject(new Error('Upload timed out'));
     xhr.send(file);
   });
+}
+
+const MAX_ACTIVE_UPLOADS = 3;
+let activeUploads = 0;
+const waitingUploads: Array<() => void> = [];
+
+function withUploadSlot<T>(task: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const start = () => {
+      activeUploads += 1;
+      task().then(resolve, reject).finally(() => {
+        activeUploads -= 1;
+        const next = waitingUploads.shift();
+        if (next) next();
+      });
+    };
+    if (activeUploads < MAX_ACTIVE_UPLOADS) start();
+    else waitingUploads.push(start);
+  });
+}
+
+async function withRetry<T>(task: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts - 1) break;
+      await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Upload failed');
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -166,35 +201,45 @@ export default function ProjectDetailPage() {
   }, []);
 
   const uploadFile = useCallback(async (item: UploadItem) => {
-    updateQueueItem(item.id, { status: 'uploading', progress: 0 });
-    try {
-      const urlRes = await fetch(`${API_BASE}/v1/projects/${projectId}/images/upload-url`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({
-          filename: item.file.name,
-          contentType: item.file.type || 'application/octet-stream',
-          name: item.file.name,
-        }),
-      });
+    return withUploadSlot(async () => {
+      updateQueueItem(item.id, { status: 'uploading', progress: 0 });
+      try {
+        const urlRes = await withRetry(async () => {
+          const response = await fetch(`${API_BASE}/v1/projects/${projectId}/images/upload-url`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+              filename: item.file.name,
+              contentType: item.file.type || 'application/octet-stream',
+              name: item.file.name,
+            }),
+          });
+          if (response.status >= 500) throw new Error(`Upload preparation failed (HTTP ${response.status})`);
+          return response;
+        });
       if (!urlRes.ok) {
         const body = await urlRes.json().catch(() => ({}));
         throw new Error(body.error || `Failed to prepare upload (HTTP ${urlRes.status})`);
       }
       const { uploadUrl, imageId, key } = await urlRes.json();
-      await uploadWithProgress(uploadUrl, item.file, (pct) => updateQueueItem(item.id, { progress: Math.round(pct * 0.9) }));
-      const confirmRes = await fetch(`${API_BASE}/v1/projects/${projectId}/images/confirm-upload`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ imageId, key, size: item.file.size }),
+      await withRetry(() => uploadWithProgress(uploadUrl, item.file, (pct) => updateQueueItem(item.id, { progress: Math.round(pct * 0.9) })));
+      const confirmRes = await withRetry(async () => {
+        const response = await fetch(`${API_BASE}/v1/projects/${projectId}/images/confirm-upload`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ imageId, key, size: item.file.size, originalName: item.file.name, name: item.file.name }),
+        });
+        if (response.status >= 500) throw new Error(`Upload confirmation failed (HTTP ${response.status})`);
+        return response;
       });
       if (!confirmRes.ok) throw new Error(`Failed to confirm upload (HTTP ${confirmRes.status})`);
       updateQueueItem(item.id, { status: 'done', progress: 100 });
       queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
       queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey(projectId) });
-    } catch (err) {
-      updateQueueItem(item.id, { status: 'error', error: err instanceof Error ? err.message : 'Upload failed' });
-    }
+      } catch (err) {
+        updateQueueItem(item.id, { status: 'error', error: err instanceof Error ? err.message : 'Upload failed' });
+      }
+    });
   }, [projectId, queryClient, updateQueueItem]);
 
   const addFiles = useCallback((files: File[] | FileList) => {
@@ -967,7 +1012,7 @@ export default function ProjectDetailPage() {
                     {selectedImage.favorite ? 'Unfavorite' : 'Favorite'}
                   </Button>
                   <Button variant="outline" size="sm" asChild className="gap-2">
-                    <a href={selectedImage.url} download target="_blank" rel="noopener noreferrer">
+                    <a href={(selectedImage as Image & { downloadUrl?: string }).downloadUrl || selectedImage.url} download>
                       <Download className="h-4 w-4" />Download
                     </a>
                   </Button>

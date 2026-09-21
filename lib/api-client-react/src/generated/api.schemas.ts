@@ -104,6 +104,7 @@ export interface Image {
   url: string;
   /** @nullable */
   publicUrl?: string | null;
+  downloadUrl?: string;
   format: string;
   size: number;
   /** @nullable */

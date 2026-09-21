@@ -48,6 +48,10 @@ export function getPublicUrl(key: string): string {
   return `/api/v1/storage/${encodeURIComponent(key)}`;
 }
 
+export function getDownloadUrl(key: string, filename: string): string {
+  return `/api/v1/storage/${encodeURIComponent(key)}?download=1&filename=${encodeURIComponent(filename)}`;
+}
+
 export function hasCredentials(): boolean {
   return Boolean(ACCOUNT_ID && ACCESS_KEY_ID && SECRET_ACCESS_KEY);
 }
@@ -125,6 +129,54 @@ export async function generateUploadUrl(
   const signingKey = getSignatureKey(SECRET_ACCESS_KEY, dateStamp, region, service);
   const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
 
+  params.append("X-Amz-Signature", signature);
+  return `https://${host}/${BUCKET_NAME}/${key}?${params.toString()}`;
+}
+
+export async function generateSignedDownloadUrl(
+  key: string,
+  filename: string,
+  expiresInSeconds = 3600,
+): Promise<string> {
+  if (!hasCredentials()) {
+    return getDownloadUrl(key, filename);
+  }
+
+  const host = r2Host();
+  const region = "auto";
+  const service = "s3";
+  const { dateStamp, amzDate } = amzTimestamps();
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const credential = `${ACCESS_KEY_ID}/${credentialScope}`;
+  const disposition = `attachment; filename="${filename.replace(/["\\\r\n]/g, "_")}"`;
+
+  const params = new URLSearchParams({
+    "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+    "X-Amz-Credential": credential,
+    "X-Amz-Date": amzDate,
+    "X-Amz-Expires": String(expiresInSeconds),
+    "X-Amz-SignedHeaders": "host",
+    "response-content-disposition": disposition,
+  });
+
+  const canonicalRequest = [
+    "GET",
+    `/${BUCKET_NAME}/${key}`,
+    params.toString(),
+    `host:${host}\n`,
+    "host",
+    "UNSIGNED-PAYLOAD",
+  ].join("\n");
+
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    crypto.createHash("sha256").update(canonicalRequest).digest("hex"),
+  ].join("\n");
+
+  const signingKey = getSignatureKey(SECRET_ACCESS_KEY, dateStamp, region, service);
+  const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
   params.append("X-Amz-Signature", signature);
   return `https://${host}/${BUCKET_NAME}/${key}?${params.toString()}`;
 }

@@ -2,12 +2,13 @@ import { Router, type IRouter } from "express";
 import { eq, and, isNull, isNotNull, sql, desc } from "drizzle-orm";
 import { db, imagesTable, projectsTable } from "@workspace/db";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
-import { generateUploadUrl, buildStorageKey, getPublicUrl, deleteObject } from "../lib/storage";
+import { generateUploadUrl, buildStorageKey, getPublicUrl, getDownloadUrl, deleteObject } from "../lib/storage";
 import crypto from "crypto";
 
 const router: IRouter = Router();
 
 function toApiImage(img: typeof imagesTable.$inferSelect) {
+  const downloadName = `afuchat-${(img.originalName || img.name || "image").split(/[\\/]/).pop()!.replace(/["\\\r\n]/g, "_")}`;
   return {
     id: img.id,
     projectId: img.projectId,
@@ -15,6 +16,7 @@ function toApiImage(img: typeof imagesTable.$inferSelect) {
     originalName: img.originalName,
     url: getPublicUrl(img.storageKey),
     publicUrl: getPublicUrl(img.storageKey),
+    downloadUrl: getDownloadUrl(img.storageKey, downloadName),
     format: img.format,
     size: img.size,
     width: img.width,
@@ -172,31 +174,59 @@ router.post("/v1/projects/:projectId/images/upload-url", requireAuth, async (req
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
   const { filename, contentType, name } = req.body ?? {};
   if (!filename || !contentType) { res.status(400).json({ error: "filename and contentType are required" }); return; }
-  const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
+  const originalFilename = String(filename).split(/[\\/]/).pop()!.trim();
+  const ext = originalFilename.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
   const imageId = crypto.randomUUID();
   const key = buildStorageKey(req.userId!, projectId, imageId, ext);
   const uploadUrl = await generateUploadUrl(key, contentType);
-  await db.insert(imagesTable).values({
-    id: imageId, projectId, name: name ?? filename, originalName: filename,
-    storageKey: key, format: ext, size: 0, tags: [],
-  });
-  res.json({ uploadUrl, imageId, key });
+  // Do not create the DB row until the browser confirms that the object upload
+  // completed. This prevents interrupted uploads from appearing as broken images.
+  res.json({ uploadUrl, imageId, key, originalName: originalFilename, name: name ?? originalFilename });
 });
 
 // ─── Confirm upload ───────────────────────────────────────────────────────────
 router.post("/v1/projects/:projectId/images/confirm-upload", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const projectId = req.params.projectId as string;
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
-  const { imageId, key, width, height, size, tags, album } = req.body ?? {};
+  const { imageId, key, width, height, size, tags, album, originalName, name, contentType } = req.body ?? {};
   if (!imageId || !key) { res.status(400).json({ error: "imageId and key are required" }); return; }
+  const expectedPrefix = `${req.userId}/${projectId}/`;
+  if (typeof key !== "string" || !key.startsWith(expectedPrefix)) {
+    res.status(400).json({ error: "Invalid storage key" });
+    return;
+  }
+  const [existing] = await db.select().from(imagesTable)
+    .where(and(eq(imagesTable.id, imageId), eq(imagesTable.projectId, projectId))).limit(1);
+  if (existing) {
+    const updates: Record<string, unknown> = {};
+    if (width != null) updates.width = width;
+    if (height != null) updates.height = height;
+    if (size != null) updates.size = size;
+    if (tags != null) updates.tags = tags;
+    if (album != null) updates.album = album;
+    const [updated] = await db.update(imagesTable).set(updates).where(eq(imagesTable.id, imageId)).returning();
+    res.status(200).json(toApiImage(updated));
+    return;
+  }
+  const normalizedOriginalName = String(originalName ?? name ?? "image").split(/[\\/]/).pop()!.trim() || "image";
+  const ext = key.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
   const updates: Record<string, unknown> = {};
   if (width != null) updates.width = width;
   if (height != null) updates.height = height;
   if (size != null) updates.size = size;
   if (tags != null) updates.tags = tags;
   if (album != null) updates.album = album;
-  const [img] = await db.update(imagesTable).set(updates).where(and(eq(imagesTable.id, imageId), eq(imagesTable.projectId, projectId))).returning();
-  if (!img) { res.status(404).json({ error: "Image not found" }); return; }
+  const [img] = await db.insert(imagesTable).values({
+    id: imageId,
+    projectId,
+    name: String(name ?? normalizedOriginalName),
+    originalName: normalizedOriginalName,
+    storageKey: key,
+    format: ext,
+    size: Number(size ?? 0),
+    tags: Array.isArray(tags) ? tags : [],
+    ...updates,
+  }).returning();
   res.status(201).json(toApiImage(img));
 });
 

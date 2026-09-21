@@ -7,6 +7,7 @@
 import express, { Router, type IRouter } from "express";
 import {
   generateSignedGetUrl,
+  generateSignedDownloadUrl,
   hasCredentials,
   putDevObject,
   readDevObject,
@@ -59,12 +60,18 @@ router.get("/v1/storage/:key", async (req, res): Promise<void> => {
         return;
       }
       res.type(key.split(".").pop() || "bin");
-      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Cache-Control", req.query.download === "1" ? "private, no-cache" : "no-cache");
+      if (req.query.download === "1") {
+        const filename = String(req.query.filename ?? "afuchat-download").replace(/["\\\r\n]/g, "_");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      }
       res.send(object);
       return;
     }
 
-    const signedUrl = await generateSignedGetUrl(key, 3600);
+    const signedUrl = req.query.download === "1"
+      ? await generateSignedDownloadUrl(key, String(req.query.filename ?? "afuchat-download"), 3600)
+      : await generateSignedGetUrl(key, 3600);
     // 302 redirect — browser follows it to load the image directly from R2.
     // Cache-Control lets browsers reuse the redirect for up to 5 minutes.
     res.setHeader("Cache-Control", "private, max-age=300");
