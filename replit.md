@@ -44,6 +44,20 @@ Never put a real password in shell history, logs, tests, or documentation. The
 API returns JSON for unexpected failures, and the login route returns a controlled
 503 when the shared authentication database is unavailable.
 
+### Local upload behavior
+
+When Cloudflare R2 credentials are not present in the API workflow, upload URL
+generation intentionally returns the local endpoint
+`/api/v1/storage/dev-upload/:key`. The API accepts the binary PUT, stores it
+under the ignored `.dev-storage/` directory, and serves it back through
+`/api/v1/storage/:key`. This fallback is for local preview only; production
+uses signed R2 URLs.
+
+After changing storage routes, verify the local binary round trip before testing
+the UI: PUT a small fixture to the generated `dev-upload` URL, GET the matching
+storage URL, and compare the bytes. A 404 at the PUT stage means the API
+workflow is stale or the development handler is missing.
+
 ## Runtime Boundary
 
 - Replit is source storage and editing only; no Replit server is part of the AfuCloud runtime.

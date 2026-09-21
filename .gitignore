@@ -51,3 +51,6 @@ Thumbs.db
 # Cloudflare Worker local secrets
 .dev.vars
 artifacts/cf-worker/.dev.vars
+
+# API development object storage
+.dev-storage/

@@ -4,12 +4,43 @@
  * Replace implementations without changing the interface.
  */
 import crypto from "crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? "";
 const ACCESS_KEY_ID = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID ?? "";
 const SECRET_ACCESS_KEY = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY ?? "";
 const BUCKET_NAME = process.env.R2_BUCKET_NAME ?? "afucloud-images";
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL ?? "";
+const DEV_STORAGE_ROOT = path.resolve(
+  process.env.AFU_DEV_STORAGE_DIR ?? path.join(process.cwd(), ".dev-storage"),
+);
+
+function devObjectPath(key: string): string {
+  const normalizedKey = key.replace(/^\/+/, "");
+  const objectPath = path.resolve(DEV_STORAGE_ROOT, normalizedKey);
+  if (objectPath !== DEV_STORAGE_ROOT && !objectPath.startsWith(`${DEV_STORAGE_ROOT}${path.sep}`)) {
+    throw new Error("Invalid storage key");
+  }
+  return objectPath;
+}
+
+export async function putDevObject(key: string, body: Buffer): Promise<void> {
+  const objectPath = devObjectPath(key);
+  await mkdir(path.dirname(objectPath), { recursive: true });
+  await writeFile(objectPath, body);
+}
+
+export async function readDevObject(key: string): Promise<Buffer | null> {
+  try {
+    return await readFile(devObjectPath(key));
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
 
 export function getPublicUrl(key: string): string {
   if (R2_PUBLIC_URL) return `${R2_PUBLIC_URL}/${key}`;

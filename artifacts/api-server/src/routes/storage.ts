@@ -4,10 +4,42 @@
  * The key is URL-encoded (encodeURIComponent) so slashes are %2F and fit a
  * single `:key` parameter.
  */
-import { Router, type IRouter } from "express";
-import { generateSignedGetUrl, hasCredentials } from "../lib/storage";
+import express, { Router, type IRouter } from "express";
+import {
+  generateSignedGetUrl,
+  hasCredentials,
+  putDevObject,
+  readDevObject,
+} from "../lib/storage";
 
 const router: IRouter = Router();
+
+// Development-only upload target used when R2 credentials are intentionally
+// absent. Production uses a signed R2 URL and never reaches this handler.
+router.put(
+  "/v1/storage/dev-upload/:key",
+  express.raw({ type: "*/*", limit: "100mb" }),
+  async (req, res): Promise<void> => {
+    if (hasCredentials()) {
+      res.status(404).json({ error: "Development storage is disabled" });
+      return;
+    }
+
+    const key = req.params.key as string;
+    const body = Buffer.isBuffer(req.body) ? req.body : null;
+    if (!key || !body) {
+      res.status(400).json({ error: "A storage key and binary body are required" });
+      return;
+    }
+
+    try {
+      await putDevObject(key, body);
+      res.status(200).json({ ok: true });
+    } catch {
+      res.status(400).json({ error: "Invalid storage key" });
+    }
+  },
+);
 
 router.get("/v1/storage/:key", async (req, res): Promise<void> => {
   const rawKey = req.params.key as string;
@@ -19,12 +51,19 @@ router.get("/v1/storage/:key", async (req, res): Promise<void> => {
   // The key was encoded with encodeURIComponent; Express auto-decodes params.
   const key = rawKey;
 
-  if (!hasCredentials()) {
-    res.status(503).json({ error: "Storage not configured" });
-    return;
-  }
-
   try {
+    if (!hasCredentials()) {
+      const object = await readDevObject(key);
+      if (!object) {
+        res.status(404).json({ error: "Object not found" });
+        return;
+      }
+      res.type(key.split(".").pop() || "bin");
+      res.setHeader("Cache-Control", "no-cache");
+      res.send(object);
+      return;
+    }
+
     const signedUrl = await generateSignedGetUrl(key, 3600);
     // 302 redirect — browser follows it to load the image directly from R2.
     // Cache-Control lets browsers reuse the redirect for up to 5 minutes.
