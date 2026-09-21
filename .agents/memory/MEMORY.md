@@ -3,3 +3,4 @@
 - [R2 CORS and image serving](r2-cors-image-serving.md) — R2 must have CORS set via PutBucketCors on startup; images served via /api/v1/storage/:key → 302 to pre-signed GET URL
 - [CF Worker Architecture](cf-worker-architecture.md) — Hono + Supabase REST + aws4fetch; 3 secrets needed before deploy; bcrypt→PBKDF2 migration wired in login
 - [Shared Afu authentication](shared-afu-auth.md) — auth.users is the only identity/credential source; public.profiles links by user_id and product tables reference auth.users directly
+- [Vercel frontend builds](vercel-vite-build.md) — static Vite builds need defaults for PORT and BASE_PATH because Vercel does not inject Replit preview variables
