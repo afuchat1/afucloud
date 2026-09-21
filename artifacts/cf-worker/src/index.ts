@@ -34,6 +34,7 @@ app.use(
       if (
         allowedOrigins.has(origin) ||
         origin.endsWith(".afuchat.com") ||
+        origin.endsWith(".vercel.app") ||
         origin.endsWith(".replit.dev") ||
         origin.endsWith(".replit.app")
       ) {
