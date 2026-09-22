@@ -476,7 +476,7 @@ export default function ProjectDetailPage() {
         title={project.name}
         description={project.description || undefined}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex max-w-full flex-wrap items-center gap-2">
             <Link href={`/projects/${projectId}/analytics`}>
               <Button variant="outline" size="sm" className="gap-2"><BarChart3 className="h-4 w-4" />Analytics</Button>
             </Link>

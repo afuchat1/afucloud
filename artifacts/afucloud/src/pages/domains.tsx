@@ -148,11 +148,11 @@ export default function DomainsPage() {
         <div className="grid gap-4 md:grid-cols-2">
           {domains.map(domain => (
             <div key={domain.id} className="rounded-lg border border-card-border bg-card p-5">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex min-w-0 items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10"><Globe2 className="h-5 w-5 text-primary" /></div>
-                  <div>
-                    <h2 className="font-semibold">{domain.hostname}</h2>
+                  <div className="min-w-0">
+                    <h2 className="break-all font-semibold">{domain.hostname}</h2>
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       <Status ok={domain.verificationStatus === 'verified'}>{domain.verificationStatus === 'verified' ? 'Verified' : 'Verification pending'}</Status>
                       <Status ok={domain.sslStatus === 'active'}>{domain.sslStatus === 'active' ? 'SSL Active' : 'SSL pending'}</Status>
@@ -171,7 +171,7 @@ export default function DomainsPage() {
       )}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100%-1rem)] max-w-lg p-4 sm:p-6">
           <DialogHeader><DialogTitle>Add a root domain</DialogTitle></DialogHeader>
           <form className="space-y-4" onSubmit={addDomain}>
             <div className="space-y-2"><Label htmlFor="domain-name">Root domain</Label><Input id="domain-name" value={domainName} onChange={event => setDomainName(event.target.value)} placeholder="example.com" required /></div>
@@ -182,13 +182,13 @@ export default function DomainsPage() {
       </Dialog>
 
       <Dialog open={!!selected} onOpenChange={open => !open && setSelected(null)}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogContent className="w-[calc(100%-1rem)] max-h-[calc(100dvh-1rem)] max-w-3xl overflow-x-hidden overflow-y-auto p-4 sm:max-h-[90vh] sm:p-6">
           {selected && (
             <>
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2"><Globe2 className="h-5 w-5 text-primary" />{selected.hostname}</DialogTitle>
+                <DialogTitle className="flex min-w-0 items-center gap-2 break-all"><Globe2 className="h-5 w-5 shrink-0 text-primary" />{selected.hostname}</DialogTitle>
               </DialogHeader>
-              <div className="space-y-6">
+              <div className="min-w-0 space-y-6">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-lg border border-card-border bg-card p-3"><p className="text-xs text-muted-foreground">Ownership</p><div className="mt-1"><Status ok={selected.verificationStatus === 'verified'}>{selected.verificationStatus === 'verified' ? 'Verified' : 'Pending'}</Status></div></div>
                   <div className="rounded-lg border border-card-border bg-card p-3"><p className="text-xs text-muted-foreground">SSL/TLS</p><div className="mt-1"><Status ok={selected.sslStatus === 'active'}>{selected.sslStatus === 'active' ? 'Active' : 'Pending'}</Status></div></div>
@@ -198,7 +198,7 @@ export default function DomainsPage() {
                 {selected.verificationStatus !== 'verified' && (
                   <section className="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
                     <div className="flex items-start justify-between gap-4"><div><h3 className="font-medium text-amber-900">Verify domain ownership</h3><p className="mt-1 text-xs leading-relaxed text-amber-800">Add this TXT record at your DNS provider, then check verification.</p></div><Button size="sm" variant="outline" onClick={() => verifyDomain(selected)} disabled={busy === `verify-${selected.id}`} className="shrink-0 gap-1.5"><RefreshCw className="h-3.5 w-3.5" />{busy === `verify-${selected.id}` ? 'Checking…' : 'Check DNS'}</Button></div>
-                    <div className="mt-4 grid gap-2 text-xs sm:grid-cols-[100px_1fr]"><span className="text-muted-foreground">Type</span><code>TXT</code><span className="text-muted-foreground">Name</span><code>_afu-verification</code><span className="text-muted-foreground">Value</span><div className="flex items-center gap-2"><code className="truncate">{selected.dnsRecord.value}</code><Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => copy(selected.dnsRecord.value)}><Copy className="h-3 w-3" /></Button></div></div>
+                    <div className="mt-4 grid min-w-0 gap-2 text-xs sm:grid-cols-[100px_1fr]"><span className="text-muted-foreground">Type</span><code>TXT</code><span className="text-muted-foreground">Name</span><code>_afu-verification</code><span className="text-muted-foreground">Value</span><div className="flex min-w-0 items-center gap-2"><code className="min-w-0 break-all">{selected.dnsRecord.value}</code><Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => copy(selected.dnsRecord.value)}><Copy className="h-3 w-3" /></Button></div></div>
                   </section>
                 )}
 

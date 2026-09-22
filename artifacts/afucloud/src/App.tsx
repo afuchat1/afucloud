@@ -41,7 +41,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-[100dvh] bg-background">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="flex-1 lg:pl-64 min-h-[100dvh]">
+      <main className="min-w-0 flex-1 overflow-x-hidden lg:pl-64 min-h-[100dvh]">
         {/* Mobile top bar — hidden on desktop */}
         <header className="lg:hidden sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/95 backdrop-blur px-4">
           <button
