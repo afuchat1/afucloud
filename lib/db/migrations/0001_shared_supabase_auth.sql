@@ -1,7 +1,7 @@
 -- Shared Afu identity migration for Supabase PostgreSQL.
 --
 -- Identity and credentials live only in auth.users.
--- Shared profile data lives in public.profiles.
+-- Shared profile data lives in accounts.profiles.
 -- Product data lives in its product schema (afucloud.* here).
 --
 -- This migration is safe for:
@@ -10,15 +10,12 @@
 --
 -- It intentionally does not create a product-specific credential table.
 
--- Product namespaces share auth.users and public.profiles, but never share
+-- Product namespaces share auth.users and accounts.profiles, but never share
 -- product-owned tables with one another.
-CREATE SCHEMA IF NOT EXISTS afuchat;
-CREATE SCHEMA IF NOT EXISTS afumail;
-CREATE SCHEMA IF NOT EXISTS afuai;
+CREATE SCHEMA IF NOT EXISTS accounts;
 CREATE SCHEMA IF NOT EXISTS afucloud;
-CREATE SCHEMA IF NOT EXISTS afuads;
 
-CREATE TABLE IF NOT EXISTS public.profiles (
+CREATE TABLE IF NOT EXISTS accounts.profiles (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
   email text,
@@ -42,29 +39,29 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 );
 
 -- Add shared profile fields when this migration is applied to an older
--- public.profiles table. These are deliberately profile fields, not credentials.
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS user_id uuid;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_verified boolean NOT NULL DEFAULT false;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role_type text DEFAULT 'advertiser';
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS advertiser_id text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS publisher_id text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS storage_used bigint NOT NULL DEFAULT 0;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS storage_limit bigint NOT NULL DEFAULT 1073741824;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS suspended boolean NOT NULL DEFAULT false;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS name text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS coins integer DEFAULT 0;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS referral_code text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS referral_count integer DEFAULT 0;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS store_count integer DEFAULT 0;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+-- accounts.profiles table. These are deliberately profile fields, not credentials.
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS user_id uuid;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS email_verified boolean NOT NULL DEFAULT false;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS full_name text;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS avatar_url text;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS role_type text DEFAULT 'advertiser';
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS advertiser_id text;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS publisher_id text;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS storage_used bigint NOT NULL DEFAULT 0;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS storage_limit bigint NOT NULL DEFAULT 1073741824;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS suspended boolean NOT NULL DEFAULT false;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS name text;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS avatar text;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS coins integer DEFAULT 0;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS referral_code text;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS referral_count integer DEFAULT 0;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS store_count integer DEFAULT 0;
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE accounts.profiles ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
 
 CREATE UNIQUE INDEX IF NOT EXISTS profiles_user_id_key
-  ON public.profiles(user_id);
+  ON accounts.profiles(user_id);
 
 -- Keep Supabase's signup trigger compatible with the shared profile shape.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -74,7 +71,7 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
 BEGIN
-  INSERT INTO public.profiles (
+  INSERT INTO accounts.profiles (
     user_id,
     email,
     email_verified,
@@ -89,10 +86,10 @@ BEGIN
     COALESCE(new.raw_user_meta_data->>'name', split_part(COALESCE(new.email, 'user'), '@', 1))
   )
   ON CONFLICT (user_id) DO UPDATE SET
-    email = COALESCE(public.profiles.email, EXCLUDED.email),
+    email = COALESCE(accounts.profiles.email, EXCLUDED.email),
     email_verified = EXCLUDED.email_verified,
-    name = COALESCE(public.profiles.name, EXCLUDED.name),
-    full_name = COALESCE(public.profiles.full_name, EXCLUDED.full_name),
+    name = COALESCE(accounts.profiles.name, EXCLUDED.name),
+    full_name = COALESCE(accounts.profiles.full_name, EXCLUDED.full_name),
     updated_at = now();
   RETURN new;
 END;
@@ -176,7 +173,7 @@ BEGIN
   JOIN afucloud.users u ON u.id = m.old_id
   WHERE NOT EXISTS (SELECT 1 FROM auth.users a WHERE a.id = m.auth_id);
 
-  INSERT INTO public.profiles (
+    INSERT INTO accounts.profiles (
     user_id,
     email,
     email_verified,
@@ -198,12 +195,12 @@ BEGIN
   FROM afucloud_user_map m
   JOIN afucloud.users u ON u.id = m.old_id
   ON CONFLICT (user_id) DO UPDATE SET
-    email = COALESCE(public.profiles.email, EXCLUDED.email),
-    email_verified = public.profiles.email_verified OR EXCLUDED.email_verified,
-    name = COALESCE(public.profiles.name, EXCLUDED.name),
-    full_name = COALESCE(public.profiles.full_name, EXCLUDED.full_name),
-    avatar = COALESCE(public.profiles.avatar, EXCLUDED.avatar),
-    updated_at = GREATEST(public.profiles.updated_at, EXCLUDED.updated_at);
+    email = COALESCE(accounts.profiles.email, EXCLUDED.email),
+    email_verified = accounts.profiles.email_verified OR EXCLUDED.email_verified,
+    name = COALESCE(accounts.profiles.name, EXCLUDED.name),
+    full_name = COALESCE(accounts.profiles.full_name, EXCLUDED.full_name),
+    avatar = COALESCE(accounts.profiles.avatar, EXCLUDED.avatar),
+    updated_at = GREATEST(accounts.profiles.updated_at, EXCLUDED.updated_at);
 
   FOREACH table_name IN ARRAY ARRAY[
     'projects',
@@ -267,9 +264,9 @@ BEGIN
     SELECT 1
     FROM pg_constraint
     WHERE conname = 'profiles_user_id_auth_users_id_fk'
-      AND conrelid = 'public.profiles'::regclass
+      AND conrelid = 'accounts.profiles'::regclass
   ) THEN
-    ALTER TABLE public.profiles
+    ALTER TABLE accounts.profiles
       ADD CONSTRAINT profiles_user_id_auth_users_id_fk
       FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
   END IF;

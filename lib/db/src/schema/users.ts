@@ -1,4 +1,4 @@
-import { boolean, bigint, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, bigint, integer, pgSchema, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { authUsersTable } from "./auth-users";
@@ -9,9 +9,11 @@ import { authUsersTable } from "./auth-users";
  * Authentication is owned by Supabase Auth. This table deliberately has no
  * password or credential columns; user_id is the auth.users UUID.
  */
-// pgTable uses PostgreSQL's default public schema. The migration explicitly
-// creates public.profiles; product tables use pgSchema("afucloud").
-export const profilesTable = pgTable("profiles", {
+// Profiles are shared across Afu products in the accounts schema. All
+// AfuCloud-owned tables use pgSchema("afucloud").
+const accountsSchema = pgSchema("accounts");
+
+export const profilesTable = accountsSchema.table("profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().unique().references(() => authUsersTable.id, { onDelete: "cascade" }),
   email: text("email"),

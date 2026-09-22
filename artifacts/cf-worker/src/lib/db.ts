@@ -36,12 +36,12 @@ export function createDbClient(env: Env) {
   return {
     // ── Users ──────────────────────────────────────────────────────────────
     async getUserByEmail(email: string) {
-      const r = await request(`/profiles?email=ilike.${encodeURIComponent(email)}&limit=1`, "GET", undefined, undefined, "public");
+      const r = await request(`/profiles?email=ilike.${encodeURIComponent(email)}&limit=1`, "GET", undefined, undefined, "accounts");
       const rows = await r.json() as any[];
       return rows[0] ?? null;
     },
     async getUserById(id: string) {
-      const r = await request(`/profiles?user_id=eq.${id}&limit=1`, "GET", undefined, undefined, "public");
+      const r = await request(`/profiles?user_id=eq.${id}&limit=1`, "GET", undefined, undefined, "accounts");
       const rows = await r.json() as any[];
       return rows[0] ?? null;
     },
@@ -51,12 +51,12 @@ export function createDbClient(env: Env) {
       name: string;
       email_verified?: boolean;
     }) {
-      const r = await request("/profiles", "POST", data, { Prefer: "return=representation" }, "public");
+      const r = await request("/profiles", "POST", data, { Prefer: "return=representation" }, "accounts");
       const rows = await r.json() as any[];
       return rows[0];
     },
     async updateUser(id: string, data: Record<string, unknown>) {
-      const r = await request(`/profiles?user_id=eq.${id}`, "PATCH", data, { Prefer: "return=representation" }, "public");
+      const r = await request(`/profiles?user_id=eq.${id}`, "PATCH", data, { Prefer: "return=representation" }, "accounts");
       const rows = await r.json() as any[];
       return rows[0];
     },

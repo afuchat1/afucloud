@@ -68,7 +68,7 @@ workflow is stale or the development handler is missing.
 
 ## Infrastructure
 
-- **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), with shared identities in Supabase's `auth.users`; AfuCloud profile and platform data lives in the `afucloud` schema, and other products reference the same auth user ID
+- **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), with shared identities in Supabase's `auth.users`; shared profiles live in `accounts.profiles`, while AfuCloud-owned data lives in the `afucloud` schema
 - **Object storage**: Cloudflare R2 bucket `afucloud-images`
 - **Frontend**: React + Vite + shadcn/ui + Tailwind v4, deployed separately from the API
 - **Backend**: Cloudflare Worker (Hono) (`artifacts/cf-worker/`) — deployed to Cloudflare's edge
@@ -81,7 +81,7 @@ workflow is stale or the development handler is missing.
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec in `lib/api-spec/openapi.yaml`)
 - Frontend auth: JWT stored in `localStorage` as `afucloud_token`
-- Shared auth: Supabase's `auth.users` is the only identity and credential source for AfuChat, AfuMail, AfuAI, AfuCloud, and AfuAds. Shared profile data lives in `public.profiles` keyed by `user_id`; AfuCloud domain tables live under `afucloud.*` and reference `auth.users(id)` directly
+- Shared auth: Supabase's `auth.users` is the only identity and credential source for AfuChat, AfuMail, AfuAI, AfuCloud, and AfuAds. Shared profile data lives in `accounts.profiles` keyed by `user_id`; AfuCloud domain tables live under `afucloud.*` and reference `auth.users(id)` directly
 - Passwords and identity are managed by Supabase Auth; the Worker never creates a product-specific credential store
 - The Node API maps Supabase Auth explicitly with `pgSchema("auth")`; do not use an unqualified `users` table for login queries
 - Storage: Cloudflare R2 (S3-compatible) with pre-signed PUT URLs
@@ -142,7 +142,7 @@ cd artifacts/cf-worker && npx wrangler deploy
 
 - API-first design: all behavior defined in `lib/api-spec/openapi.yaml`, code generated from it
 - App sessions use AfuCloud access/refresh tokens, but credentials and identity remain in Supabase Auth's `auth.users`; no product schema may add a password or product-specific user table
-- The Worker uses Supabase REST and explicitly schema-qualified tables: `public.profiles` for shared profile data and `afucloud.*` for AfuCloud domain data
+- The Worker uses Supabase REST and explicitly schema-qualified tables: `accounts.profiles` for shared profile data and `afucloud.*` for AfuCloud domain data
 - Production secrets exist only in the Cloudflare Worker secret store; Replit has no production secret dependency
 - Supabase Auth owns password verification and password changes; the Worker is the only API layer
 

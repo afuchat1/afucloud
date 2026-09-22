@@ -25,9 +25,25 @@ if (!dbUrl) {
 export default defineConfig({
   schema: path.join(__dirname, "./src/schema/index.ts"),
   dialect: "postgresql",
+  schemaFilter: ["afucloud", "accounts", "auth"],
+  tablesFilter: [
+    "users",
+    "profiles",
+    "refresh_tokens",
+    "projects",
+    "images",
+    "api_keys",
+    "personal_tokens",
+    "webhooks",
+    "activity_logs",
+    "domains",
+    "hostnames",
+    "storage_containers",
+    "storage_objects",
+  ],
   dbCredentials: {
     url: dbUrl,
     ssl: true,
-    options: "-c search_path=public,afucloud",
+    options: "-c search_path=afucloud,accounts,public",
   },
 });
