@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useGetMe, useLogout } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
@@ -13,23 +14,36 @@ import {
   LogOut,
   X,
   Map,
+  Image as ImageIcon,
   Globe2,
   HardDrive,
+  ChevronDown,
+  type LucideIcon,
 } from 'lucide-react';
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+type NavigationItem = { name: string; href: string; icon: LucideIcon };
+
+const productNavigation = [
   { name: 'Projects', href: '/projects', icon: FolderOpen },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { name: 'Activity', href: '/activity', icon: Activity },
-  { name: 'Tokens', href: '/tokens', icon: Key },
+  { name: 'Storage', href: '/storage', icon: HardDrive },
   { name: 'Domains', href: '/domains', icon: Globe2 },
-  { name: 'CDN / Storage', href: '/storage', icon: HardDrive },
 ];
 
-const bottomNav = [
+const platformNavigation = [
+  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Activity', href: '/activity', icon: Activity },
+];
+
+const developerNavigation = [
+  { name: 'API tokens', href: '/tokens', icon: Key },
+];
+
+const resourceNavigation = [
   { name: 'Roadmap', href: '/roadmap', icon: Map },
   { name: 'Docs', href: '/docs', icon: BookOpen },
+];
+
+const accountNavigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
@@ -42,6 +56,14 @@ interface SidebarProps {
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location, setLocation] = useLocation();
+  const isProductRoute =
+    location === '/projects' ||
+    location.startsWith('/projects/') ||
+    location === '/storage' ||
+    location.startsWith('/storage/') ||
+    location === '/domains' ||
+    location.startsWith('/domains/');
+  const [imagesExpanded, setImagesExpanded] = useState(isProductRoute);
   const { data: user } = useGetMe({ query: { queryKey: ['/api/v1/auth/me'], retry: false } });
   const logoutMutation = useLogout();
 
@@ -58,6 +80,34 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const handleNavClick = () => {
     // Close drawer on mobile after navigating
     onClose?.();
+  };
+
+  const isActive = (href: string) =>
+    location === href || location.startsWith(`${href}/`);
+
+  const renderNavItem = (item: NavigationItem) => {
+    const active = isActive(item.href);
+    return (
+      <Link
+        key={item.name}
+        href={item.href}
+        onClick={handleNavClick}
+        aria-current={active ? 'page' : undefined}
+        className={cn(
+          'group flex min-h-9 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors',
+          active
+            ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
+            : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/55 hover:text-sidebar-foreground'
+        )}
+      >
+        <item.icon
+          className={cn('h-4 w-4 shrink-0', active ? 'opacity-100' : 'opacity-65 group-hover:opacity-100')}
+          strokeWidth={active ? 2.2 : 1.9}
+        />
+        <span className="truncate">{item.name}</span>
+        {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />}
+      </Link>
+    );
   };
 
   return (
@@ -85,64 +135,76 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
-          Platform
-        </p>
-        {navigation.map((item) => {
-          const isActive =
-            location === item.href || location.startsWith(`${item.href}/`);
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              onClick={handleNavClick}
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-              )}
-            >
-              <item.icon
-                className={cn(
-                  'h-4 w-4 shrink-0',
-                  isActive ? 'opacity-100' : 'opacity-70'
-                )}
-                strokeWidth={isActive ? 2.5 : 2}
-              />
-              {item.name}
-            </Link>
-          );
-        })}
+      <nav aria-label="Main navigation" className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
+        <section>
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
+            Overview
+          </p>
+          {renderNavItem({ name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard })}
+        </section>
 
-        <div className="my-3 border-t border-sidebar-border/60" />
+        <section>
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
+            Products
+          </p>
+          <button
+            type="button"
+            onClick={() => setImagesExpanded((expanded) => !expanded)}
+            aria-expanded={imagesExpanded}
+            aria-controls="images-product-navigation"
+            className={cn(
+              'flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-[13px] font-semibold transition-colors',
+              isProductRoute
+                ? 'bg-sidebar-accent/75 text-sidebar-accent-foreground'
+                : 'text-sidebar-foreground hover:bg-sidebar-accent/55'
+            )}
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <ImageIcon className="h-4 w-4" strokeWidth={2} />
+            </span>
+            <span className="flex-1">Images</span>
+            <span className="rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
+              Live
+            </span>
+            <ChevronDown
+              className={cn('h-3.5 w-3.5 text-sidebar-foreground/45 transition-transform duration-200', imagesExpanded && 'rotate-180')}
+              aria-hidden="true"
+            />
+          </button>
+          {imagesExpanded && (
+            <div id="images-product-navigation" className="relative ml-[22px] mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+              {productNavigation.map(renderNavItem)}
+            </div>
+          )}
+        </section>
 
-        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
-          Account
-        </p>
-        {bottomNav.map((item) => {
-          const isActive = location === item.href;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              onClick={handleNavClick}
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-              )}
-            >
-              <item.icon
-                className={cn('h-4 w-4 shrink-0', isActive ? 'opacity-100' : 'opacity-70')}
-                strokeWidth={isActive ? 2.5 : 2}
-              />
-              {item.name}
-            </Link>
-          );
-        })}
+        <section>
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
+            Platform
+          </p>
+          <div className="space-y-0.5">{platformNavigation.map(renderNavItem)}</div>
+        </section>
+
+        <section>
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
+            Developer
+          </p>
+          {developerNavigation.map(renderNavItem)}
+        </section>
+
+        <section>
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
+            Resources
+          </p>
+          <div className="space-y-0.5">{resourceNavigation.map(renderNavItem)}</div>
+        </section>
+
+        <section>
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
+            Account
+          </p>
+          {accountNavigation.map(renderNavItem)}
+        </section>
       </nav>
 
       {/* User section */}
