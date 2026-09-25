@@ -1,6 +1,8 @@
-import { useListActivity } from '@workspace/api-client-react';
+import { getListActivityQueryKey, useListActivity } from '@workspace/api-client-react';
 import { PageHeader } from '@/components/page-header';
 import { formatDateTime } from '@/lib/utils';
+import { describeActivity } from '@/lib/activity';
+import { liveQueryOptions } from '@/lib/live-query';
 import { Activity as ActivityIcon, Upload, Trash2, Edit, Key, FolderOpen } from 'lucide-react';
 
 const actionIcons: Record<string, React.ElementType> = {
@@ -9,14 +11,21 @@ const actionIcons: Record<string, React.ElementType> = {
   update: Edit,
   create: FolderOpen,
   token: Key,
+  revoke: Key,
+  restore: Edit,
+  register: ActivityIcon,
+  login: ActivityIcon,
 };
 
 export default function ActivityPage() {
-  const { data: activity, isLoading } = useListActivity({ limit: '50' });
+  const { data: activity, isLoading } = useListActivity(
+    { limit: '50' },
+    { query: liveQueryOptions(getListActivityQueryKey({ limit: '50' })) },
+  );
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Activity" description="Recent actions across all your projects" />
+      <PageHeader title="Activity" description="Recent actions across all your projects. Refreshes every 10 seconds." />
 
       <div className="rounded-lg border border-card-border bg-card divide-y divide-border">
         {isLoading ? (
@@ -35,7 +44,7 @@ export default function ActivityPage() {
             <p className="text-sm text-muted-foreground">No activity yet</p>
           </div>
         ) : (
-          activity?.map((item: any) => {
+          activity?.map((item) => {
             const Icon = actionIcons[item.action] ?? ActivityIcon;
             return (
               <div key={item.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-accent/30 transition-colors">
@@ -43,7 +52,9 @@ export default function ActivityPage() {
                   <Icon className="h-4 w-4 text-primary" strokeWidth={2} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{item.description}</p>
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {describeActivity(item.action, item.resource)}
+                  </p>
                   <p className="text-xs text-muted-foreground">{formatDateTime(item.createdAt)}</p>
                 </div>
               </div>

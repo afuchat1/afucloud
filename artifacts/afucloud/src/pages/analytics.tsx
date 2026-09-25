@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useGetAnalyticsOverview } from '@workspace/api-client-react';
+import { getGetAnalyticsOverviewQueryKey, useGetAnalyticsOverview } from '@workspace/api-client-react';
 import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { formatBytes, formatNumber, formatDate } from '@/lib/utils';
+import { liveQueryOptions } from '@/lib/live-query';
 import { Database, HardDrive, Zap, FolderOpen, Upload, TrendingUp } from 'lucide-react';
 
 const chartConfig = {
@@ -13,7 +14,9 @@ const chartConfig = {
 };
 
 export default function AnalyticsPage() {
-  const { data: overview, isLoading } = useGetAnalyticsOverview();
+  const { data: overview, isLoading } = useGetAnalyticsOverview({
+    query: liveQueryOptions(getGetAnalyticsOverviewQueryKey()),
+  });
 
   // Build a simple sparkline for recent uploads using recentUploads
   const recentUploads = overview?.recentUploads ?? 0;
@@ -25,7 +28,7 @@ export default function AnalyticsPage() {
     <div className="space-y-8">
       <PageHeader
         title="Analytics"
-        description="Platform-wide usage metrics across all your projects"
+        description="Platform-wide usage metrics across all your projects. Refreshes every 10 seconds."
       />
 
       {/* KPI Cards */}
@@ -38,7 +41,7 @@ export default function AnalyticsPage() {
           <>
             <StatCard label="Total Images" value={formatNumber(overview?.totalImages ?? 0)} icon={Database} />
             <StatCard label="Storage Used" value={formatBytes(overview?.totalStorageUsed ?? 0)} icon={HardDrive} />
-            <StatCard label="API Requests" value={formatNumber(overview?.totalApiRequests ?? 0)} icon={Zap} />
+            <StatCard label="API Requests" value="—" description="Tracking not enabled" icon={Zap} />
             <StatCard label="Projects" value={overview?.totalProjects ?? 0} icon={FolderOpen} />
           </>
         )}

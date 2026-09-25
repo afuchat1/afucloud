@@ -1,12 +1,17 @@
 import { useState } from 'react';
 import { useParams, Link } from 'wouter';
-import { useGetProject, useGetProjectAnalytics } from '@workspace/api-client-react';
+import {
+  getGetProjectAnalyticsQueryKey,
+  useGetProject,
+  useGetProjectAnalytics,
+} from '@workspace/api-client-react';
 import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { formatBytes, formatDate } from '@/lib/utils';
+import { liveQueryOptions } from '@/lib/live-query';
 import { ArrowLeft, Upload, HardDrive, TrendingUp, Download } from 'lucide-react';
 
 const PERIODS = [
@@ -32,7 +37,11 @@ export default function ProjectAnalyticsPage() {
   const [period, setPeriod] = useState('30d');
 
   const { data: project } = useGetProject(projectId);
-  const { data: analytics, isLoading } = useGetProjectAnalytics(projectId, { period });
+  const { data: analytics, isLoading } = useGetProjectAnalytics(
+    projectId,
+    { period },
+    { query: liveQueryOptions(getGetProjectAnalyticsQueryKey(projectId, { period })) },
+  );
 
   const dailyStats = analytics?.dailyStats ?? [];
   const chartData = dailyStats.map(d => ({
@@ -55,7 +64,7 @@ export default function ProjectAnalyticsPage() {
 
       <PageHeader
         title="Analytics"
-        description={`Usage metrics for ${project?.name || 'this project'}`}
+        description={`Usage metrics for ${project?.name || 'this project'}. Refreshes every 10 seconds.`}
         actions={
           <div className="flex items-center gap-1 rounded-lg border border-card-border bg-card p-1">
             {PERIODS.map(p => (
@@ -84,7 +93,7 @@ export default function ProjectAnalyticsPage() {
         ) : (
           <>
             <StatCard
-              label="Total Uploads"
+              label="Uploads in period"
               value={analytics?.uploads ?? 0}
               icon={Upload}
             />
@@ -95,7 +104,8 @@ export default function ProjectAnalyticsPage() {
             />
             <StatCard
               label="Downloads"
-              value={analytics?.downloads ?? 0}
+              value="—"
+              description="Tracking not enabled"
               icon={Download}
             />
             <StatCard
@@ -184,7 +194,7 @@ export default function ProjectAnalyticsPage() {
                   <tr key={d.date} className="border-b border-card-border/40 last:border-0 hover:bg-muted/20">
                     <td className="px-5 py-2.5 text-muted-foreground text-xs">{formatDate(d.date)}</td>
                     <td className="px-5 py-2.5 text-right font-mono text-xs">{d.uploads}</td>
-                    <td className="px-5 py-2.5 text-right font-mono text-xs text-muted-foreground">{d.downloads}</td>
+                    <td className="px-5 py-2.5 text-right font-mono text-xs text-muted-foreground">—</td>
                   </tr>
                 ))}
               </tbody>

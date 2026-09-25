@@ -59,6 +59,15 @@ images.delete("/trash", requireAuth, async (c) => {
   if (!await assertProjectOwner(db, projectId, c.get("userId"))) return c.json({ error: "Project not found" }, 404);
   const deleted = await db.emptyTrash(projectId);
   Promise.allSettled(deleted.map((img: any) => deleteObject(img.storage_key, c.env)));
+  if (deleted.length > 0) {
+    await db.logActivity({
+      user_id: c.get("userId"),
+      project_id: projectId,
+      action: "delete",
+      resource: "images",
+      metadata: { count: deleted.length, permanent: true },
+    });
+  }
   return c.json({ message: `${deleted.length} images permanently deleted`, count: deleted.length });
 });
 
@@ -121,6 +130,7 @@ images.patch("/:id", requireAuth, async (c) => {
   if (album !== undefined) updates.album = album;
   const img = await db.updateImage(id, updates);
   if (!img) return c.json({ error: "Image not found" }, 404);
+  await db.logActivity({ user_id: c.get("userId"), project_id: projectId, action: "update", resource: "image", resource_id: id });
   c.executionCtx.waitUntil(dispatchWebhook(projectId, "image.updated", toApiImage(img, c.env), c.env));
   return c.json(toApiImage(img, c.env));
 });
@@ -133,6 +143,7 @@ images.delete("/:id", requireAuth, async (c) => {
   if (!await assertProjectOwner(db, projectId, c.get("userId"))) return c.json({ error: "Project not found" }, 404);
   const img = await db.softDeleteImage(id);
   if (!img) return c.json({ error: "Image not found" }, 404);
+  await db.logActivity({ user_id: c.get("userId"), project_id: projectId, action: "delete", resource: "image", resource_id: id });
   c.executionCtx.waitUntil(dispatchWebhook(projectId, "image.deleted", { ...toApiImage(img, c.env), deleted: true }, c.env));
   return c.json({ message: "Image moved to trash" });
 });
@@ -146,6 +157,14 @@ images.patch("/:id/favorite", requireAuth, async (c) => {
   const current = await db.getImage(id, projectId);
   if (!current) return c.json({ error: "Image not found" }, 404);
   const img = await db.updateImage(id, { favorite: !current.favorite });
+  await db.logActivity({
+    user_id: c.get("userId"),
+    project_id: projectId,
+    action: "update",
+    resource: "image",
+    resource_id: id,
+    metadata: { favorite: img.favorite },
+  });
   c.executionCtx.waitUntil(dispatchWebhook(projectId, "image.updated", toApiImage(img, c.env), c.env));
   return c.json(toApiImage(img, c.env));
 });
@@ -158,6 +177,7 @@ images.post("/:id/restore", requireAuth, async (c) => {
   if (!await assertProjectOwner(db, projectId, c.get("userId"))) return c.json({ error: "Project not found" }, 404);
   const img = await db.restoreImage(id);
   if (!img) return c.json({ error: "Image not found" }, 404);
+  await db.logActivity({ user_id: c.get("userId"), project_id: projectId, action: "restore", resource: "image", resource_id: id });
   c.executionCtx.waitUntil(dispatchWebhook(projectId, "image.updated", toApiImage(img, c.env), c.env));
   return c.json(toApiImage(img, c.env));
 });
@@ -170,6 +190,14 @@ images.delete("/:id/permanent", requireAuth, async (c) => {
   if (!await assertProjectOwner(db, projectId, c.get("userId"))) return c.json({ error: "Project not found" }, 404);
   const img = await db.hardDeleteImage(id);
   if (!img) return c.json({ error: "Image not found" }, 404);
+  await db.logActivity({
+    user_id: c.get("userId"),
+    project_id: projectId,
+    action: "delete",
+    resource: "image",
+    resource_id: id,
+    metadata: { permanent: true },
+  });
   deleteObject(img.storage_key, c.env).catch(() => {});
   c.executionCtx.waitUntil(dispatchWebhook(projectId, "image.deleted", { imageId: id, projectId, deleted: true }, c.env));
   return c.json({ message: "Image permanently deleted" });

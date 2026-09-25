@@ -1,21 +1,37 @@
 import { Link } from 'wouter';
-import { useGetAnalyticsOverview, useListActivity, useListProjects } from '@workspace/api-client-react';
+import {
+  getGetAnalyticsOverviewQueryKey,
+  getListActivityQueryKey,
+  getListProjectsQueryKey,
+  useGetAnalyticsOverview,
+  useListActivity,
+  useListProjects,
+} from '@workspace/api-client-react';
 import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
 import { formatBytes, formatNumber, formatDateTime } from '@/lib/utils';
+import { describeActivity } from '@/lib/activity';
+import { liveQueryOptions } from '@/lib/live-query';
 import { Database, HardDrive, Activity as ActivityIcon, Zap, ArrowRight, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function DashboardPage() {
-  const { data: overview, isLoading: overviewLoading } = useGetAnalyticsOverview();
-  const { data: projects, isLoading: projectsLoading } = useListProjects();
-  const { data: activity, isLoading: activityLoading } = useListActivity({ limit: '5' });
+  const { data: overview, isLoading: overviewLoading } = useGetAnalyticsOverview({
+    query: liveQueryOptions(getGetAnalyticsOverviewQueryKey()),
+  });
+  const { data: projects, isLoading: projectsLoading } = useListProjects({
+    query: liveQueryOptions(getListProjectsQueryKey()),
+  });
+  const { data: activity, isLoading: activityLoading } = useListActivity(
+    { limit: '5' },
+    { query: liveQueryOptions(getListActivityQueryKey({ limit: '5' })) },
+  );
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Dashboard"
-        description="Monitor your platform usage and recent activity"
+        description="Monitor your platform usage and recent activity. Refreshes every 10 seconds."
       />
 
       {/* Stats Grid */}
@@ -40,7 +56,8 @@ export default function DashboardPage() {
             />
             <StatCard
               label="API Requests"
-              value={formatNumber(overview?.totalApiRequests || 0)}
+              value="—"
+              description="Tracking not enabled"
               icon={Zap}
             />
             <StatCard
@@ -139,7 +156,7 @@ export default function DashboardPage() {
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
                     <p className="text-sm text-card-foreground">
-                      <span className="font-medium">{log.action}</span> on {log.resource}
+                      <span className="font-medium">{describeActivity(log.action, log.resource)}</span>
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {formatDateTime(log.createdAt)}

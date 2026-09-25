@@ -33,6 +33,19 @@ export function createDbClient(env: Env) {
     });
   }
 
+  async function fetchAllRows<T>(path: string, pageSize = 1000): Promise<T[]> {
+    const rows: T[] = [];
+    const separator = path.includes("?") ? "&" : "?";
+
+    for (let offset = 0; ; offset += pageSize) {
+      const response = await request(`${path}${separator}limit=${pageSize}&offset=${offset}`);
+      if (!response.ok) throw new Error(`Supabase query failed: HTTP ${response.status}`);
+      const page = await response.json() as T[];
+      rows.push(...page);
+      if (page.length < pageSize) return rows;
+    }
+  }
+
   return {
     // ── Users ──────────────────────────────────────────────────────────────
     async getUserByEmail(email: string) {
@@ -165,18 +178,36 @@ export function createDbClient(env: Env) {
       return r.json() as Promise<any[]>;
     },
     async getImageStats(projectId: string) {
-      const rTotal = await request(`/images?project_id=eq.${projectId}&deleted_at=is.null&select=size,favorite`);
-      const all = await rTotal.json() as any[];
-      const rDel = await request(`/images?project_id=eq.${projectId}&deleted_at=not.is.null&select=id`);
-      const deleted = await rDel.json() as any[];
+      const [all, deleted] = await Promise.all([
+        fetchAllRows<{ size: number | null; favorite: boolean }>(
+          `/images?project_id=eq.${encodeURIComponent(projectId)}&deleted_at=is.null&select=size,favorite`,
+        ),
+        fetchAllRows<{ id: string }>(
+          `/images?project_id=eq.${encodeURIComponent(projectId)}&deleted_at=not.is.null&select=id`,
+        ),
+      ]);
       return {
         totalImages: all.length,
-        storageUsed: all.reduce((s: number, r: any) => s + (r.size || 0), 0),
-        favoriteImages: all.filter((r: any) => r.favorite).length,
+        storageUsed: all.reduce((sum, image) => sum + (image.size ?? 0), 0),
+        favoriteImages: all.filter(image => image.favorite).length,
         deletedImages: deleted.length,
         apiRequests: 0,
         bandwidth: 0,
       };
+    },
+    async getImageUploadEvents(userId: string, projectIds: string[], since: Date) {
+      if (projectIds.length === 0) return [] as Array<{ created_at: string }>;
+
+      const params = new URLSearchParams({
+        user_id: `eq.${userId}`,
+        project_id: projectIds.length === 1 ? `eq.${projectIds[0]}` : `in.(${projectIds.join(",")})`,
+        action: "eq.upload",
+        resource: "eq.image",
+        created_at: `gte.${since.toISOString()}`,
+        select: "created_at",
+        order: "created_at.asc",
+      });
+      return fetchAllRows<{ created_at: string }>(`/activity_logs?${params.toString()}`);
     },
 
     // ── API Keys ────────────────────────────────────────────────────────────
@@ -342,8 +373,9 @@ export function createDbClient(env: Env) {
     },
 
     // ── Activity Logs ───────────────────────────────────────────────────────
-    async getActivity(userId: string, limit = 50) {
-      const r = await request(`/activity_logs?user_id=eq.${userId}&order=created_at.desc&limit=${limit}`);
+    async getActivity(userId: string, limit = 50, projectId?: string) {
+      const projectFilter = projectId ? `&project_id=eq.${encodeURIComponent(projectId)}` : "";
+      const r = await request(`/activity_logs?user_id=eq.${encodeURIComponent(userId)}${projectFilter}&order=created_at.desc&limit=${limit}`);
       return r.json() as Promise<any[]>;
     },
     async logActivity(data: {
