@@ -25,16 +25,50 @@ function publicObjectKey(objectKey: string): string {
 }
 
 function encodeObjectPath(objectKey: string): string {
-  return objectKey.split("/").filter(Boolean).map(segment => encodeURIComponent(segment)).join("/");
+  return objectKey.split("/").map(segment => encodeURIComponent(segment)).join("/");
 }
 
-function objectApi(object: typeof storageObjectsTable.$inferSelect, containerId: string, cdnUrl?: string | null) {
+type CdnResolution = { hostname: string | null; error: string | null };
+
+function normalizeTimestamp(value: Date | string | null | undefined, fallback?: Date | string | null): string {
+  for (const candidate of [value, fallback]) {
+    if (candidate == null || candidate === "") continue;
+    const date = candidate instanceof Date ? candidate : new Date(candidate);
+    if (Number.isFinite(date.getTime())) return date.toISOString();
+  }
+  return new Date().toISOString();
+}
+
+function mediaKind(contentType: string | null | undefined, name: string): "image" | "video" | "other" {
+  const normalizedType = contentType?.toLowerCase() ?? "";
+  if (normalizedType.startsWith("image/") || /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|webp)$/i.test(name)) return "image";
+  if (normalizedType.startsWith("video/") || /\.(avi|m4v|mkv|mov|mp4|mpeg|mpg|webm)$/i.test(name)) return "video";
+  return "other";
+}
+
+function publicHostname(contentType: string | null | undefined, name: string, configuredHostname: string | null): string {
+  const kind = mediaKind(contentType, name);
+  const defaultHostname = kind === "image"
+    ? "img.afuchat.com"
+    : kind === "video"
+      ? "vid.afuchat.com"
+      : "cdn.afuchat.com";
+  if (!configuredHostname) return defaultHostname;
+
+  const configured = configuredHostname.toLowerCase().replace(/\.$/, "");
+  if (configured === "img.afuchat.com") return kind === "image" ? configured : defaultHostname;
+  if (configured === "vid.afuchat.com") return kind === "video" ? configured : defaultHostname;
+  if (configured === "cdn.afuchat.com") return kind === "other" ? configured : defaultHostname;
+  return configured;
+}
+
+function objectApi(object: typeof storageObjectsTable.$inferSelect, containerId: string, cdn: CdnResolution) {
   const relativeKey = relativeObjectKey(object.objectKey, containerId, object.userId);
   const publicKey = publicObjectKey(object.objectKey);
   const encodedPublicKey = encodeObjectPath(publicKey);
-  const publicUrl = cdnUrl
-    ? `${cdnUrl.replace(/\/$/, "")}/${encodedPublicKey}`
-    : `/api/v1/storage/${encodeURIComponent(object.objectKey)}`;
+  const publicUrl = object.isFolder
+    ? null
+    : `https://${publicHostname(object.contentType, object.name, cdn.hostname)}/${encodedPublicKey}`;
 
   return {
     id: object.id,
@@ -42,14 +76,15 @@ function objectApi(object: typeof storageObjectsTable.$inferSelect, containerId:
     key: publicUrl,
     storageKey: object.objectKey,
     path: relativeKey,
-    name: object.name,
+    name: (object.name || relativeKey.split("/").pop() || "").split("/").pop() || "",
     contentType: object.contentType,
     size: object.size,
     etag: object.etag,
     isFolder: object.isFolder,
-    url: object.isFolder ? null : publicUrl,
-    createdAt: object.createdAt.toISOString(),
-    updatedAt: object.updatedAt.toISOString(),
+    url: publicUrl,
+    createdAt: normalizeTimestamp(object.createdAt),
+    updatedAt: normalizeTimestamp(object.updatedAt, object.createdAt),
+    cdnError: cdn.error,
   };
 }
 
@@ -59,11 +94,74 @@ async function ownedContainer(id: string, userId: string) {
   return container;
 }
 
-async function containerCdnUrl(container: typeof storageContainersTable.$inferSelect) {
-  if (!container.cdnEnabled || !container.cdnHostnameId) return null;
-  const [hostname] = await db.select().from(hostnamesTable)
-    .where(and(eq(hostnamesTable.id, container.cdnHostnameId), eq(hostnamesTable.userId, container.userId))).limit(1);
-  return hostname?.status === "active" ? `https://${hostname.hostname}` : null;
+async function resolveContainerCdn(container: typeof storageContainersTable.$inferSelect): Promise<CdnResolution> {
+  if (!container.cdnEnabled) return { hostname: null, error: null };
+  if (!container.cdnHostnameId) return { hostname: null, error: "CDN is enabled, but no hostname is selected." };
+  const [hostname] = await db.select().from(hostnamesTable).where(and(
+    eq(hostnamesTable.id, container.cdnHostnameId),
+    eq(hostnamesTable.userId, container.userId),
+    eq(hostnamesTable.service, "cdn"),
+  )).limit(1);
+  if (!hostname) {
+    return { hostname: null, error: "The selected hostname is missing, not owned by this account, or is not configured for CDN service." };
+  }
+  const [domain] = await db.select().from(domainsTable).where(and(
+    eq(domainsTable.id, hostname.domainId),
+    eq(domainsTable.userId, container.userId),
+  )).limit(1);
+  if (domain?.verificationStatus !== "verified") {
+    return { hostname: null, error: "The selected hostname's root domain is not verified." };
+  }
+  if (hostname.status !== "active" || hostname.sslStatus !== "active" || hostname.dnsStatus !== "configured") {
+    return { hostname: null, error: "The selected hostname is not ready: hostname, SSL, and DNS must all be active/configured." };
+  }
+  return { hostname: hostname.hostname.replace(/\.$/, ""), error: null };
+}
+
+function validRelativePath(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const path = value.trim().replace(/^\/+|\/+$/g, "");
+  const segments = path.split("/");
+  if (!path || segments.some(segment => !segment || segment === "." || segment === ".." || segment.includes("\\"))) return null;
+  return path;
+}
+
+async function ensureFolder(containerId: string, userId: string, relativePath: string) {
+  const objectKey = `${containerPrefix(containerId, userId)}${relativePath}`;
+  const [existing] = await db.select().from(storageObjectsTable).where(and(
+    eq(storageObjectsTable.containerId, containerId),
+    eq(storageObjectsTable.userId, userId),
+    eq(storageObjectsTable.objectKey, objectKey),
+  )).limit(1);
+  if (existing) {
+    if (!existing.isFolder) throw new Error(`A file already exists at folder path "${relativePath}".`);
+    return existing;
+  }
+  try {
+    const [created] = await db.insert(storageObjectsTable).values({
+      containerId,
+      userId,
+      objectKey,
+      name: relativePath.split("/").pop()!,
+      isFolder: true,
+    }).returning();
+    return created;
+  } catch (error) {
+    const [raced] = await db.select().from(storageObjectsTable).where(and(
+      eq(storageObjectsTable.containerId, containerId),
+      eq(storageObjectsTable.userId, userId),
+      eq(storageObjectsTable.objectKey, objectKey),
+    )).limit(1);
+    if (raced?.isFolder) return raced;
+    throw error;
+  }
+}
+
+async function ensureParentFolders(containerId: string, userId: string, relativePath: string): Promise<void> {
+  const segments = relativePath.split("/");
+  for (let length = 1; length < segments.length; length++) {
+    await ensureFolder(containerId, userId, segments.slice(0, length).join("/"));
+  }
 }
 
 router.get("/v1/storage-containers", requireAuth, async (req: AuthRequest, res): Promise<void> => {
@@ -75,7 +173,8 @@ router.get("/v1/storage-containers", requireAuth, async (req: AuthRequest, res):
       count: sql<number>`count(*)`,
       bytes: sql<number>`coalesce(sum(${storageObjectsTable.size}), 0)`,
     }).from(storageObjectsTable).where(and(eq(storageObjectsTable.containerId, container.id), eq(storageObjectsTable.isFolder, false)));
-    return { ...container, objectCount: Number(count), storageUsed: Number(bytes), cdnUrl: await containerCdnUrl(container) };
+    const cdn = await resolveContainerCdn(container);
+    return { ...container, objectCount: Number(count), storageUsed: Number(bytes), cdnUrl: cdn.hostname ? `https://${cdn.hostname}` : null, cdnError: cdn.error };
   }));
   res.json(result);
 });
@@ -100,7 +199,8 @@ router.post("/v1/storage-containers", requireAuth, async (req: AuthRequest, res)
 router.get("/v1/storage-containers/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const container = await ownedContainer(req.params.id as string, req.userId!);
   if (!container) { res.status(404).json({ error: "Container not found" }); return; }
-  res.json({ ...container, cdnUrl: await containerCdnUrl(container) });
+  const cdn = await resolveContainerCdn(container);
+  res.json({ ...container, cdnUrl: cdn.hostname ? `https://${cdn.hostname}` : null, cdnError: cdn.error });
 });
 
 router.patch("/v1/storage-containers/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
@@ -116,7 +216,8 @@ router.patch("/v1/storage-containers/:id", requireAuth, async (req: AuthRequest,
   if (req.body?.description !== undefined) updates.description = req.body.description || null;
   if (req.body?.accessMode !== undefined && ["private", "public"].includes(req.body.accessMode)) updates.accessMode = req.body.accessMode;
   const [updated] = await db.update(storageContainersTable).set(updates).where(eq(storageContainersTable.id, container.id)).returning();
-  res.json({ ...updated, cdnUrl: await containerCdnUrl(updated) });
+  const cdn = await resolveContainerCdn(updated);
+  res.json({ ...updated, cdnUrl: cdn.hostname ? `https://${cdn.hostname}` : null, cdnError: cdn.error });
 });
 
 router.delete("/v1/storage-containers/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
@@ -145,31 +246,34 @@ router.get("/v1/storage-containers/:id/objects", requireAuth, async (req: AuthRe
     const current = prefix ? relative.slice(prefix.length + 1) : relative;
     return current.length > 0 && !current.includes("/");
   });
-  const cdnUrl = await containerCdnUrl(container);
-  res.json({ prefix, objects: directObjects.map(object => objectApi(object, container.id, cdnUrl)) });
+  const cdn = await resolveContainerCdn(container);
+  res.json({ prefix, cdnError: cdn.error, objects: directObjects.map(object => objectApi(object, container.id, cdn)) });
 });
 
 router.post("/v1/storage-containers/:id/folders", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const container = await ownedContainer(req.params.id as string, req.userId!);
   if (!container) { res.status(404).json({ error: "Container not found" }); return; }
-  const name = String(req.body?.name ?? "").trim().replace(/^\/+|\/+$/g, "");
-  if (!name || name.includes("..")) { res.status(400).json({ error: "Enter a valid folder path" }); return; }
-  const [folder] = await db.insert(storageObjectsTable).values({
-    containerId: container.id,
-    userId: req.userId!,
-    objectKey: `${containerPrefix(container.id, req.userId!)}${name}`,
-    name: name.split("/").pop()!,
-    isFolder: true,
-  }).returning();
-  res.status(201).json(objectApi(folder, container.id));
+  const name = validRelativePath(req.body?.name);
+  if (!name) { res.status(400).json({ error: "Enter a valid folder path" }); return; }
+  try {
+    const segments = name.split("/");
+    let folder: typeof storageObjectsTable.$inferSelect | null = null;
+    for (let length = 1; length <= segments.length; length++) {
+      folder = await ensureFolder(container.id, req.userId!, segments.slice(0, length).join("/"));
+    }
+    const cdn = await resolveContainerCdn(container);
+    res.status(201).json(objectApi(folder!, container.id, cdn));
+  } catch (error) {
+    res.status(409).json({ error: error instanceof Error ? error.message : "Unable to create folder" });
+  }
 });
 
 router.post("/v1/storage-containers/:id/upload-url", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const container = await ownedContainer(req.params.id as string, req.userId!);
   if (!container) { res.status(404).json({ error: "Container not found" }); return; }
-  const name = String(req.body?.name ?? "").trim().replace(/^\/+/, "");
+  const name = validRelativePath(req.body?.name);
   const contentType = String(req.body?.contentType ?? "application/octet-stream");
-  if (!name || name.includes("..")) { res.status(400).json({ error: "Object name is required" }); return; }
+  if (!name) { res.status(400).json({ error: "Enter a valid object path" }); return; }
   const objectId = crypto.randomUUID();
   const key = `containers/${req.userId}/${container.id}/${name}`;
   const uploadUrl = await generateUploadUrl(key, contentType);
@@ -179,21 +283,39 @@ router.post("/v1/storage-containers/:id/upload-url", requireAuth, async (req: Au
 router.post("/v1/storage-containers/:id/objects/confirm", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const container = await ownedContainer(req.params.id as string, req.userId!);
   if (!container) { res.status(404).json({ error: "Container not found" }); return; }
-  const name = String(req.body?.name ?? "").trim().replace(/^\/+/, "");
+  const name = validRelativePath(req.body?.name);
   const key = String(req.body?.key ?? "");
-  if (!name || !key.startsWith(`containers/${req.userId}/${container.id}/`)) {
+  const expectedKey = name ? `${containerPrefix(container.id, req.userId!)}${name}` : "";
+  if (!name || key !== expectedKey) {
     res.status(400).json({ error: "Invalid object confirmation" }); return;
   }
-  const [object] = await db.insert(storageObjectsTable).values({
-    containerId: container.id,
-    userId: req.userId!,
-    objectKey: key,
-    name,
-    contentType: req.body?.contentType || null,
-    size: Number(req.body?.size ?? 0),
-    etag: req.body?.etag || null,
-  }).returning();
-  res.status(201).json(objectApi(object, container.id, await containerCdnUrl(container)));
+  try {
+    await ensureParentFolders(container.id, req.userId!, name);
+    const [existing] = await db.select().from(storageObjectsTable).where(and(
+      eq(storageObjectsTable.containerId, container.id),
+      eq(storageObjectsTable.userId, req.userId!),
+      eq(storageObjectsTable.objectKey, key),
+    )).limit(1);
+    if (existing?.isFolder) { res.status(409).json({ error: "A folder already exists at this object path" }); return; }
+    const details = {
+      name: name.split("/").pop()!,
+      contentType: req.body?.contentType || null,
+      size: Number(req.body?.size ?? 0),
+      etag: req.body?.etag || null,
+      updatedAt: new Date(),
+    };
+    const [object] = existing
+      ? await db.update(storageObjectsTable).set(details).where(eq(storageObjectsTable.id, existing.id)).returning()
+      : await db.insert(storageObjectsTable).values({
+          containerId: container.id,
+          userId: req.userId!,
+          objectKey: key,
+          ...details,
+        }).returning();
+    res.status(existing ? 200 : 201).json(objectApi(object, container.id, await resolveContainerCdn(container)));
+  } catch (error) {
+    res.status(409).json({ error: error instanceof Error ? error.message : "Unable to confirm uploaded object" });
+  }
 });
 
 router.get("/v1/storage-containers/:containerId/objects/:objectId", requireAuth, async (req: AuthRequest, res): Promise<void> => {
@@ -205,7 +327,7 @@ router.get("/v1/storage-containers/:containerId/objects/:objectId", requireAuth,
     eq(storageObjectsTable.userId, req.userId!),
   )).limit(1);
   if (!object) { res.status(404).json({ error: "Object not found" }); return; }
-  res.json(objectApi(object, container.id, await containerCdnUrl(container)));
+  res.json(objectApi(object, container.id, await resolveContainerCdn(container)));
 });
 
 router.patch("/v1/storage-containers/:containerId/objects/:objectId", requireAuth, async (req: AuthRequest, res): Promise<void> => {
@@ -230,8 +352,9 @@ router.patch("/v1/storage-containers/:containerId/objects/:objectId", requireAut
   const [updated] = await db.update(storageObjectsTable).set({
     name,
     objectKey: nextKey,
+    updatedAt: new Date(),
   }).where(eq(storageObjectsTable.id, object.id)).returning();
-  res.json(objectApi(updated, container.id, await containerCdnUrl(container)));
+  res.json(objectApi(updated, container.id, await resolveContainerCdn(container)));
 });
 
 router.delete("/v1/storage-containers/:containerId/objects/:objectId", requireAuth, async (req: AuthRequest, res): Promise<void> => {
@@ -258,7 +381,7 @@ router.patch("/v1/storage-containers/:id/cdn", requireAuth, async (req: AuthRequ
       cdnHostnameId: null,
       cdnStatus: "disabled",
     }).where(eq(storageContainersTable.id, container.id)).returning();
-    res.json({ ...updated, cdnUrl: null });
+    res.json({ ...updated, cdnUrl: null, cdnError: null });
     return;
   }
   const hostnameId = String(req.body?.hostnameId ?? "");
@@ -270,12 +393,16 @@ router.patch("/v1/storage-containers/:id/cdn", requireAuth, async (req: AuthRequ
     eq(domainsTable.verificationStatus, "verified"),
   )).limit(1);
   if (!hostname) { res.status(400).json({ error: "Select one of your verified CDN hostnames" }); return; }
+  if (hostname.hostnames.status !== "active" || hostname.hostnames.sslStatus !== "active" || hostname.hostnames.dnsStatus !== "configured") {
+    res.status(400).json({ error: "The selected hostname is not ready: verify its DNS and SSL status first" });
+    return;
+  }
   const [updated] = await db.update(storageContainersTable).set({
     cdnEnabled: true,
     cdnHostnameId: hostname.hostnames.id,
-    cdnStatus: "pending",
+    cdnStatus: "active",
   }).where(eq(storageContainersTable.id, container.id)).returning();
-  res.json({ ...updated, cdnUrl: `https://${hostname.hostnames.hostname}`, cdnStatus: "pending" });
+  res.json({ ...updated, cdnUrl: `https://${hostname.hostnames.hostname}`, cdnStatus: "active", cdnError: null });
 });
 
 export default router;

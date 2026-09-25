@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { formatBytes, formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-import { API_BASE, getStorageFileUrl, resolveImageUrl } from '@/lib/api-base';
+import { API_BASE } from '@/lib/api-base';
 import {
   ChevronRight, Cloud, Copy, File, Folder, FolderPlus, HardDrive, MoreHorizontal,
   Pencil, Plus, RefreshCw, Settings2, Trash2, Upload, X,
@@ -22,29 +22,29 @@ const authHeaders = () => ({
 type Container = {
   id: string; name: string; slug: string; description?: string | null;
   accessMode: string; cdnEnabled: boolean; cdnHostnameId?: string | null;
-  cdnStatus: string; objectCount: number; storageUsed: number; cdnUrl?: string | null;
+  cdnStatus: string; objectCount: number; storageUsed: number; cdnUrl?: string | null; cdnError?: string | null;
 };
 type StorageObject = {
-  id: string; key: string | null; storageKey?: string | null; path?: string | null; name: string; contentType?: string | null;
-  size: number; etag?: string | null; isFolder: boolean; url?: string | null; cdnUrl?: string | null;
-  createdAt: string; updatedAt: string;
+  id: string; key: string | null; storageKey: string | null; path: string; name: string; contentType: string | null;
+  size: number; etag: string | null; isFolder: boolean; url: string | null; cdnError?: string | null;
+  createdAt?: string | null; updatedAt?: string | null;
 };
-type Domain = { id: string; hostname: string; verificationStatus: string; hostnames: Array<{ id: string; hostname: string; service: string; status: string }> };
+type Domain = { id: string; hostname: string; verificationStatus: string; hostnames: Array<{ id: string; hostname: string; service: string; status: string; sslStatus?: string; dnsStatus?: string }> };
 
 function isImage(object: StorageObject): boolean {
-  return Boolean(object.contentType?.startsWith('image/'));
+  return Boolean(object.contentType?.startsWith('image/') || /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|webp)$/i.test(object.name));
 }
 
 function isVideo(object: StorageObject): boolean {
-  return Boolean(object.contentType?.startsWith('video/'));
+  return Boolean(object.contentType?.startsWith('video/') || /\.(avi|m4v|mkv|mov|mp4|mpeg|mpg|webm)$/i.test(object.name));
 }
 
 function isAudio(object: StorageObject): boolean {
-  return Boolean(object.contentType?.startsWith('audio/'));
+  return Boolean(object.contentType?.startsWith('audio/') || /\.(aac|aiff|flac|m4a|mp3|oga|ogg|opus|wav|weba)$/i.test(object.name));
 }
 
 function isPdf(object: StorageObject): boolean {
-  return object.contentType === 'application/pdf';
+  return object.contentType === 'application/pdf' || /\.pdf$/i.test(object.name);
 }
 
 async function jsonFetch(path: string, init?: RequestInit) {
@@ -77,7 +77,7 @@ export default function StoragePage() {
     queryFn: () => jsonFetch('/v1/storage-containers'),
   });
   const selected = containers.find(container => container.id === selectedId) ?? containers[0];
-  const { data: objectData, isLoading: objectsLoading } = useQuery<{ prefix: string; objects: StorageObject[] }>({
+  const { data: objectData, isLoading: objectsLoading, error: objectQueryError } = useQuery<{ prefix: string; objects: StorageObject[]; cdnError?: string | null }>({
     queryKey: ['storage-objects', selected?.id, prefix],
     queryFn: () => jsonFetch(`/v1/storage-containers/${selected!.id}/objects?prefix=${encodeURIComponent(prefix)}`),
     enabled: !!selected,
@@ -87,9 +87,24 @@ export default function StoragePage() {
     queryFn: () => jsonFetch('/v1/domains'),
   });
 
+  useEffect(() => {
+    if (!selected) return;
+    setPrefix(sessionStorage.getItem(`afucloud-storage-prefix:${selected.id}`) ?? '');
+  }, [selected?.id]);
+
+  const navigateToPrefix = (nextPrefix: string) => {
+    setPrefix(nextPrefix);
+    if (selected) sessionStorage.setItem(`afucloud-storage-prefix:${selected.id}`, nextPrefix);
+  };
+
   const cdnHostnames = useMemo(() => domains.flatMap(domain =>
     domain.verificationStatus === 'verified'
-      ? domain.hostnames.filter(hostname => hostname.service === 'cdn').map(hostname => ({ ...hostname, domain: domain.hostname }))
+      ? domain.hostnames.filter(hostname =>
+          hostname.service === 'cdn' &&
+          hostname.status === 'active' &&
+          hostname.sslStatus === 'active' &&
+          hostname.dnsStatus === 'configured',
+        ).map(hostname => ({ ...hostname, domain: domain.hostname }))
       : [],
   ), [domains]);
 
@@ -138,14 +153,15 @@ export default function StoragePage() {
     try {
       for (const file of Array.from(files)) {
         const name = prefix ? `${prefix}/${file.name}` : file.name;
+        const contentType = file.type || 'application/octet-stream';
         const upload = await jsonFetch(`/v1/storage-containers/${selected.id}/upload-url`, {
-          method: 'POST', body: JSON.stringify({ name, contentType: file.type || 'application/octet-stream' }),
+          method: 'POST', body: JSON.stringify({ name, contentType }),
         });
-        const put = await fetch(upload.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+        const put = await fetch(upload.uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file });
         if (!put.ok) throw new Error(`Upload failed for ${file.name}`);
         await jsonFetch(`/v1/storage-containers/${selected.id}/objects/confirm`, {
           method: 'POST',
-          body: JSON.stringify({ name, key: upload.key, contentType: file.type, size: file.size, etag: put.headers.get('etag') }),
+          body: JSON.stringify({ name, key: upload.key, contentType, size: file.size, etag: put.headers.get('etag') }),
         });
       }
       invalidate();
@@ -190,6 +206,7 @@ export default function StoragePage() {
     if (!selected || !confirm(`Delete ${selected.name} and all of its objects?`)) return;
     run('delete-container', async () => {
       await jsonFetch(`/v1/storage-containers/${selected.id}`, { method: 'DELETE' });
+      sessionStorage.removeItem(`afucloud-storage-prefix:${selected.id}`);
       setSelectedId(null);
       setPrefix('');
     }, 'Container deleted');
@@ -197,11 +214,8 @@ export default function StoragePage() {
 
   const folders = prefix ? prefix.split('/') : [];
   const objects = objectData?.objects ?? [];
-  const detailsCdnUrl = detailsObject?.cdnUrl ? resolveImageUrl(detailsObject.cdnUrl) : '';
-  const detailsApiUrl = detailsObject?.storageKey
-    ? getStorageFileUrl(detailsObject.storageKey)
-    : detailsObject?.url ? resolveImageUrl(detailsObject.url) : '';
-  const detailsUrl = detailsCdnUrl && failedPreviewUrl === detailsCdnUrl ? detailsApiUrl : detailsCdnUrl || detailsApiUrl;
+  const objectDataError = objectQueryError instanceof Error ? objectQueryError.message : '';
+  const detailsUrl = detailsObject?.isFolder ? '' : detailsObject?.url ?? '';
 
   return (
     <div className="space-y-6">
@@ -217,14 +231,16 @@ export default function StoragePage() {
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
           <aside className="space-y-3">
             <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Containers</p><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" /></Button></div>
-            <div className="space-y-1.5">{containers.map(container => <button key={container.id} onClick={() => { setSelectedId(container.id); setPrefix(''); }} className={cn('w-full rounded-lg border px-3 py-3 text-left transition-colors', selected?.id === container.id ? 'border-primary bg-primary/5' : 'border-card-border bg-card hover:border-border')}><div className="flex items-center gap-2"><HardDrive className={cn('h-4 w-4', selected?.id === container.id ? 'text-primary' : 'text-muted-foreground')} /><span className="min-w-0 flex-1 truncate text-sm font-medium">{container.name}</span></div><div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground"><span>{container.objectCount} objects</span><span>{formatBytes(container.storageUsed)}</span></div><div className="mt-2 flex items-center gap-1 text-[10px] text-muted-foreground">{container.cdnEnabled ? <><Cloud className="h-3 w-3 text-primary" />CDN {container.cdnStatus}</> : 'CDN disabled'}</div></button>)}</div>
+           <div className="space-y-1.5">{containers.map(container => <button key={container.id} onClick={() => setSelectedId(container.id)} className={cn('w-full rounded-lg border px-3 py-3 text-left transition-colors', selected?.id === container.id ? 'border-primary bg-primary/5' : 'border-card-border bg-card hover:border-border')}><div className="flex items-center gap-2"><HardDrive className={cn('h-4 w-4', selected?.id === container.id ? 'text-primary' : 'text-muted-foreground')} /><span className="min-w-0 flex-1 truncate text-sm font-medium">{container.name}</span></div><div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground"><span>{container.objectCount} objects</span><span>{formatBytes(container.storageUsed)}</span></div><div className="mt-2 flex items-center gap-1 text-[10px] text-muted-foreground">{container.cdnEnabled ? <><Cloud className="h-3 w-3 text-primary" />CDN {container.cdnStatus}</> : 'CDN disabled'}</div></button>)}</div>
           </aside>
 
           {selected && <section className="min-w-0 rounded-lg border border-card-border bg-card">
             <div className="flex flex-col gap-4 border-b border-border p-5 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2"><HardDrive className="h-5 w-5 text-primary" /><h2 className="font-semibold">{selected.name}</h2></div><p className="mt-1 text-xs text-muted-foreground">{selected.description || 'R2 storage container'} · {formatBytes(selected.storageUsed)} used</p></div><div className="flex items-center gap-2"><Button variant="outline" size="sm" className="gap-2" onClick={() => setSettingsOpen(true)}><Settings2 className="h-3.5 w-3.5" />Settings</Button><Button variant="outline" size="sm" className="gap-2" onClick={() => fileRef.current?.click()} disabled={busy === 'upload'}><Upload className="h-3.5 w-3.5" />{busy === 'upload' ? 'Uploading…' : 'Upload'}</Button><input ref={fileRef} type="file" multiple className="hidden" onChange={event => uploadFiles(event.target.files)} /></div></div>
-            {selected.cdnEnabled && <div className="flex items-center gap-2 border-b border-border bg-primary/5 px-5 py-3 text-xs"><Cloud className="h-3.5 w-3.5 text-primary" /><span className="font-medium">CDN delivery</span><span className="text-muted-foreground">{selected.cdnUrl || 'Hostname pending DNS activation'}</span><span className="ml-auto rounded-full bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">{selected.cdnStatus}</span></div>}
-            <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3"><div className="flex min-w-0 items-center gap-1 text-xs"><button className="text-muted-foreground hover:text-foreground" onClick={() => setPrefix('')}>Root</button>{folders.map((folder, index) => <span key={`${folder}-${index}`} className="flex items-center gap-1"><ChevronRight className="h-3 w-3 text-muted-foreground/50" /><button className="truncate text-muted-foreground hover:text-foreground" onClick={() => setPrefix(folders.slice(0, index + 1).join('/'))}>{folder}</button></span>)}</div><div className="flex items-center gap-1"><Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setFolderOpen(true)}><FolderPlus className="h-3.5 w-3.5" />Folder</Button><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => queryClient.invalidateQueries({ queryKey: ['storage-objects', selected.id] })}><RefreshCw className="h-3.5 w-3.5" /></Button></div></div>
-              {objectsLoading ? <div className="space-y-2 p-5">{[1, 2, 3].map(item => <div key={item} className="h-12 animate-pulse rounded border border-border bg-muted/30" />)}</div> : objects.length === 0 ? <div className="px-5 py-16 text-center"><Folder className="mx-auto h-9 w-9 text-muted-foreground/30" /><p className="mt-3 text-sm text-muted-foreground">This folder is empty</p><Button variant="outline" size="sm" className="mt-4 gap-2" onClick={() => fileRef.current?.click()}><Upload className="h-3.5 w-3.5" />Upload files</Button></div> : <div className="divide-y divide-border">{objects.map(object => { const previewUrl = resolveImageUrl(object.cdnUrl || object.url); const fallbackUrl = object.storageKey ? getStorageFileUrl(object.storageKey) : resolveImageUrl(object.url); return <div key={object.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">{object.isFolder ? <Folder className="h-4 w-4 text-primary" /> : isImage(object) && previewUrl ? <img src={previewUrl} alt="" className="h-full w-full object-cover" loading="lazy" onError={event => { if (fallbackUrl && fallbackUrl !== event.currentTarget.src) event.currentTarget.src = fallbackUrl; else event.currentTarget.onerror = null; }} /> : <File className="h-4 w-4 text-muted-foreground" />}</div><button className="min-w-0 flex-1 text-left" onClick={() => object.isFolder ? setPrefix(object.path ?? '') : setDetailsObject(object)}><p className="truncate text-sm font-medium">{object.name}</p><p className="truncate text-[11px] text-muted-foreground">{object.isFolder ? 'Folder' : `${object.contentType || 'File'} · ${formatBytes(object.size)}`}</p></button><span className="hidden text-xs text-muted-foreground sm:block">{formatDate(object.updatedAt)}</span>{!object.isFolder && object.url && <Button variant="ghost" size="icon" className="h-8 w-8" asChild><a href={fallbackUrl || previewUrl} target="_blank" rel="noreferrer"><Copy className="h-3.5 w-3.5" /></a></Button>}<Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setRenameObject(object); setRenameValue(object.name); }}><Pencil className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeObject(object)}><Trash2 className="h-3.5 w-3.5" /></Button></div>; })}</div>}
+            {selected.cdnEnabled && <div className="flex items-center gap-2 border-b border-border bg-primary/5 px-5 py-3 text-xs"><Cloud className="h-3.5 w-3.5 text-primary" /><span className="font-medium">CDN delivery</span><span className="text-muted-foreground">{selected.cdnUrl || 'Using AfuCloud media CDN'}</span><span className="ml-auto rounded-full bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">{selected.cdnStatus}</span></div>}
+            {selected.cdnError && <div role="alert" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-xs text-amber-900">CDN configuration issue: {selected.cdnError} Public file links currently use the AfuCloud media CDN until this is corrected.</div>}
+            <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3"><div className="flex min-w-0 items-center gap-1 text-xs"><button className="text-muted-foreground hover:text-foreground" onClick={() => navigateToPrefix('')}>Root</button>{folders.map((folder, index) => <span key={`${folder}-${index}`} className="flex items-center gap-1"><ChevronRight className="h-3 w-3 text-muted-foreground/50" /><button className="truncate text-muted-foreground hover:text-foreground" onClick={() => navigateToPrefix(folders.slice(0, index + 1).join('/'))}>{folder}</button></span>)}</div><div className="flex items-center gap-1"><Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setFolderOpen(true)}><FolderPlus className="h-3.5 w-3.5" />Folder</Button><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => queryClient.invalidateQueries({ queryKey: ['storage-objects', selected.id] })}><RefreshCw className="h-3.5 w-3.5" /></Button></div></div>
+              {objectData?.cdnError && !selected.cdnError && <div role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-xs text-amber-900">CDN configuration issue: {objectData.cdnError}</div>}
+              {objectsLoading ? <div className="space-y-2 p-5">{[1, 2, 3].map(item => <div key={item} className="h-12 animate-pulse rounded border border-border bg-muted/30" />)}</div> : objectQueryError ? <div className="px-5 py-16 text-center"><p className="text-sm font-medium text-destructive">Could not load objects</p><p role="alert" className="mt-2 text-xs text-muted-foreground">{objectDataError}</p></div> : objects.length === 0 ? <div className="px-5 py-16 text-center"><Folder className="mx-auto h-9 w-9 text-muted-foreground/30" /><p className="mt-3 text-sm text-muted-foreground">This folder is empty</p><Button variant="outline" size="sm" className="mt-4 gap-2" onClick={() => fileRef.current?.click()}><Upload className="h-3.5 w-3.5" />Upload files</Button></div> : <div className="divide-y divide-border">{objects.map(object => { const previewUrl = object.url; return <div key={object.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">{object.isFolder ? <Folder className="h-4 w-4 text-primary" /> : isImage(object) && previewUrl ? <img src={previewUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : <File className="h-4 w-4 text-muted-foreground" />}</div><button className="min-w-0 flex-1 text-left" onClick={() => object.isFolder ? navigateToPrefix(object.path) : setDetailsObject(object)}><p className="truncate text-sm font-medium">{object.name}</p><p className="truncate text-[11px] text-muted-foreground">{object.isFolder ? 'Folder' : `${object.contentType || 'File'} · ${formatBytes(object.size)}`}</p></button><span className="hidden text-xs text-muted-foreground sm:block">{formatDate(object.updatedAt)}</span>{!object.isFolder && object.url && <Button variant="ghost" size="icon" className="h-8 w-8" asChild><a href={object.url} target="_blank" rel="noreferrer" aria-label={`Open ${object.name}`}><Copy className="h-3.5 w-3.5" /></a></Button>}<Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setRenameObject(object); setRenameValue(object.name); }}><Pencil className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeObject(object)}><Trash2 className="h-3.5 w-3.5" /></Button></div>; })}</div>}
           </section>}
         </div>
       )}
@@ -234,21 +250,27 @@ export default function StoragePage() {
       <Dialog open={!!renameObject} onOpenChange={open => !open && setRenameObject(null)}><DialogContent><DialogHeader><DialogTitle>Rename {renameObject?.isFolder ? 'folder' : 'object'}</DialogTitle></DialogHeader><form className="space-y-4" onSubmit={rename}><div className="space-y-2"><Label htmlFor="rename-value">Name</Label><Input id="rename-value" value={renameValue} onChange={event => setRenameValue(event.target.value)} required /></div><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setRenameObject(null)}>Cancel</Button><Button type="submit">Save name</Button></div></form></DialogContent></Dialog>
       <Dialog open={!!detailsObject} onOpenChange={open => !open && setDetailsObject(null)}><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>Object details</DialogTitle></DialogHeader>{detailsObject && <div className="space-y-4">
         <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
-           {detailsUrl && isImage(detailsObject) ? (
-             <img src={detailsUrl} alt={detailsObject.name} className="max-h-[420px] w-full object-contain" onError={() => { if (detailsCdnUrl && detailsCdnUrl !== detailsApiUrl) setFailedPreviewUrl(detailsCdnUrl); }} />
+            {detailsUrl && isImage(detailsObject) ? (
+              <img src={detailsUrl} alt={detailsObject.name} className="max-h-[420px] w-full object-contain" />
            ) : detailsUrl && isVideo(detailsObject) ? (
-             <video src={detailsUrl} controls className="max-h-[420px] w-full" onError={() => { if (detailsCdnUrl && detailsCdnUrl !== detailsApiUrl) setFailedPreviewUrl(detailsCdnUrl); }} />
+              <video src={detailsUrl} controls preload="metadata" className="max-h-[420px] w-full" />
            ) : detailsUrl && isAudio(detailsObject) ? (
-             <div className="p-6"><audio src={detailsUrl} controls className="w-full" onError={() => { if (detailsCdnUrl && detailsCdnUrl !== detailsApiUrl) setFailedPreviewUrl(detailsCdnUrl); }} /></div>
+              <div className="p-6"><audio src={detailsUrl} controls className="w-full" /></div>
            ) : detailsUrl && isPdf(detailsObject) ? (
-             <iframe src={detailsUrl} title={detailsObject.name} className="h-[420px] w-full" onError={() => { if (detailsCdnUrl && detailsCdnUrl !== detailsApiUrl) setFailedPreviewUrl(detailsCdnUrl); }} />
+              <iframe src={detailsUrl} title={detailsObject.name} className="h-[420px] w-full" />
+            ) : detailsUrl ? (
+              <div className="flex min-h-32 flex-col items-center justify-center gap-3 p-6 text-sm text-muted-foreground">
+                <File className="h-8 w-8" />
+                <span>Preview is not available for this file type.</span>
+                <a href={detailsUrl} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-4">Open or download file</a>
+              </div>
           ) : (
             <div className="flex min-h-32 items-center justify-center p-6 text-sm text-muted-foreground">Preview is not available for this file type.</div>
           )}
         </div>
          <div className="rounded-lg border border-border bg-muted/30 p-4">
           <p className="font-medium">{detailsObject.name}</p>
-           <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detailsApiUrl || 'No public URL configured'}</p>
+            <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detailsUrl || 'No public URL configured'}</p>
         </div>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div><dt className="text-xs text-muted-foreground">Content type</dt><dd className="mt-1">{detailsObject.contentType || 'Unknown'}</dd></div>
@@ -258,8 +280,8 @@ export default function StoragePage() {
           <div className="sm:col-span-2"><dt className="text-xs text-muted-foreground">ETag</dt><dd className="mt-1 break-all font-mono text-xs">{detailsObject.etag || 'Not provided'}</dd></div>
         </dl>
         <div className="flex flex-wrap justify-end gap-2">
-           {detailsApiUrl && <Button variant="outline" onClick={() => { navigator.clipboard.writeText(detailsApiUrl); toast({ title: 'URL copied' }); }} className="gap-2"><Copy className="h-3.5 w-3.5" />Copy URL</Button>}
-           {detailsApiUrl && <Button asChild className="gap-2"><a href={detailsApiUrl} target="_blank" rel="noreferrer">Open file</a></Button>}
+            {detailsUrl && <Button variant="outline" onClick={() => { navigator.clipboard.writeText(detailsUrl); toast({ title: 'URL copied' }); }} className="gap-2"><Copy className="h-3.5 w-3.5" />Copy URL</Button>}
+            {detailsUrl && <Button asChild className="gap-2"><a href={detailsUrl} target="_blank" rel="noreferrer">Open file</a></Button>}
         </div>
       </div>}</DialogContent></Dialog>
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent><DialogHeader><DialogTitle>Container settings</DialogTitle></DialogHeader><form className="space-y-5" onSubmit={saveSettings}><div className="space-y-2"><Label htmlFor="access-mode">Access settings</Label><select id="access-mode" value={accessMode} onChange={event => setAccessMode(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="private">Private — signed delivery only</option><option value="public">Public — anyone with a URL</option></select></div><div className="space-y-2"><Label htmlFor="cdn-hostname">Custom CDN hostname</Label><select id="cdn-hostname" value={cdnHostId} onChange={event => setCdnHostId(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="">Disabled</option>{cdnHostnames.map(hostname => <option key={hostname.id} value={hostname.id}>{hostname.hostname} · {hostname.status}</option>)}</select>{cdnHostnames.length === 0 && <p className="text-xs text-muted-foreground">Add and verify a hostname with the CDN service in Domains first.</p>}</div><div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">AfuCloud keeps R2 credentials server-side. The production delivery URL uses the selected verified hostname instead of exposing the R2 endpoint.</div>{selected && <Button type="button" variant="ghost" className="w-full justify-start gap-2 text-destructive hover:text-destructive" onClick={deleteContainer}><Trash2 className="h-3.5 w-3.5" />Delete container</Button>}<div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button><Button type="submit" disabled={busy === 'settings'}>{busy === 'settings' ? 'Saving…' : 'Save settings'}</Button></div></form></DialogContent></Dialog>

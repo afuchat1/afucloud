@@ -23,16 +23,26 @@ export function formatNumber(num: number): string {
   return num.toString();
 }
 
-export function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString('en-US', {
+function parseDate(value: string | Date | null | undefined): Date | null {
+  if (value == null || value === '') return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+export function formatDate(value: string | Date | null | undefined): string {
+  const date = parseDate(value);
+  if (!date) return '—';
+  return date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   });
 }
 
-export function formatDateTime(date: string): string {
-  return new Date(date).toLocaleString('en-US', {
+export function formatDateTime(value: string | Date | null | undefined): string {
+  const date = parseDate(value);
+  if (!date) return '—';
+  return date.toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
