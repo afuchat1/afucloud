@@ -189,7 +189,9 @@ storageContainers.patch("/:containerId/objects/:objectId", requireAuth, async (c
   const name = String(body.name ?? object.name).trim().replace(/^\/+/, "");
   if (!name || name.includes("..")) return c.json({ error: "Invalid object name" }, 400);
   const prefix = object.object_key.includes("/") ? object.object_key.slice(0, object.object_key.lastIndexOf("/") + 1) : "";
-  const nextKey = object.is_folder ? name : `${prefix}${name}`;
+  const nextKey = object.is_folder
+    ? `${containerPrefix(container.id, c.get("userId"))}${name}`
+    : `${prefix}${name}`;
   if (!object.is_folder && nextKey !== object.object_key) {
     await copyObject(object.object_key, nextKey, c.env);
     await deleteObject(object.object_key, c.env);
