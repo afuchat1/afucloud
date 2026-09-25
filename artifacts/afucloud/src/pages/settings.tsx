@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { useGetMe, useUpdateProfile } from '@workspace/api-client-react';
+import { useGetMe, useUpdateProfile, useLogout } from '@workspace/api-client-react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { User, Shield } from 'lucide-react';
+import { User, Shield, LogOut } from 'lucide-react';
 import { API_BASE } from '@/lib/api-base';
+import { clearAuthTokens } from '@/lib/auth-session';
 
 async function changePassword(currentPassword: string, newPassword: string, token: string) {
   const res = await fetch(`${API_BASE}/v1/auth/me/password`, {
@@ -25,6 +26,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const { data: user, isLoading } = useGetMe();
   const updateMutation = useUpdateProfile();
+  const logoutMutation = useLogout();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -49,6 +51,18 @@ export default function SettingsPage() {
         onSuccess: () => toast({ title: 'Saved', description: 'Profile updated successfully' }),
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
       }
+    );
+  };
+
+  const handleLogout = () => {
+    logoutMutation.mutate(
+      { data: { refreshToken: localStorage.getItem('afucloud_refresh_token') ?? '' } },
+      {
+        onSettled: () => {
+          clearAuthTokens();
+          window.location.href = '/login';
+        },
+      },
     );
   };
 
@@ -185,7 +199,28 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
-          <div className="rounded-lg border border-card-border bg-card p-5 space-y-2">
+          <div className="rounded-lg border border-card-border bg-card p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-primary/10 p-2">
+                <LogOut className="h-4 w-4 text-primary" strokeWidth={2} />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Sign out</h3>
+                <p className="text-xs text-muted-foreground">Sign out of your AfuCloud account on this device.</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleLogout}
+              disabled={logoutMutation.isPending}
+              className="w-full"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              {logoutMutation.isPending ? 'Signing out…' : 'Sign out'}
+            </Button>
+          </div>
+                    <div className="rounded-lg border border-card-border bg-card p-5 space-y-2">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Security Tips</h3>
             <ul className="space-y-1.5 text-xs text-muted-foreground">
               <li>• Use a strong, unique password</li>
