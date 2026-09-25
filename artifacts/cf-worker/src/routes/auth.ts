@@ -5,7 +5,7 @@ import { signInWithSupabase, signUpWithSupabase } from "../lib/supabase-auth";
 import {
   signAccessToken,
   generateSecureToken, hashToken, refreshTokenExpiresAt,
-  extractBearerToken,
+  extractBearerToken, verifyAccessToken,
 } from "../lib/auth";
 import { requireAuth } from "../middleware/auth";
 
@@ -88,9 +88,19 @@ auth.post("/login", async (c) => {
 });
 
 // POST /v1/auth/logout
-auth.post("/logout", requireAuth, async (c) => {
+auth.post("/logout", async (c) => {
   const db = createDbClient(c.env);
-  await db.deleteRefreshTokensByUserId(c.get("userId"));
+  const body = await c.req.json().catch(() => ({}));
+  if (typeof body.refreshToken === "string" && body.refreshToken.length > 0) {
+    await db.deleteRefreshTokenByHash(await hashToken(body.refreshToken));
+    return c.json({ message: "Logged out" });
+  }
+
+  // Keep older clients working until they send the session-specific token.
+  const bearer = extractBearerToken(c.req.header("Authorization") ?? null);
+  const payload = bearer ? await verifyAccessToken(bearer, c.env) : null;
+  if (!payload) return c.json({ error: "Unauthorized" }, 401);
+  await db.deleteRefreshTokensByUserId(payload.userId);
   return c.json({ message: "Logged out" });
 });
 
