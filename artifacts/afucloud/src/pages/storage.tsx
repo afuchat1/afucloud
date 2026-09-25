@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { formatBytes, formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-import { API_BASE } from '@/lib/api-base';
+import { API_BASE, getStorageFileUrl, resolveImageUrl } from '@/lib/api-base';
 import {
   ChevronRight, Cloud, Copy, File, Folder, FolderPlus, HardDrive, MoreHorizontal,
   Pencil, Plus, RefreshCw, Settings2, Trash2, Upload, X,
@@ -26,7 +26,7 @@ type Container = {
 };
 type StorageObject = {
   id: string; key: string | null; storageKey?: string | null; path?: string | null; name: string; contentType?: string | null;
-  size: number; etag?: string | null; isFolder: boolean; url?: string | null;
+  size: number; etag?: string | null; isFolder: boolean; url?: string | null; cdnUrl?: string | null;
   createdAt: string; updatedAt: string;
 };
 type Domain = { id: string; hostname: string; verificationStatus: string; hostnames: Array<{ id: string; hostname: string; service: string; status: string }> };
@@ -197,6 +197,11 @@ export default function StoragePage() {
 
   const folders = prefix ? prefix.split('/') : [];
   const objects = objectData?.objects ?? [];
+  const detailsCdnUrl = detailsObject?.cdnUrl ? resolveImageUrl(detailsObject.cdnUrl) : '';
+  const detailsApiUrl = detailsObject?.storageKey
+    ? getStorageFileUrl(detailsObject.storageKey)
+    : detailsObject?.url ? resolveImageUrl(detailsObject.url) : '';
+  const detailsUrl = detailsCdnUrl && failedPreviewUrl === detailsCdnUrl ? detailsApiUrl : detailsCdnUrl || detailsApiUrl;
 
   return (
     <div className="space-y-6">
@@ -219,7 +224,7 @@ export default function StoragePage() {
             <div className="flex flex-col gap-4 border-b border-border p-5 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2"><HardDrive className="h-5 w-5 text-primary" /><h2 className="font-semibold">{selected.name}</h2></div><p className="mt-1 text-xs text-muted-foreground">{selected.description || 'R2 storage container'} · {formatBytes(selected.storageUsed)} used</p></div><div className="flex items-center gap-2"><Button variant="outline" size="sm" className="gap-2" onClick={() => setSettingsOpen(true)}><Settings2 className="h-3.5 w-3.5" />Settings</Button><Button variant="outline" size="sm" className="gap-2" onClick={() => fileRef.current?.click()} disabled={busy === 'upload'}><Upload className="h-3.5 w-3.5" />{busy === 'upload' ? 'Uploading…' : 'Upload'}</Button><input ref={fileRef} type="file" multiple className="hidden" onChange={event => uploadFiles(event.target.files)} /></div></div>
             {selected.cdnEnabled && <div className="flex items-center gap-2 border-b border-border bg-primary/5 px-5 py-3 text-xs"><Cloud className="h-3.5 w-3.5 text-primary" /><span className="font-medium">CDN delivery</span><span className="text-muted-foreground">{selected.cdnUrl || 'Hostname pending DNS activation'}</span><span className="ml-auto rounded-full bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">{selected.cdnStatus}</span></div>}
             <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3"><div className="flex min-w-0 items-center gap-1 text-xs"><button className="text-muted-foreground hover:text-foreground" onClick={() => setPrefix('')}>Root</button>{folders.map((folder, index) => <span key={`${folder}-${index}`} className="flex items-center gap-1"><ChevronRight className="h-3 w-3 text-muted-foreground/50" /><button className="truncate text-muted-foreground hover:text-foreground" onClick={() => setPrefix(folders.slice(0, index + 1).join('/'))}>{folder}</button></span>)}</div><div className="flex items-center gap-1"><Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setFolderOpen(true)}><FolderPlus className="h-3.5 w-3.5" />Folder</Button><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => queryClient.invalidateQueries({ queryKey: ['storage-objects', selected.id] })}><RefreshCw className="h-3.5 w-3.5" /></Button></div></div>
-             {objectsLoading ? <div className="space-y-2 p-5">{[1, 2, 3].map(item => <div key={item} className="h-12 animate-pulse rounded border border-border bg-muted/30" />)}</div> : objects.length === 0 ? <div className="px-5 py-16 text-center"><Folder className="mx-auto h-9 w-9 text-muted-foreground/30" /><p className="mt-3 text-sm text-muted-foreground">This folder is empty</p><Button variant="outline" size="sm" className="mt-4 gap-2" onClick={() => fileRef.current?.click()}><Upload className="h-3.5 w-3.5" />Upload files</Button></div> : <div className="divide-y divide-border">{objects.map(object => <div key={object.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">{object.isFolder ? <Folder className="h-4 w-4 text-primary" /> : isImage(object) && object.url ? <img src={object.url} alt="" className="h-full w-full object-cover" loading="lazy" /> : <File className="h-4 w-4 text-muted-foreground" />}</div><button className="min-w-0 flex-1 text-left" onClick={() => object.isFolder ? setPrefix(object.path ?? '') : setDetailsObject(object)}><p className="truncate text-sm font-medium">{object.name}</p><p className="truncate text-[11px] text-muted-foreground">{object.isFolder ? 'Folder' : `${object.contentType || 'File'} · ${formatBytes(object.size)}`}</p></button><span className="hidden text-xs text-muted-foreground sm:block">{formatDate(object.updatedAt)}</span>{!object.isFolder && object.url && <Button variant="ghost" size="icon" className="h-8 w-8" asChild><a href={object.url} target="_blank" rel="noreferrer"><Copy className="h-3.5 w-3.5" /></a></Button>}<Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setRenameObject(object); setRenameValue(object.name); }}><Pencil className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeObject(object)}><Trash2 className="h-3.5 w-3.5" /></Button></div>)}</div>}
+              {objectsLoading ? <div className="space-y-2 p-5">{[1, 2, 3].map(item => <div key={item} className="h-12 animate-pulse rounded border border-border bg-muted/30" />)}</div> : objects.length === 0 ? <div className="px-5 py-16 text-center"><Folder className="mx-auto h-9 w-9 text-muted-foreground/30" /><p className="mt-3 text-sm text-muted-foreground">This folder is empty</p><Button variant="outline" size="sm" className="mt-4 gap-2" onClick={() => fileRef.current?.click()}><Upload className="h-3.5 w-3.5" />Upload files</Button></div> : <div className="divide-y divide-border">{objects.map(object => { const previewUrl = resolveImageUrl(object.cdnUrl || object.url); const fallbackUrl = object.storageKey ? getStorageFileUrl(object.storageKey) : resolveImageUrl(object.url); return <div key={object.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">{object.isFolder ? <Folder className="h-4 w-4 text-primary" /> : isImage(object) && previewUrl ? <img src={previewUrl} alt="" className="h-full w-full object-cover" loading="lazy" onError={event => { if (fallbackUrl && fallbackUrl !== event.currentTarget.src) event.currentTarget.src = fallbackUrl; else event.currentTarget.onerror = null; }} /> : <File className="h-4 w-4 text-muted-foreground" />}</div><button className="min-w-0 flex-1 text-left" onClick={() => object.isFolder ? setPrefix(object.path ?? '') : setDetailsObject(object)}><p className="truncate text-sm font-medium">{object.name}</p><p className="truncate text-[11px] text-muted-foreground">{object.isFolder ? 'Folder' : `${object.contentType || 'File'} · ${formatBytes(object.size)}`}</p></button><span className="hidden text-xs text-muted-foreground sm:block">{formatDate(object.updatedAt)}</span>{!object.isFolder && object.url && <Button variant="ghost" size="icon" className="h-8 w-8" asChild><a href={fallbackUrl || previewUrl} target="_blank" rel="noreferrer"><Copy className="h-3.5 w-3.5" /></a></Button>}<Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setRenameObject(object); setRenameValue(object.name); }}><Pencil className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeObject(object)}><Trash2 className="h-3.5 w-3.5" /></Button></div>; })}</div>}
           </section>}
         </div>
       )}
@@ -229,21 +234,21 @@ export default function StoragePage() {
       <Dialog open={!!renameObject} onOpenChange={open => !open && setRenameObject(null)}><DialogContent><DialogHeader><DialogTitle>Rename {renameObject?.isFolder ? 'folder' : 'object'}</DialogTitle></DialogHeader><form className="space-y-4" onSubmit={rename}><div className="space-y-2"><Label htmlFor="rename-value">Name</Label><Input id="rename-value" value={renameValue} onChange={event => setRenameValue(event.target.value)} required /></div><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setRenameObject(null)}>Cancel</Button><Button type="submit">Save name</Button></div></form></DialogContent></Dialog>
       <Dialog open={!!detailsObject} onOpenChange={open => !open && setDetailsObject(null)}><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>Object details</DialogTitle></DialogHeader>{detailsObject && <div className="space-y-4">
         <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
-          {detailsObject.url && isImage(detailsObject) ? (
-            <img src={detailsObject.url} alt={detailsObject.name} className="max-h-[420px] w-full object-contain" />
-          ) : detailsObject.url && isVideo(detailsObject) ? (
-            <video src={detailsObject.url} controls className="max-h-[420px] w-full" />
-          ) : detailsObject.url && isAudio(detailsObject) ? (
-            <div className="p-6"><audio src={detailsObject.url} controls className="w-full" /></div>
-          ) : detailsObject.url && isPdf(detailsObject) ? (
-            <iframe src={detailsObject.url} title={detailsObject.name} className="h-[420px] w-full" />
+           {detailsUrl && isImage(detailsObject) ? (
+             <img src={detailsUrl} alt={detailsObject.name} className="max-h-[420px] w-full object-contain" onError={() => { if (detailsCdnUrl && detailsCdnUrl !== detailsApiUrl) setFailedPreviewUrl(detailsCdnUrl); }} />
+           ) : detailsUrl && isVideo(detailsObject) ? (
+             <video src={detailsUrl} controls className="max-h-[420px] w-full" onError={() => { if (detailsCdnUrl && detailsCdnUrl !== detailsApiUrl) setFailedPreviewUrl(detailsCdnUrl); }} />
+           ) : detailsUrl && isAudio(detailsObject) ? (
+             <div className="p-6"><audio src={detailsUrl} controls className="w-full" onError={() => { if (detailsCdnUrl && detailsCdnUrl !== detailsApiUrl) setFailedPreviewUrl(detailsCdnUrl); }} /></div>
+           ) : detailsUrl && isPdf(detailsObject) ? (
+             <iframe src={detailsUrl} title={detailsObject.name} className="h-[420px] w-full" onError={() => { if (detailsCdnUrl && detailsCdnUrl !== detailsApiUrl) setFailedPreviewUrl(detailsCdnUrl); }} />
           ) : (
             <div className="flex min-h-32 items-center justify-center p-6 text-sm text-muted-foreground">Preview is not available for this file type.</div>
           )}
         </div>
-        <div className="rounded-lg border border-border bg-muted/30 p-4">
+         <div className="rounded-lg border border-border bg-muted/30 p-4">
           <p className="font-medium">{detailsObject.name}</p>
-          <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detailsObject.url || 'No public URL configured'}</p>
+           <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{detailsApiUrl || 'No public URL configured'}</p>
         </div>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div><dt className="text-xs text-muted-foreground">Content type</dt><dd className="mt-1">{detailsObject.contentType || 'Unknown'}</dd></div>
@@ -253,8 +258,8 @@ export default function StoragePage() {
           <div className="sm:col-span-2"><dt className="text-xs text-muted-foreground">ETag</dt><dd className="mt-1 break-all font-mono text-xs">{detailsObject.etag || 'Not provided'}</dd></div>
         </dl>
         <div className="flex flex-wrap justify-end gap-2">
-          {detailsObject.url && <Button variant="outline" onClick={() => { navigator.clipboard.writeText(detailsObject.url!); toast({ title: 'URL copied' }); }} className="gap-2"><Copy className="h-3.5 w-3.5" />Copy URL</Button>}
-          {detailsObject.url && <Button asChild className="gap-2"><a href={detailsObject.url} target="_blank" rel="noreferrer">Open file</a></Button>}
+           {detailsApiUrl && <Button variant="outline" onClick={() => { navigator.clipboard.writeText(detailsApiUrl); toast({ title: 'URL copied' }); }} className="gap-2"><Copy className="h-3.5 w-3.5" />Copy URL</Button>}
+           {detailsApiUrl && <Button asChild className="gap-2"><a href={detailsApiUrl} target="_blank" rel="noreferrer">Open file</a></Button>}
         </div>
       </div>}</DialogContent></Dialog>
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}><DialogContent><DialogHeader><DialogTitle>Container settings</DialogTitle></DialogHeader><form className="space-y-5" onSubmit={saveSettings}><div className="space-y-2"><Label htmlFor="access-mode">Access settings</Label><select id="access-mode" value={accessMode} onChange={event => setAccessMode(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="private">Private — signed delivery only</option><option value="public">Public — anyone with a URL</option></select></div><div className="space-y-2"><Label htmlFor="cdn-hostname">Custom CDN hostname</Label><select id="cdn-hostname" value={cdnHostId} onChange={event => setCdnHostId(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="">Disabled</option>{cdnHostnames.map(hostname => <option key={hostname.id} value={hostname.id}>{hostname.hostname} · {hostname.status}</option>)}</select>{cdnHostnames.length === 0 && <p className="text-xs text-muted-foreground">Add and verify a hostname with the CDN service in Domains first.</p>}</div><div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">AfuCloud keeps R2 credentials server-side. The production delivery URL uses the selected verified hostname instead of exposing the R2 endpoint.</div>{selected && <Button type="button" variant="ghost" className="w-full justify-start gap-2 text-destructive hover:text-destructive" onClick={deleteContainer}><Trash2 className="h-3.5 w-3.5" />Delete container</Button>}<div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button><Button type="submit" disabled={busy === 'settings'}>{busy === 'settings' ? 'Saving…' : 'Save settings'}</Button></div></form></DialogContent></Dialog>
