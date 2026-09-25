@@ -11,9 +11,17 @@ function getJwtSecret(): string {
   }
 
   if (process.env.NODE_ENV === "development") {
-    // Local preview sessions are intentionally ephemeral. This avoids
-    // requiring a persisted signing secret in Replit while keeping tokens
-    // unpredictable during the lifetime of the development process.
+    const sessionSecret = process.env.SESSION_SECRET;
+    if (sessionSecret) {
+      // Derive an app-specific key so development JWTs remain valid when the
+      // API workflow restarts without reusing SESSION_SECRET directly.
+      return crypto
+        .createHmac("sha256", sessionSecret)
+        .update("afucloud-api-development-jwt")
+        .digest("hex");
+    }
+
+    // Keep a local fallback for environments that don't provide Replit secrets.
     developmentJwtSecret ??= crypto.randomBytes(32).toString("hex");
     return developmentJwtSecret;
   }

@@ -68,6 +68,10 @@ export const LoginResponse = zod.object({
 /**
  * @summary Logout current session
  */
+export const LogoutBody = zod.object({
+  "refreshToken": zod.string()
+})
+
 export const LogoutResponse = zod.object({
   "message": zod.string()
 })

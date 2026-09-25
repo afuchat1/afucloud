@@ -172,9 +172,9 @@ router.post("/v1/auth/login", async (req, res): Promise<void> => {
 });
 
 // POST /v1/auth/logout
-router.post("/v1/auth/logout", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/v1/auth/logout", async (req, res): Promise<void> => {
   const { refreshToken } = req.body ?? {};
-  if (refreshToken) {
+  if (typeof refreshToken === "string" && refreshToken.length > 0) {
     await db.delete(refreshTokensTable).where(eq(refreshTokensTable.tokenHash, hashToken(refreshToken)));
   }
   res.json({ message: "Logged out" });

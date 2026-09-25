@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Database, AlertCircle } from 'lucide-react';
 import { AuthHeader } from '@/components/auth-header';
+import { storeAuthTokens } from '@/lib/auth-session';
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -23,8 +24,7 @@ export default function LoginPage() {
       { data: { email, password } },
       {
         onSuccess: (data) => {
-          localStorage.setItem('afucloud_token', data.accessToken);
-          localStorage.setItem('afucloud_refresh_token', data.refreshToken);
+          storeAuthTokens(data);
           toast({
             title: 'Welcome back',
             description: 'Successfully logged in',

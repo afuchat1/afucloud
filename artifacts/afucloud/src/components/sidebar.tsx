@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useGetMe, useLogout } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
+import { clearAuthTokens } from '@/lib/auth-session';
 import {
   LayoutDashboard,
   FolderOpen,
@@ -68,13 +69,15 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const logoutMutation = useLogout();
 
   const handleLogout = () => {
-    logoutMutation.mutate(undefined, {
+    logoutMutation.mutate(
+      { data: { refreshToken: localStorage.getItem('afucloud_refresh_token') ?? '' } },
+      {
       onSettled: () => {
-        localStorage.removeItem('afucloud_token');
-        localStorage.removeItem('afucloud_refresh_token');
+        clearAuthTokens();
         setLocation('/login');
       },
-    });
+      },
+    );
   };
 
   const handleNavClick = () => {

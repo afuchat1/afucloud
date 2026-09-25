@@ -314,14 +314,14 @@ export const getLogoutUrl = () => {
 /**
  * @summary Logout current session
  */
-export const logout = async ( options?: Parameters<typeof customFetch>[1]): Promise<MessageResponse> => {
+export const logout = async (refreshInput: RefreshInput, options?: Parameters<typeof customFetch>[1]): Promise<MessageResponse> => {
 
   return customFetch<MessageResponse>(getLogoutUrl(),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(refreshInput)
   }
 );}
 
@@ -330,8 +330,8 @@ export const logout = async ( options?: Parameters<typeof customFetch>[1]): Prom
 
 
 export const getLogoutMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,{data: BodyType<RefreshInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,{data: BodyType<RefreshInput>}, TContext> => {
 
 const mutationKey = ['logout'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -343,10 +343,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logout>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logout>>, {data: BodyType<RefreshInput>}> = (props) => {
+          const {data} = props ?? {};
 
-
-          return  logout(requestOptions)
+          return  logout(data,requestOptions)
         }
 
 
@@ -357,18 +357,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type LogoutMutationResult = NonNullable<Awaited<ReturnType<typeof logout>>>
-
+    export type LogoutMutationBody = BodyType<RefreshInput>
     export type LogoutMutationError = ErrorType<unknown>
 
     /**
  * @summary Logout current session
  */
 export const useLogout = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,{data: BodyType<RefreshInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof logout>>,
         TError,
-        void,
+        {data: BodyType<RefreshInput>},
         TContext
       > => {
       return useMutation(getLogoutMutationOptions(options));

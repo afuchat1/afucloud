@@ -5,8 +5,8 @@ description: How development authentication behaves without a persisted JWT secr
 
 # Local API token signing
 
-The development API generates a random JWT signing key in memory when `JWT_SECRET` is absent. It does not persist or expose that key. Production environments must still provide an explicit `JWT_SECRET`.
+Development derives a stable, app-specific JWT signing key from `SESSION_SECRET` when `JWT_SECRET` is absent. Production still requires an explicit `JWT_SECRET`.
 
-**Why:** The user does not want another long-lived signing secret stored in Replit, while local login still needs signed access tokens.
+**Why:** API workflow restarts must not invalidate local access tokens, without adding another long-lived Replit secret.
 
-**How to apply:** Expect local access and refresh tokens to become invalid whenever the API process restarts. Do not reuse this development fallback for deployed production services.
+**How to apply:** Use this only for local development. Keep production signing keys explicit and separate from `SESSION_SECRET`.

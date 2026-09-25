@@ -76,6 +76,12 @@ paths:
       operationId: logout
       tags: [auth]
       summary: Logout current session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshInput"
       responses:
         "200":
           description: Logged out

@@ -19,6 +19,16 @@ then starts the generated bundle. Restart that workflow after changing API code,
 `lib/db` schemas, database environment variables, or dependencies; otherwise the
 running process can serve an older bundle than the source tree.
 
+For local login and protected routes, add the Supabase database password as the
+Replit Secret `SUPABASE_DB_PASSWORD`. The host, user, port, and database name are
+already configured for the API workflow. Do not put this password in source
+files or frontend variables.
+
+Development access tokens remain valid across API workflow restarts when the
+existing `SESSION_SECRET` is available. The browser refreshes its saved session
+on entry to protected pages; refresh sessions roll forward for 30 days. The
+sidebar's **Sign out** action revokes that browser session.
+
 Before testing login or protected routes:
 
 1. Confirm the workflow log contains `Server listening` and no startup error.
