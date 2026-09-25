@@ -10,17 +10,43 @@ function slugify(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
 }
 
+function containerPrefix(containerId: string, userId: string): string {
+  return `containers/${userId}/${containerId}/`;
+}
+
+function relativeObjectKey(objectKey: string, containerId: string, userId: string): string {
+  const prefix = containerPrefix(containerId, userId);
+  return objectKey.startsWith(prefix) ? objectKey.slice(prefix.length) : objectKey;
+}
+
+function publicObjectKey(objectKey: string): string {
+  return objectKey.startsWith("containers/") ? objectKey.slice("containers/".length) : objectKey;
+}
+
+function encodeObjectPath(objectKey: string): string {
+  return objectKey.split("/").filter(Boolean).map(segment => encodeURIComponent(segment)).join("/");
+}
+
 function objectApi(object: any, containerId: string, env: Env, cdnUrl: string | null) {
+  const relativeKey = relativeObjectKey(object.object_key, containerId, object.user_id);
+  const publicKey = publicObjectKey(object.object_key);
+  const encodedPublicKey = encodeObjectPath(publicKey);
+  const publicUrl = cdnUrl
+    ? `${cdnUrl.replace(/\/$/, "")}/${encodedPublicKey}`
+    : getPublicUrl(object.object_key, env);
+
   return {
     id: object.id,
     containerId,
-    key: object.object_key,
+    key: publicUrl,
+    storageKey: object.object_key,
+    path: relativeKey,
     name: object.name,
     contentType: object.content_type ?? null,
     size: object.size ?? 0,
     etag: object.etag ?? null,
     isFolder: object.is_folder,
-    url: object.is_folder ? null : (cdnUrl ? `${cdnUrl.replace(/\/$/, "")}/${object.object_key}` : getPublicUrl(object.object_key, env)),
+    url: object.is_folder ? null : publicUrl,
     createdAt: object.created_at,
     updatedAt: object.updated_at,
   };
@@ -112,9 +138,13 @@ storageContainers.get("/:id/objects", requireAuth, async (c) => {
   const container = await db.getStorageContainer(c.req.param("id"), c.get("userId"));
   if (!container) return c.json({ error: "Container not found" }, 404);
   const prefix = (c.req.query("prefix") ?? "").replace(/^\/+|\/+$/g, "");
-  const objects = (await db.getStorageObjects(container.id, c.get("userId"), prefix)).filter(object => {
-    const relative = prefix ? object.object_key.slice(prefix.length + 1) : object.object_key;
-    return !relative.includes("/");
+  const storagePrefix = prefix
+    ? `${containerPrefix(container.id, c.get("userId"))}${prefix}`
+    : containerPrefix(container.id, c.get("userId"));
+  const objects = (await db.getStorageObjects(container.id, c.get("userId"), storagePrefix)).filter(object => {
+    const relative = relativeObjectKey(object.object_key, container.id, c.get("userId"));
+    const current = prefix ? relative.slice(prefix.length + 1) : relative;
+    return current.length > 0 && !current.includes("/");
   });
   const baseCdnUrl = await cdnUrl(db, container, c.get("userId"));
   return c.json({ prefix, objects: objects.map(object => objectApi(object, container.id, c.env, baseCdnUrl)) });
@@ -129,7 +159,7 @@ storageContainers.post("/:id/folders", requireAuth, async (c) => {
   const folder = await db.createStorageObject({
     container_id: container.id,
     user_id: c.get("userId"),
-    object_key: name,
+    object_key: `${containerPrefix(container.id, c.get("userId"))}${name}`,
     name: name.split("/").pop(),
     is_folder: true,
   });
