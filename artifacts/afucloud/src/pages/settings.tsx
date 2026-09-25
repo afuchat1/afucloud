@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'wouter';
 import { useGetMe, useUpdateProfile, useLogout } from '@workspace/api-client-react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ async function changePassword(currentPassword: string, newPassword: string, toke
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const { data: user, isLoading } = useGetMe();
   const updateMutation = useUpdateProfile();
   const logoutMutation = useLogout();
@@ -60,7 +62,7 @@ export default function SettingsPage() {
       {
         onSettled: () => {
           clearAuthTokens();
-          window.location.href = '/login';
+          setLocation('/login');
         },
       },
     );
