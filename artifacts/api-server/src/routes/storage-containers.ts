@@ -210,7 +210,9 @@ router.patch("/v1/storage-containers/:containerId/objects/:objectId", requireAut
   const name = String(req.body?.name ?? object.name).trim().replace(/^\/+/, "");
   if (!name || name.includes("..")) { res.status(400).json({ error: "Invalid object name" }); return; }
   const prefix = object.objectKey.includes("/") ? object.objectKey.slice(0, object.objectKey.lastIndexOf("/") + 1) : "";
-  const nextKey = object.isFolder ? name : `${prefix}${name}`;
+  const nextKey = object.isFolder
+    ? `${containerPrefix(container.id, req.userId!)}${name}`
+    : `${prefix}${name}`;
   if (!object.isFolder && nextKey !== object.objectKey) {
     await copyObject(object.objectKey, nextKey);
     await deleteObject(object.objectKey);
