@@ -1,3 +1,14 @@
 name = "afucloud"
 compatibility_date = "2026-09-25"
 pages_build_output_dir = "artifacts/afucloud/dist/public"
+
+[vars]
+AFU_CDN_TARGET = "cdn.afuchat.com"
+API_BASE_URL = "https://api.afuchat.com"
+CLOUDFLARE_ACCOUNT_ID = "42e79186125e8ff83e51f15816e074de"
+CLOUDFLARE_R2_ACCESS_KEY_ID = "40916680c4892042dce49396ef62819"
+NODE_ENV = "production"
+R2_BUCKET_NAME = "afucloud-images"
+SUPABASE_DB_SCHEMA = "afucloud"
+SUPABASE_PROJECT_ID = "poijhidfekwfthyksatp"
+SUPABASE_URL = "https://poijhidfekwfthyksatp.supabase.co"
