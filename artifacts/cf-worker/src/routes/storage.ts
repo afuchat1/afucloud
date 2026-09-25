@@ -10,7 +10,13 @@ storage.get("/:key{.+}", async (c) => {
   const key = c.req.param("key");
   try {
     const url = await generateDownloadUrl(key, c.env, 3600);
-    return c.redirect(url, 302);
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: url,
+        "Cache-Control": "private, no-store, max-age=0",
+      },
+    });
   } catch {
     return c.json({ error: "Object not found" }, 404);
   }

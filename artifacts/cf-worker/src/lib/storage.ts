@@ -41,7 +41,8 @@ export function getPublicUrl(key: string, env: Env): string {
   if (env.R2_PUBLIC_URL) {
     return `${env.R2_PUBLIC_URL.replace(/\/$/, "")}/${key}`;
   }
-  return `/v1/storage/${encodeURIComponent(key)}`;
+  const apiBaseUrl = (env.API_BASE_URL ?? "https://api.afuchat.com").replace(/\/+$/, "");
+  return `${apiBaseUrl}/v1/storage/${encodeURIComponent(key)}`;
 }
 
 export async function generateDownloadUrl(key: string, env: Env, expiresIn = 3600): Promise<string> {

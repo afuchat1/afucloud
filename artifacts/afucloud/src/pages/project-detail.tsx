@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { formatBytes, formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-import { API_BASE } from '@/lib/api-base';
+import { API_BASE, resolveImageUrl } from '@/lib/api-base';
 import {
   Upload, Image as ImageIcon, HardDrive, Star, Search,
   Trash2, Download, BarChart3, Key, Webhook, ArrowLeft,
@@ -718,7 +718,7 @@ export default function ProjectDetailPage() {
                     style={{ animationDelay: `${index * 20}ms` }}
                   >
                     <img
-                      src={image.publicUrl || image.url}
+                      src={resolveImageUrl(image.publicUrl || image.url)}
                       alt={image.name}
                       className="w-full h-full object-cover"
                     />
@@ -842,7 +842,7 @@ export default function ProjectDetailPage() {
               {trashImages.map(image => (
                 <div key={image.id} className="group relative rounded-lg border border-card-border bg-card overflow-hidden">
                   <div className="aspect-square relative">
-                    <img src={image.publicUrl || image.url} alt={image.name} className="w-full h-full object-cover opacity-60 grayscale" />
+                    <img src={resolveImageUrl(image.publicUrl || image.url)} alt={image.name} className="w-full h-full object-cover opacity-60 grayscale" />
                   </div>
                   <div className="p-2.5 space-y-1.5">
                     <p className="text-xs font-medium text-foreground truncate">{image.name}</p>
@@ -931,7 +931,7 @@ export default function ProjectDetailPage() {
                 {/* Preview */}
                 <div className="flex min-h-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted/30 p-2 sm:p-3">
                   <img
-                    src={selectedImage.publicUrl || selectedImage.url}
+                    src={resolveImageUrl(selectedImage.publicUrl || selectedImage.url)}
                     alt={selectedImage.name}
                     className="h-auto max-h-[38vh] w-auto max-w-full object-contain sm:max-h-72"
                   />

@@ -4,3 +4,12 @@
 export const API_BASE = import.meta.env.DEV
   ? '/api'
   : (import.meta.env.VITE_API_BASE_URL || 'https://api.afuchat.com');
+
+export function resolveImageUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  if (/^(?:https?:)?\/\//i.test(url) || /^(?:data|blob):/i.test(url)) return url;
+  const base = API_BASE.replace(/\/+$/, '');
+  const path = url.startsWith('/') ? url : `/${url}`;
+  if (base.startsWith('/') && (path === base || path.startsWith(`${base}/`))) return path;
+  return `${base}${path}`;
+}

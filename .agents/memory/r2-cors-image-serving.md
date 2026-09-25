@@ -18,3 +18,9 @@ R2 does not allow browser PUT by default. `configureBucketCors()` in `artifacts/
 **Why:** `<img src="...">` tags cannot send Authorization headers; the redirect approach lets browsers load images without auth headers while still serving from private R2.
 
 **How to apply:** If `R2_PUBLIC_URL` is eventually set (public bucket), the fallback route is bypassed entirely and images load directly.
+
+For production, the Cloudflare Worker and Pages site are on different origins. Worker-generated image URLs must be absolute and use `API_BASE_URL` (normally `https://api.afuchat.com`); the frontend also normalizes relative API paths to its API base. Signed-URL redirects use `Cache-Control: private, no-store, max-age=0`.
+
+**Why:** A relative `/v1/storage/...` image URL resolves against the Pages domain and gets the SPA response instead of reaching the Worker; cached redirects can also outlive their signed R2 URLs.
+
+**How to apply:** Keep the Worker base URL configured and non-cacheable redirect behavior in sync with the frontend URL normalizer whenever storage routing changes.
