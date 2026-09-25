@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, Link } from 'wouter';
-import { useGetMe, useLogout } from '@workspace/api-client-react';
+import { useGetMe } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 import { clearAuthTokens } from '@/lib/auth-session';
 import {
@@ -12,7 +12,6 @@ import {
   Settings,
   BookOpen,
   Cloud,
-  LogOut,
   X,
   Map,
   Image as ImageIcon,
@@ -66,20 +65,6 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     location.startsWith('/domains/');
   const [imagesExpanded, setImagesExpanded] = useState(isProductRoute);
   const { data: user } = useGetMe({ query: { queryKey: ['/api/v1/auth/me'], retry: false } });
-  const logoutMutation = useLogout();
-
-  const handleLogout = () => {
-    logoutMutation.mutate(
-      { data: { refreshToken: localStorage.getItem('afucloud_refresh_token') ?? '' } },
-      {
-      onSettled: () => {
-        clearAuthTokens();
-        setLocation('/login');
-      },
-      },
-    );
-  };
-
   const handleNavClick = () => {
     // Close drawer on mobile after navigating
     onClose?.();
@@ -224,16 +209,6 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               {user?.email ?? ''}
             </p>
           </div>
-          <button
-            onClick={handleLogout}
-            disabled={logoutMutation.isPending}
-            className="flex items-center gap-1.5 rounded px-2 py-1.5 text-xs font-medium text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors disabled:opacity-50"
-            title="Sign out"
-            aria-label="Sign out"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            <span>{logoutMutation.isPending ? 'Signing out…' : 'Sign out'}</span>
-          </button>
         </div>
       </div>
     </div>
