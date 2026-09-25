@@ -233,8 +233,8 @@ export default function ProjectDetailPage() {
         return response;
       });
       if (!confirmRes.ok) throw new Error(`Failed to confirm upload (HTTP ${confirmRes.status})`);
+      await queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
       updateQueueItem(item.id, { status: 'done', progress: 100 });
-      queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
       queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey(projectId) });
       } catch (err) {
         updateQueueItem(item.id, { status: 'error', error: err instanceof Error ? err.message : 'Upload failed' });
@@ -998,12 +998,12 @@ export default function ProjectDetailPage() {
 
                 {/* URL */}
                 <div className="space-y-1.5">
-                  <p className="text-xs text-muted-foreground font-medium">Storage key</p>
+                  <p className="text-xs text-muted-foreground font-medium">{import.meta.env.DEV ? 'Preview URL' : 'Public URL'}</p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono truncate text-foreground">
-                      {selectedImage.publicUrl || selectedImage.url}
+                      {resolveImageUrl(selectedImage.publicUrl || selectedImage.url)}
                     </code>
-                    <Button variant="ghost" size="sm" className="text-xs shrink-0" onClick={() => navigator.clipboard.writeText(selectedImage.publicUrl || selectedImage.url)}>
+                    <Button variant="ghost" size="sm" className="text-xs shrink-0" onClick={() => navigator.clipboard.writeText(resolveImageUrl(selectedImage.publicUrl || selectedImage.url))}>
                       Copy
                     </Button>
                   </div>

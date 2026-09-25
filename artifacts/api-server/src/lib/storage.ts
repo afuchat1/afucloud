@@ -11,7 +11,7 @@ const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? "";
 const ACCESS_KEY_ID = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID ?? "";
 const SECRET_ACCESS_KEY = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY ?? "";
 const BUCKET_NAME = process.env.R2_BUCKET_NAME ?? "afucloud-images";
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL ?? "";
+const PUBLIC_IMAGE_BASE_URL = "https://img.afuchat.com";
 const DEV_STORAGE_ROOT = path.resolve(
   process.env.AFU_DEV_STORAGE_DIR ?? path.join(process.cwd(), ".dev-storage"),
 );
@@ -43,8 +43,11 @@ export async function readDevObject(key: string): Promise<Buffer | null> {
 }
 
 export function getPublicUrl(key: string): string {
-  if (R2_PUBLIC_URL) return `${R2_PUBLIC_URL}/${key}`;
-  // Fallback: route through the API server image-serving endpoint
+  if (hasCredentials()) {
+    const encodedKey = key.split("/").map(encodeURIComponent).join("/");
+    return `${PUBLIC_IMAGE_BASE_URL}/${encodedKey}`;
+  }
+  // Local development uploads are not in R2, so keep their local preview route.
   return `/api/v1/storage/${encodeURIComponent(key)}`;
 }
 

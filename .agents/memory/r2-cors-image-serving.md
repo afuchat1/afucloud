@@ -12,15 +12,9 @@ R2 does not allow browser PUT by default. `configureBucketCors()` in `artifacts/
 
 **How to apply:** Call `configureBucketCors()` in `artifacts/api-server/src/index.ts` after the server starts listening (already done). Errors are logged as warnings, not fatal.
 
-## Image serving (no R2_PUBLIC_URL)
-`getPublicUrl(key)` falls back to `/api/v1/storage/${encodeURIComponent(key)}` when `R2_PUBLIC_URL` env var is not set. The key uses `encodeURIComponent` so slashes become `%2F` (single URL segment). The route `GET /v1/storage/:key` in `artifacts/api-server/src/routes/storage.ts` generates a pre-signed GET URL via `generateSignedGetUrl()` and responds with HTTP 302.
+## Public image serving
+Published AfuCloud image responses and copied links use `https://img.afuchat.com/<object-key>`, preserving key slashes and URL-encoding individual path segments. The custom domain is connected to the `afucloud-images` R2 bucket. The frontend normalizes legacy `/v1/storage/:key` image URLs to this public URL in production.
 
-**Why:** `<img src="...">` tags cannot send Authorization headers; the redirect approach lets browsers load images without auth headers while still serving from private R2.
+**Why:** Image API redirects are not the public object URL the user needs to preview or copy. The active R2 custom domain serves the same object key directly.
 
-**How to apply:** If `R2_PUBLIC_URL` is eventually set (public bucket), the fallback route is bypassed entirely and images load directly.
-
-For production, the Cloudflare Worker and Pages site are on different origins. Worker-generated image URLs must be absolute and use `API_BASE_URL` (normally `https://api.afuchat.com`); the frontend also normalizes relative API paths to its API base. Signed-URL redirects use `Cache-Control: private, no-store, max-age=0`.
-
-**Why:** A relative `/v1/storage/...` image URL resolves against the Pages domain and gets the SPA response instead of reaching the Worker; cached redirects can also outlive their signed R2 URLs.
-
-**How to apply:** Keep the Worker base URL configured and non-cacheable redirect behavior in sync with the frontend URL normalizer whenever storage routing changes.
+**How to apply:** Keep image response serialization and the image-detail copy/display path on `img.afuchat.com`. The Express API may retain its API route only for credential-free local development files; do not return it as a published image URL. No Supabase URL migration is needed because the URL is derived from `storage_key`.

@@ -1,6 +1,8 @@
 import { AwsClient } from "aws4fetch";
 import type { Env } from "../types";
 
+const PUBLIC_IMAGE_BASE_URL = "https://img.afuchat.com";
+
 export function getStorageClient(env: Env): AwsClient {
   return new AwsClient({
     accessKeyId: env.CLOUDFLARE_R2_ACCESS_KEY_ID,
@@ -33,16 +35,12 @@ export async function generateUploadUrl(key: string, contentType: string, env: E
 }
 
 /**
- * Returns a relative URL that the CF Worker handles via the
- * /v1/storage/:key redirect route (generates a short-lived presigned GET).
- * When R2_PUBLIC_URL is explicitly set (CDN), use that directly instead.
+ * Images are served directly from the public R2 custom domain. Keep object
+ * slashes as path separators while escaping individual key segments.
  */
-export function getPublicUrl(key: string, env: Env): string {
-  if (env.R2_PUBLIC_URL) {
-    return `${env.R2_PUBLIC_URL.replace(/\/$/, "")}/${key}`;
-  }
-  const apiBaseUrl = (env.API_BASE_URL ?? "https://api.afuchat.com").replace(/\/+$/, "");
-  return `${apiBaseUrl}/v1/storage/${encodeURIComponent(key)}`;
+export function getPublicUrl(key: string): string {
+  const encodedKey = key.split("/").map(encodeURIComponent).join("/");
+  return `${PUBLIC_IMAGE_BASE_URL}/${encodedKey}`;
 }
 
 export async function generateDownloadUrl(key: string, env: Env, expiresIn = 3600): Promise<string> {
