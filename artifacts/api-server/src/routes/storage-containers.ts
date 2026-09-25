@@ -12,6 +12,21 @@ function slugify(value: string): string {
 }
 
 function objectApi(object: typeof storageObjectsTable.$inferSelect, containerId: string, cdnUrl?: string | null) {
+  // R2 stores objects under containers/{userId}/{containerId}/{objectName},
+  // while the configured CDN hostname exposes the container contents from
+  // its root. Keep the R2 key in key, but strip the internal prefix from
+  // the public URL.
+  const internalPrefix = `containers/${object.userId}/${containerId}/`;
+  const publicObjectKey = object.objectKey.startsWith(internalPrefix)
+    ? object.objectKey.slice(internalPrefix.length)
+    : object.objectKey;
+
+  // Preserve path separators while safely encoding individual URL segments.
+  const encodedPublicObjectKey = publicObjectKey
+    .split("/")
+    .map(segment => encodeURIComponent(segment))
+    .join("/");
+
   return {
     id: object.id,
     containerId,
@@ -21,7 +36,11 @@ function objectApi(object: typeof storageObjectsTable.$inferSelect, containerId:
     size: object.size,
     etag: object.etag,
     isFolder: object.isFolder,
-    url: object.isFolder ? null : (cdnUrl ? `${cdnUrl.replace(/\/$/, "")}/${object.objectKey}` : `/api/v1/storage/${encodeURIComponent(object.objectKey)}`),
+    url: object.isFolder
+      ? null
+      : (cdnUrl
+        ? `${cdnUrl.replace(/\/$/, "")}/${encodedPublicObjectKey}`
+        : `/api/v1/storage/${encodeURIComponent(object.objectKey)}`),
     createdAt: object.createdAt.toISOString(),
     updatedAt: object.updatedAt.toISOString(),
   };
