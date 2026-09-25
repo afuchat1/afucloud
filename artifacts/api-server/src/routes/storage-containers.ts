@@ -11,36 +11,43 @@ function slugify(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
 }
 
-function objectApi(object: typeof storageObjectsTable.$inferSelect, containerId: string, cdnUrl?: string | null) {
-  // R2 stores objects under containers/{userId}/{containerId}/{objectName},
-  // while the configured CDN hostname exposes the container contents from
-  // its root. Keep the R2 key in key, but strip the internal prefix from
-  // the public URL.
-  const internalPrefix = `containers/${object.userId}/${containerId}/`;
-  const publicObjectKey = object.objectKey.startsWith(internalPrefix)
-    ? object.objectKey.slice(internalPrefix.length)
-    : object.objectKey;
+function containerPrefix(containerId: string, userId: string): string {
+  return `containers/${userId}/${containerId}/`;
+}
 
-  // Preserve path separators while safely encoding individual URL segments.
-  const encodedPublicObjectKey = publicObjectKey
-    .split("/")
-    .map(segment => encodeURIComponent(segment))
-    .join("/");
+function relativeObjectKey(objectKey: string, containerId: string, userId: string): string {
+  const prefix = containerPrefix(containerId, userId);
+  return objectKey.startsWith(prefix) ? objectKey.slice(prefix.length) : objectKey;
+}
+
+function publicObjectKey(objectKey: string): string {
+  return objectKey.startsWith("containers/") ? objectKey.slice("containers/".length) : objectKey;
+}
+
+function encodeObjectPath(objectKey: string): string {
+  return objectKey.split("/").filter(Boolean).map(segment => encodeURIComponent(segment)).join("/");
+}
+
+function objectApi(object: typeof storageObjectsTable.$inferSelect, containerId: string, cdnUrl?: string | null) {
+  const relativeKey = relativeObjectKey(object.objectKey, containerId, object.userId);
+  const publicKey = publicObjectKey(object.objectKey);
+  const encodedPublicKey = encodeObjectPath(publicKey);
+  const publicUrl = cdnUrl
+    ? `${cdnUrl.replace(/\/$/, "")}/${encodedPublicKey}`
+    : `/api/v1/storage/${encodeURIComponent(object.objectKey)}`;
 
   return {
     id: object.id,
     containerId,
-    key: object.objectKey,
+    key: publicUrl,
+    storageKey: object.objectKey,
+    path: relativeKey,
     name: object.name,
     contentType: object.contentType,
     size: object.size,
     etag: object.etag,
     isFolder: object.isFolder,
-    url: object.isFolder
-      ? null
-      : (cdnUrl
-        ? `${cdnUrl.replace(/\/$/, "")}/${encodedPublicObjectKey}`
-        : `/api/v1/storage/${encodeURIComponent(object.objectKey)}`),
+    url: object.isFolder ? null : publicUrl,
     createdAt: object.createdAt.toISOString(),
     updatedAt: object.updatedAt.toISOString(),
   };
@@ -125,15 +132,18 @@ router.get("/v1/storage-containers/:id/objects", requireAuth, async (req: AuthRe
   const container = await ownedContainer(req.params.id as string, req.userId!);
   if (!container) { res.status(404).json({ error: "Container not found" }); return; }
   const prefix = String(req.query.prefix ?? "").replace(/^\/+|\/+$/g, "");
+  const basePrefix = containerPrefix(container.id, req.userId!);
+  const storagePrefix = prefix ? `${basePrefix}${prefix}/` : basePrefix;
   const objects = await db.select().from(storageObjectsTable)
     .where(and(
       eq(storageObjectsTable.containerId, container.id),
-      prefix ? ilike(storageObjectsTable.objectKey, `${prefix}/%`) : sql`true`,
+      ilike(storageObjectsTable.objectKey, `${storagePrefix}%`),
     ))
     .orderBy(asc(storageObjectsTable.isFolder), asc(storageObjectsTable.name));
   const directObjects = objects.filter(object => {
-    const relative = prefix ? object.objectKey.slice(prefix.length + 1) : object.objectKey;
-    return !relative.includes("/");
+    const relative = relativeObjectKey(object.objectKey, container.id, req.userId!);
+    const current = prefix ? relative.slice(prefix.length + 1) : relative;
+    return current.length > 0 && !current.includes("/");
   });
   const cdnUrl = await containerCdnUrl(container);
   res.json({ prefix, objects: directObjects.map(object => objectApi(object, container.id, cdnUrl)) });
@@ -147,7 +157,7 @@ router.post("/v1/storage-containers/:id/folders", requireAuth, async (req: AuthR
   const [folder] = await db.insert(storageObjectsTable).values({
     containerId: container.id,
     userId: req.userId!,
-    objectKey: name,
+    objectKey: `${containerPrefix(container.id, req.userId!)}${name}`,
     name: name.split("/").pop()!,
     isFolder: true,
   }).returning();
