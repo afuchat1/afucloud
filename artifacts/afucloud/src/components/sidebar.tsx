@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useGetMe } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
-import { clearAuthTokens } from '@/lib/auth-session';
 import {
   LayoutDashboard,
   FolderOpen,
