@@ -644,7 +644,7 @@ export default function ProjectDetailPage() {
                     </div>
                     <div className="shrink-0 text-[11px] text-muted-foreground w-12 text-right">
                       {item.status === 'uploading' && `${item.progress}%`}
-                      {item.status === 'done' && <span className="text-green-600">Done</span>}
+                       {item.status === 'done' && <span className="text-green-600 dark:text-green-400">Done</span>}
                       {item.status === 'error' && (
                         <button onClick={() => retryUpload(item)} className="flex items-center gap-0.5 text-primary hover:underline text-[11px]">
                           <RefreshCw className="h-3 w-3" />Retry
@@ -819,7 +819,7 @@ export default function ProjectDetailPage() {
             )}
           </div>
           {trashImages.length > 0 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed">
+             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 leading-relaxed dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
               Images in the Recycle Bin are not counted in your storage. Permanently deleted images cannot be recovered.
             </div>
           )}

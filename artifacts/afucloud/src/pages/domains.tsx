@@ -39,7 +39,7 @@ async function jsonFetch(path: string, init?: RequestInit) {
 function Status({ ok, children }: { ok: boolean; children: React.ReactNode }) {
   return (
     <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-      ok ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>
+       ok ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200')}>
       {ok ? <CheckCircle2 className="h-3 w-3" /> : <CircleAlert className="h-3 w-3" />}
       {children}
     </span>
@@ -196,8 +196,8 @@ export default function DomainsPage() {
                 </div>
 
                 {selected.verificationStatus !== 'verified' && (
-                  <section className="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
-                    <div className="flex items-start justify-between gap-4"><div><h3 className="font-medium text-amber-900">Verify domain ownership</h3><p className="mt-1 text-xs leading-relaxed text-amber-800">Add this TXT record at your DNS provider, then check verification.</p></div><Button size="sm" variant="outline" onClick={() => verifyDomain(selected)} disabled={busy === `verify-${selected.id}`} className="shrink-0 gap-1.5"><RefreshCw className="h-3.5 w-3.5" />{busy === `verify-${selected.id}` ? 'Checking…' : 'Check DNS'}</Button></div>
+                  <section className="rounded-lg border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900 dark:bg-amber-950/40">
+                    <div className="flex items-start justify-between gap-4"><div><h3 className="font-medium text-amber-900 dark:text-amber-100">Verify domain ownership</h3><p className="mt-1 text-xs leading-relaxed text-amber-800 dark:text-amber-200">Add this TXT record at your DNS provider, then check verification.</p></div><Button size="sm" variant="outline" onClick={() => verifyDomain(selected)} disabled={busy === `verify-${selected.id}`} className="shrink-0 gap-1.5"><RefreshCw className="h-3.5 w-3.5" />{busy === `verify-${selected.id}` ? 'Checking…' : 'Check DNS'}</Button></div>
                     <div className="mt-4 grid min-w-0 gap-2 text-xs sm:grid-cols-[100px_1fr]"><span className="text-muted-foreground">Type</span><code>TXT</code><span className="text-muted-foreground">Name</span><code>_afu-verification</code><span className="text-muted-foreground">Value</span><div className="flex min-w-0 items-center gap-2"><code className="min-w-0 break-all">{selected.dnsRecord.value}</code><Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => copy(selected.dnsRecord.value)}><Copy className="h-3 w-3" /></Button></div></div>
                   </section>
                 )}

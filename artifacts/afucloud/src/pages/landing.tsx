@@ -94,13 +94,13 @@ const plans = [
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-foreground font-sans">
+    <div className="min-h-screen bg-background text-foreground font-sans">
       {/* Nav */}
-      <header className="border-b border-border/50 bg-[#FAF8F5]/80 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-border/50 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Cloud className="h-4 w-4 text-white" strokeWidth={2.5} />
+              <Cloud className="h-4 w-4 text-primary-foreground" strokeWidth={2.5} />
             </div>
             <span className="text-[15px] font-semibold tracking-tight">AfuCloud</span>
           </div>
@@ -124,7 +124,7 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="max-w-6xl mx-auto px-6 pt-24 pb-20 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1 text-xs font-medium text-muted-foreground mb-8">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground mb-8">
           <span className="h-1.5 w-1.5 rounded-full bg-primary" />
           Phase 1 — Images Platform
         </div>
@@ -163,7 +163,7 @@ export default function LandingPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {features.map((f) => (
-            <div key={f.title} className="rounded-xl border border-border bg-white p-6 space-y-3">
+            <div key={f.title} className="rounded-xl border border-border bg-card p-6 space-y-3">
               <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
                 <f.icon className="h-4.5 w-4.5 text-primary" strokeWidth={2} />
               </div>
@@ -175,7 +175,7 @@ export default function LandingPage() {
       </section>
 
       {/* API code example */}
-      <section id="api" className="bg-white border-y border-border py-20">
+      <section id="api" className="bg-card border-y border-border py-20">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -232,7 +232,7 @@ export default function LandingPage() {
               className={`rounded-xl border p-6 space-y-5 ${
                 plan.highlight
                   ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                  : 'border-border bg-white'
+                  : 'border-border bg-card'
               }`}
             >
               {plan.highlight && (
@@ -264,7 +264,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="bg-primary">
+       <section className="bg-primary">
         <div className="max-w-6xl mx-auto px-6 py-16 text-center">
           <h2 className="text-3xl font-bold text-white mb-4 tracking-tight">Ready to start building?</h2>
           <p className="text-white/70 mb-8 max-w-md mx-auto">
@@ -287,7 +287,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-[#FAF8F5]">
+       <footer className="border-t border-border bg-background">
         <div className="max-w-6xl mx-auto px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center">

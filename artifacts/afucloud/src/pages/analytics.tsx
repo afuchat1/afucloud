@@ -59,7 +59,7 @@ export default function AnalyticsPage() {
             <span className="text-4xl font-bold tracking-tight text-foreground">
               {isLoading ? '—' : formatNumber(overview?.recentUploads ?? 0)}
             </span>
-            <div className="flex items-center gap-1 pb-1 text-xs text-green-600">
+            <div className="flex items-center gap-1 pb-1 text-xs text-green-600 dark:text-green-400">
               <TrendingUp className="h-3 w-3" />
               <span>this week</span>
             </div>

@@ -185,9 +185,9 @@ export default function ProjectWebhooksPage() {
                 <div className="flex items-center gap-3">
                   <code className="text-sm font-mono text-foreground truncate">{wh.url}</code>
                   <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                    wh.active ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground'
+                    wh.active ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-200' : 'bg-muted text-muted-foreground'
                   }`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${wh.active ? 'bg-green-500' : 'bg-muted-foreground/50'}`} />
+                    <span className={`h-1.5 w-1.5 rounded-full ${wh.active ? 'bg-green-500 dark:bg-green-400' : 'bg-muted-foreground/50'}`} />
                     {wh.active ? 'Active' : 'Inactive'}
                   </span>
                 </div>

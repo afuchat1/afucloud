@@ -277,10 +277,10 @@ console.log(image.url); // https://img.afuchat.com/...`} />
                         <td className="px-4 py-2.5">
                           <span className={cn(
                             'rounded px-1.5 py-0.5 font-mono font-semibold',
-                            method === 'GET' ? 'bg-blue-100 text-blue-700' :
-                            method === 'POST' ? 'bg-green-100 text-green-700' :
-                            method === 'PATCH' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-red-100 text-red-700'
+                            method === 'GET' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200' :
+                            method === 'POST' ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-200' :
+                            method === 'PATCH' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/50 dark:text-yellow-200' :
+                            'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-200'
                           )}>{method}</span>
                         </td>
                         <td className="px-4 py-2.5 font-mono text-foreground">{path}</td>
@@ -455,10 +455,10 @@ const isValid = crypto.timingSafeEqual(
                         <td className="px-4 py-2">
                           <span className={cn(
                             'rounded px-1.5 py-0.5 font-mono font-semibold text-[10px]',
-                            method === 'GET' ? 'bg-blue-100 text-blue-700' :
-                            method === 'POST' ? 'bg-green-100 text-green-700' :
-                            method === 'PATCH' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-red-100 text-red-700'
+                            method === 'GET' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200' :
+                            method === 'POST' ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-200' :
+                            method === 'PATCH' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/50 dark:text-yellow-200' :
+                            'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-200'
                           )}>{method}</span>
                         </td>
                         <td className="px-4 py-2 font-mono text-foreground text-[11px]">{path}</td>

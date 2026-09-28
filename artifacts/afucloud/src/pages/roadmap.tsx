@@ -217,23 +217,23 @@ const statusConfig = {
   done: {
     label: 'Complete',
     icon: CheckCircle2,
-    badge: 'bg-green-50 text-green-700 border-green-200',
-    icon_class: 'text-green-500',
-    ring: 'border-green-200 bg-green-50/50',
-    number: 'bg-green-500 text-white',
+    badge: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/50 dark:text-green-200 dark:border-green-800',
+    icon_class: 'text-green-500 dark:text-green-400',
+    ring: 'border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/30',
+    number: 'bg-green-500 text-white dark:bg-green-600',
   },
 };
 
 export default function RoadmapPage() {
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-foreground">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
-      <header className="border-b border-border/50 bg-[#FAF8F5]/80 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-border/50 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/">
             <div className="flex items-center gap-2.5 cursor-pointer">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Cloud className="h-4 w-4 text-white" strokeWidth={2.5} />
+                <Cloud className="h-4 w-4 text-primary-foreground" strokeWidth={2.5} />
               </div>
               <span className="text-[15px] font-semibold tracking-tight">AfuCloud</span>
             </div>
@@ -257,7 +257,7 @@ export default function RoadmapPage() {
 
       {/* Hero */}
       <section className="max-w-5xl mx-auto px-6 pt-16 pb-12">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1 text-xs font-medium text-muted-foreground mb-6">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground mb-6">
           <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
           Phase 1 actively in development
         </div>
@@ -389,11 +389,11 @@ export default function RoadmapPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-[#FAF8F5]">
+      <footer className="border-t border-border bg-background">
         <div className="max-w-5xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center">
-              <Cloud className="h-3.5 w-3.5 text-white" strokeWidth={2.5} />
+              <Cloud className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={2.5} />
             </div>
             <span className="font-medium text-foreground">AfuCloud</span>
           </div>
