@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import {
   assertCloudflareId,
   buildDnsRecordPayload,
+  CLOUDFLARE_DASHBOARD_ORIGIN,
   CLOUDFLARE_DNS_RECORD_TYPES,
   CloudflareRequestError,
   cloudflareApi,
@@ -84,18 +85,6 @@ function guarded(handler: (req: Request, res: Response) => Promise<void>) {
       res.status(502).json({ error: "Cloudflare service is temporarily unavailable" });
     });
   };
-}
-
-function originFromRequest(req: Request): string | null {
-  const originHeader = req.get("origin");
-  if (originHeader) {
-    try { return new URL(originHeader).origin; } catch { return null; }
-  }
-  const referer = req.get("referer");
-  if (referer) {
-    try { return new URL(referer).origin; } catch { return null; }
-  }
-  return null;
 }
 
 function isAllowedReturnOrigin(origin: string, req: Request): boolean {
@@ -319,9 +308,7 @@ router.use("/v1/domains/:domainId", requireAuth, requireAccountAuth);
 
 router.post("/v1/cloudflare/connect", guarded(async (req, res) => {
   requireConfiguration();
-  const origin = typeof req.body?.returnOrigin === "string"
-    ? req.body.returnOrigin
-    : originFromRequest(req);
+  const origin = CLOUDFLARE_DASHBOARD_ORIGIN;
   if (!origin || !isAllowedReturnOrigin(origin, req)) {
     res.status(400).json({ error: "A trusted HTTPS AfuChat or Replit return origin is required" });
     return;

@@ -8,9 +8,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
-  CheckCircle2, CircleAlert, Copy, Globe2, Link2, Plus, RefreshCw,
-  ShieldCheck, Trash2, X, ArrowUpRight, Cloud, LockKeyhole,
+  CheckCircle2, CircleAlert, Copy, Globe2, Plus, RefreshCw,
+  ShieldCheck, Trash2, X, ArrowUpRight, LockKeyhole,
 } from 'lucide-react';
+import { SiCloudflare } from 'react-icons/si';
 import { API_BASE } from '@/lib/api-base';
 import { customFetchResponse } from '@workspace/api-client-react';
 import { useAutoConfigureDomainVerification, useDisconnectCloudflare, useGetCloudflareConnection, useListCloudflareZones, useStartCloudflareAuthorization } from '@workspace/api-client-react';
@@ -180,7 +181,9 @@ export default function DomainsPage() {
       <section className="overflow-hidden rounded-xl border border-card-border bg-card" data-testid="cloudflare-connection">
         <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Cloud className="h-5 w-5" /></div>
+            <div aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F38020]/10 text-[#F38020]">
+              <SiCloudflare className="h-6 w-6" />
+            </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">DNS provider</p>
               <h2 className="mt-1 text-lg font-semibold">Cloudflare connection</h2>
@@ -197,7 +200,7 @@ export default function DomainsPage() {
               <Button variant="outline" onClick={() => connection.refetch()} disabled={connection.isFetching} data-testid="refresh-cloudflare-zones"><RefreshCw className="mr-2 h-4 w-4" />Refresh zones</Button>
               <Button variant="outline" onClick={disconnect} disabled={disconnectCloudflare.isPending} data-testid="disconnect-cloudflare">{disconnectCloudflare.isPending ? 'Disconnecting…' : 'Disconnect'}</Button>
             </> : <Button onClick={connectCloudflare} disabled={startAuthorization.isPending} data-testid="connect-cloudflare">
-              <Link2 className="mr-2 h-4 w-4" />{startAuthorization.isPending ? 'Starting…' : 'Connect Cloudflare'}
+              <SiCloudflare aria-hidden="true" className="mr-2 h-4 w-4 text-[#F38020]" />{startAuthorization.isPending ? 'Starting…' : 'Connect Cloudflare'}
             </Button>}
           </div>
         </div>

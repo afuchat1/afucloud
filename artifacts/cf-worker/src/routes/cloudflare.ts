@@ -5,6 +5,7 @@ import { requireAccountAuth, requireAuth } from "../middleware/auth";
 import {
   assertCloudflareId,
   buildDnsRecordPayload,
+  CLOUDFLARE_DASHBOARD_ORIGIN,
   cloudflareApi,
   CloudflareRequestError,
   createCloudflareAuthorizationUrl,
@@ -292,7 +293,7 @@ cloudflare.get("/connection", requireAuth, requireAccountAuth, async c => {
 cloudflare.post("/connect", requireAuth, requireAccountAuth, async c => {
   try {
     const settings = oauthConfiguration(c.env);
-    const origin = validReturnOrigin(c.req.header("Origin"), c.env);
+    const origin = validReturnOrigin(CLOUDFLARE_DASHBOARD_ORIGIN, c.env);
     if (!origin) return c.json({ error: "Open Cloudflare authorization from the AfuCloud dashboard" }, 400);
     const secret = oauthStateSecret(c.env);
     const state = await createOAuthState(c.get("userId"), secret, origin);
