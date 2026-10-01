@@ -43,7 +43,12 @@ export interface DnsRecordInput {
 }
 
 export class CloudflareRequestError extends Error {
-  constructor(message: string, readonly status = 502) {
+  constructor(
+    message: string,
+    readonly status = 502,
+    readonly code?: string,
+    readonly upstreamStatus?: number,
+  ) {
     super(message);
     this.name = "CloudflareRequestError";
   }
@@ -250,7 +255,15 @@ async function tokenEndpointRequest(body: URLSearchParams, env: OAuthEnvironment
   });
   const result = await response.json().catch(() => ({})) as CloudflareTokenResponse & { error?: string };
   if (!response.ok || typeof result.access_token !== "string" || typeof result.expires_in !== "number") {
-    throw new CloudflareRequestError("Cloudflare authorization could not be completed", response.status >= 400 ? 502 : 502);
+    const code = typeof result.error === "string" && /^[a-z0-9_-]{1,64}$/i.test(result.error)
+      ? result.error
+      : undefined;
+    throw new CloudflareRequestError(
+      "Cloudflare authorization could not be completed",
+      502,
+      code,
+      response.status,
+    );
   }
   return result;
 }

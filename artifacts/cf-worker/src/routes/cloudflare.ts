@@ -13,6 +13,7 @@ import {
   decryptToken,
   encryptToken,
   exchangeAuthorizationCode,
+  getEncryptionKeyBytes,
   isCloudflareOAuthConfigured,
   refreshCloudflareToken,
   revokeCloudflareToken,
@@ -79,6 +80,11 @@ function oauthConfiguration(env: Env): OAuthEnvironment {
   if (!isCloudflareOAuthConfigured(settings)) {
     throw new CloudflareRequestError("Cloudflare authorization is not configured", 503);
   }
+  try {
+    getEncryptionKeyBytes(settings);
+  } catch {
+    throw new CloudflareRequestError("Cloudflare token encryption is not configured correctly", 503);
+  }
   return settings;
 }
 
@@ -91,6 +97,13 @@ function publicError(error: unknown): { status: number; message: string } {
     if (error.status === 503) return { status: 503, message: error.message };
   }
   return { status: 502, message: "Cloudflare could not complete the request. Try again shortly." };
+}
+
+function safeHttpStatus(error: unknown): number | undefined {
+  if (error instanceof CloudflareRequestError) return error.upstreamStatus;
+  if (!(error instanceof Error)) return undefined;
+  const match = error.message.match(/\bHTTP ([1-5]\d{2})\b/);
+  return match ? Number(match[1]) : undefined;
 }
 
 async function getAccessToken(db: DbClient, userId: string, env: Env): Promise<string> {
@@ -208,23 +221,43 @@ cloudflare.get("/callback", async c => {
   };
   if (c.req.query("error")) return redirect("denied");
   const code = c.req.query("code");
-  if (!code) return redirect("failed");
+  if (!code) {
+    console.error(JSON.stringify({
+      event: "cloudflare.oauth.callback_failed",
+      stage: "authorization_response",
+      reason: "authorization_code_missing",
+    }));
+    return redirect("failed");
+  }
 
+  let stage = "configuration";
   try {
     const settings = oauthConfiguration(c.env);
     const { verifier } = await createPkcePairForState(state, oauthStateSecret(c.env));
+    stage = "authorization_code_exchange";
     const token = await exchangeAuthorizationCode(code, verifier, settings);
+    stage = "token_encryption";
+    const encryptedAccessToken = await encryptToken(token.access_token, settings);
+    const encryptedRefreshToken = token.refresh_token ? await encryptToken(token.refresh_token, settings) : null;
+    stage = "connection_persistence";
     const db = createDbClient(c.env);
     await db.upsertCloudflareConnection({
       user_id: claims.userId,
-      encrypted_access_token: await encryptToken(token.access_token, settings),
-      encrypted_refresh_token: token.refresh_token ? await encryptToken(token.refresh_token, settings) : null,
+      encrypted_access_token: encryptedAccessToken,
+      encrypted_refresh_token: encryptedRefreshToken,
       access_expires_at: new Date(Date.now() + token.expires_in * 1000).toISOString(),
       scopes: token.scope ? token.scope.split(/\s+/).filter(Boolean) : [],
       updated_at: new Date().toISOString(),
     });
     return redirect("connected");
-  } catch {
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "cloudflare.oauth.callback_failed",
+      stage,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      httpStatus: safeHttpStatus(error),
+      oauthError: error instanceof CloudflareRequestError ? error.code : undefined,
+    }));
     return redirect("failed");
   }
 });
