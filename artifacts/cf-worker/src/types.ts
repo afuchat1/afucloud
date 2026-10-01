@@ -12,7 +12,7 @@ export interface Env {
   API_BASE_URL?: string;
   DASHBOARD_ALLOWED_ORIGINS?: string;
   NODE_ENV: string;
-  AFU_CDN_TARGET?: string;
+  AFU_CUSTOM_HOSTNAME_TARGET?: string;
 
   // Secrets
   SUPABASE_SERVICE_KEY: string;

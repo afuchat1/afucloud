@@ -4,7 +4,7 @@ import { createDbClient } from "../lib/db";
 import { requireAccountAuth, requireAuth } from "../middleware/auth";
 
 const domains = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
-const DEFAULT_CDN_TARGET = "cdn.afuchat.com";
+const DEFAULT_CUSTOM_HOSTNAME_TARGET = "verify.afuchat.com";
 const DNS_LOOKUP_TIMEOUT_MS = 5_000;
 const HTTPS_CHECK_TIMEOUT_MS = 5_000;
 
@@ -39,10 +39,10 @@ function normalizeDnsName(name: string): string {
   return name.trim().toLowerCase().replace(/\.+$/, "");
 }
 
-function cdnTarget(env: Env): string {
-  const target = normalizeDnsName(env.AFU_CDN_TARGET ?? DEFAULT_CDN_TARGET);
+function customHostnameTarget(env: Env): string {
+  const target = normalizeDnsName(env.AFU_CUSTOM_HOSTNAME_TARGET ?? DEFAULT_CUSTOM_HOSTNAME_TARGET);
   if (!target.endsWith(".afuchat.com")) {
-    throw new Error("AFU_CDN_TARGET must use the afuchat.com service domain");
+    throw new Error("AFU_CUSTOM_HOSTNAME_TARGET must use the afuchat.com service domain");
   }
   return target;
 }
@@ -59,7 +59,7 @@ function apiHostname(hostname: any, env: Env) {
     dnsRecord: {
       type: "CNAME",
       name: hostname.hostname,
-      value: cdnTarget(env),
+      value: customHostnameTarget(env),
     },
     createdAt: hostname.created_at,
   };
@@ -217,7 +217,7 @@ domains.post("/:domainId/hostnames/:hostnameId/verify", requireAuth, async (c) =
   } catch {
     return c.json({ error: "DNS verification service is temporarily unavailable" }, 502);
   }
-  const expected = cdnTarget(c.env);
+  const expected = customHostnameTarget(c.env);
   if (!values.some(value => normalizeDnsName(value) === expected)) {
     await db.updateHostname(hostname.id, c.get("userId"), {
       status: "pending",

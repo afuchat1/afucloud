@@ -5,7 +5,7 @@ import { db, domainsTable, hostnamesTable, storageContainersTable } from "@works
 import { requireAccountAuth, requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
-const DEFAULT_CDN_TARGET = "cdn.afuchat.com";
+const DEFAULT_CUSTOM_HOSTNAME_TARGET = "verify.afuchat.com";
 const DNS_LOOKUP_TIMEOUT_MS = 5_000;
 const HTTPS_CHECK_TIMEOUT_MS = 5_000;
 
@@ -40,10 +40,10 @@ function normalizeDnsName(name: string): string {
   return name.trim().toLowerCase().replace(/\.+$/, "");
 }
 
-function cdnTarget(): string {
-  const target = normalizeDnsName(process.env.AFU_CDN_TARGET ?? DEFAULT_CDN_TARGET);
+function customHostnameTarget(): string {
+  const target = normalizeDnsName(process.env.AFU_CUSTOM_HOSTNAME_TARGET ?? DEFAULT_CUSTOM_HOSTNAME_TARGET);
   if (!target.endsWith(".afuchat.com")) {
-    throw new Error("AFU_CDN_TARGET must use the afuchat.com service domain");
+    throw new Error("AFU_CUSTOM_HOSTNAME_TARGET must use the afuchat.com service domain");
   }
   return target;
 }
@@ -79,7 +79,7 @@ function apiHostname(hostname: typeof hostnamesTable.$inferSelect) {
     dnsRecord: {
       type: "CNAME",
       name: hostname.hostname,
-      value: cdnTarget(),
+      value: customHostnameTarget(),
     },
     createdAt: hostname.createdAt.toISOString(),
   };
@@ -224,7 +224,7 @@ router.post("/v1/domains/:domainId/hostnames/:hostnameId/verify", requireAuth, a
     });
     if (!dnsRes.ok) throw new Error("DNS lookup failed");
     const dns = await dnsRes.json() as { Answer?: Array<{ data?: string }> };
-    const expected = cdnTarget();
+    const expected = customHostnameTarget();
     active = (dns.Answer ?? []).some(answer => normalizeDnsName(answer.data ?? "") === expected);
   } catch {
     res.status(502).json({ error: "DNS verification service is temporarily unavailable" });
@@ -238,7 +238,7 @@ router.post("/v1/domains/:domainId/hostnames/:hostnameId/verify", requireAuth, a
     }).where(eq(hostnamesTable.id, hostname.id));
     res.status(422).json({
       error: "CNAME record not found",
-      dnsRecord: { type: "CNAME", name: hostname.hostname, value: cdnTarget() },
+      dnsRecord: { type: "CNAME", name: hostname.hostname, value: customHostnameTarget() },
     });
     return;
   }
