@@ -3,6 +3,7 @@ import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
 import { requireAccountAuth, requireAuth, requireProjectAuth } from "../middleware/auth";
 import { dispatchWebhook } from "./webhooks";
+import { BillingError, getEntitlements } from "../lib/billing";
 
 const projects = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
@@ -33,6 +34,22 @@ projects.post("/", requireAuth, requireAccountAuth, async (c) => {
   const { name, description } = await c.req.json().catch(() => ({}));
   if (!name) return c.json({ error: "name is required" }, 400);
   const db = createDbClient(c.env);
+  let entitlements;
+  try {
+    entitlements = await getEntitlements(db, c.env, c.get("userId"));
+  } catch (error) {
+    const status = error instanceof BillingError ? error.status : 502;
+    return c.json({ error: error instanceof Error ? error.message : "Could not verify account plan." }, status as 400);
+  }
+  const existingProjects = await db.getProjects(c.get("userId"));
+  if (existingProjects.length >= entitlements.tier.limits.projects) {
+    return c.json({
+      error: `Your ${entitlements.tier.name} plan allows up to ${entitlements.tier.limits.projects} projects.`,
+      upgradeRequired: true,
+      limit: entitlements.tier.limits.projects,
+      tier: entitlements.tierKey,
+    }, 402);
+  }
   const project = await db.createProject({ name, slug: slugify(name), description, user_id: c.get("userId") });
   await db.logActivity({ user_id: c.get("userId"), project_id: project.id, action: "create", resource: "project", resource_id: project.id });
   c.executionCtx.waitUntil(dispatchWebhook(project.id, "project.created", project, c.env));

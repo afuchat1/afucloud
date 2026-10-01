@@ -3,6 +3,7 @@ import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
 import { requireAccountAuth, requireAuth } from "../middleware/auth";
 import { hashToken } from "../lib/auth";
+import { BillingError, getEntitlements } from "../lib/billing";
 
 const apikeys = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
@@ -38,6 +39,22 @@ apikeys.post("/", requireAuth, requireAccountAuth, async (c) => {
   if (!project) return c.json({ error: "Project not found" }, 404);
   const { name, environment = "development", scopes = [] } = await c.req.json().catch(() => ({}));
   if (!name) return c.json({ error: "name is required" }, 400);
+  let entitlements;
+  try {
+    entitlements = await getEntitlements(db, c.env, c.get("userId"));
+  } catch (error) {
+    const status = error instanceof BillingError ? error.status : 502;
+    return c.json({ error: error instanceof Error ? error.message : "Could not verify account plan." }, status as 400);
+  }
+  const keyCount = await db.getApiKeyCountForUser(c.get("userId"));
+  if (keyCount >= entitlements.tier.limits.apiKeys) {
+    return c.json({
+      error: `Your ${entitlements.tier.name} plan allows up to ${entitlements.tier.limits.apiKeys} API keys.`,
+      upgradeRequired: true,
+      limit: entitlements.tier.limits.apiKeys,
+      tier: entitlements.tierKey,
+    }, 402);
+  }
   const envShort = environment === "production" ? "prod" : environment === "testing" ? "test" : "dev";
   const rawKey = `afu_${envShort}_${crypto.randomUUID().replace(/-/g, "")}`;
   const prefix = rawKey.slice(0, 16);

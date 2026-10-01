@@ -341,6 +341,36 @@ export function createDbClient(env: Env) {
       const rows = await r.json() as any[];
       return rows[0] ?? null;
     },
+    async getBillingSubscription(userId: string) {
+      const r = await request(`/billing_subscriptions?user_id=eq.${encodeURIComponent(userId)}&limit=1`);
+      if (!r.ok) throw new Error(`Billing subscription lookup failed: HTTP ${r.status}`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async upsertBillingSubscription(data: Record<string, unknown>) {
+      const r = await request(
+        "/billing_subscriptions?on_conflict=user_id",
+        "POST",
+        data,
+        { Prefer: "resolution=merge-duplicates,return=representation" },
+      );
+      if (!r.ok) throw new Error(`Billing subscription could not be saved: HTTP ${r.status}`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async getApiKeyCountForUser(userId: string) {
+      const projects = await fetchAllRows<{ id: string }>(
+        `/projects?user_id=eq.${encodeURIComponent(userId)}&select=id`,
+      );
+      if (projects.length === 0) return 0;
+      const projectIds = projects.map(project => project.id).join(",");
+      const params = new URLSearchParams({
+        project_id: `in.(${projectIds})`,
+        select: "id",
+      });
+      const keys = await fetchAllRows<{ id: string }>(`/api_keys?${params.toString()}`);
+      return keys.length;
+    },
     async getHostnames(domainId: string, userId: string) {
       const r = await request(`/hostnames?domain_id=eq.${encodeURIComponent(domainId)}&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc`);
       return r.json() as Promise<any[]>;

@@ -155,7 +155,7 @@ export default function StoragePage() {
         const name = prefix ? `${prefix}/${file.name}` : file.name;
         const contentType = file.type || 'application/octet-stream';
         const upload = await jsonFetch(`/v1/storage-containers/${selected.id}/upload-url`, {
-          method: 'POST', body: JSON.stringify({ name, contentType }),
+          method: 'POST', body: JSON.stringify({ name, contentType, size: file.size }),
         });
         const put = await fetch(upload.uploadUrl, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file });
         if (!put.ok) throw new Error(`Upload failed for ${file.name}`);

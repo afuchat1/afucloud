@@ -212,6 +212,7 @@ export default function ProjectDetailPage() {
               filename: item.file.name,
               contentType: item.file.type || 'application/octet-stream',
               name: item.file.name,
+            size: item.file.size,
             }),
           });
           if (response.status >= 500) throw new Error(`Upload preparation failed (HTTP ${response.status})`);

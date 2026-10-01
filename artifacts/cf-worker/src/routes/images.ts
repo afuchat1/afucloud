@@ -4,6 +4,7 @@ import { createDbClient } from "../lib/db";
 import { requireAuth, requireProjectAuth } from "../middleware/auth";
 import { generateUploadUrl, buildStorageKey, getPublicUrl, deleteObject } from "../lib/storage";
 import { dispatchWebhook } from "./webhooks";
+import { BillingError, getEntitlements } from "../lib/billing";
 
 const images = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
@@ -78,8 +79,26 @@ images.post("/upload-url", requireAuth, async (c) => {
   const projectId = c.req.param("projectId")!;
   const db = createDbClient(c.env);
   if (!await assertProjectOwner(db, projectId, c.get("userId"))) return c.json({ error: "Project not found" }, 404);
-  const { filename, contentType, name } = await c.req.json().catch(() => ({}));
+  const { filename, contentType, name, size } = await c.req.json().catch(() => ({}));
   if (!filename || !contentType) return c.json({ error: "filename and contentType are required" }, 400);
+  if (size !== undefined && (!Number.isFinite(Number(size)) || Number(size) < 0)) {
+    return c.json({ error: "size must be a non-negative number" }, 400);
+  }
+  let entitlements;
+  try {
+    entitlements = await getEntitlements(db, c.env, c.get("userId"));
+  } catch (error) {
+    const status = error instanceof BillingError ? error.status : 502;
+    return c.json({ error: error instanceof Error ? error.message : "Could not verify account plan." }, status as 400);
+  }
+  if (size !== undefined && Number(size) > entitlements.tier.limits.maxFileSizeBytes) {
+    return c.json({
+      error: `Your ${entitlements.tier.name} plan allows uploads up to ${Math.round(entitlements.tier.limits.maxFileSizeBytes / 1024 / 1024)} MB.`,
+      upgradeRequired: true,
+      limitBytes: entitlements.tier.limits.maxFileSizeBytes,
+      tier: entitlements.tierKey,
+    }, 413);
+  }
   const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
   const imageId = crypto.randomUUID();
   const key = buildStorageKey(c.get("userId"), projectId, imageId, ext);
@@ -93,12 +112,33 @@ images.post("/confirm-upload", requireAuth, async (c) => {
   const projectId = c.req.param("projectId")!;
   const db = createDbClient(c.env);
   if (!await assertProjectOwner(db, projectId, c.get("userId"))) return c.json({ error: "Project not found" }, 404);
-  const { imageId, key, width, height, size, tags, album } = await c.req.json().catch(() => ({}));
+  const { imageId, key, width, height, tags, album } = await c.req.json().catch(() => ({}));
   if (!imageId || !key) return c.json({ error: "imageId and key are required" }, 400);
+  const image = await db.getImage(imageId, projectId);
+  if (!image || image.storage_key !== key) return c.json({ error: "Image upload was not found" }, 404);
+  let entitlements;
+  try {
+    entitlements = await getEntitlements(db, c.env, c.get("userId"));
+  } catch (error) {
+    const status = error instanceof BillingError ? error.status : 502;
+    return c.json({ error: error instanceof Error ? error.message : "Could not verify account plan." }, status as 400);
+  }
+  const uploadedObject = await c.env.IMAGES_BUCKET.head(image.storage_key);
+  if (!uploadedObject) return c.json({ error: "Uploaded image could not be found in storage" }, 409);
+  if (uploadedObject.size > entitlements.tier.limits.maxFileSizeBytes) {
+    await deleteObject(image.storage_key, c.env);
+    await db.hardDeleteImage(image.id);
+    return c.json({
+      error: `Your ${entitlements.tier.name} plan allows uploads up to ${Math.round(entitlements.tier.limits.maxFileSizeBytes / 1024 / 1024)} MB.`,
+      upgradeRequired: true,
+      limitBytes: entitlements.tier.limits.maxFileSizeBytes,
+      tier: entitlements.tierKey,
+    }, 413);
+  }
   const updates: Record<string, unknown> = {};
   if (width != null) updates.width = width;
   if (height != null) updates.height = height;
-  if (size != null) updates.size = size;
+  updates.size = uploadedObject.size;
   if (tags != null) updates.tags = tags;
   if (album != null) updates.album = album;
   const img = await db.updateImage(imageId, updates);

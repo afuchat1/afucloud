@@ -3,6 +3,7 @@ import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
 import { requireAccountAuth, requireAuth } from "../middleware/auth";
 import { copyObject, deleteObject, generateUploadUrl } from "../lib/storage";
+import { BillingError, getEntitlements } from "../lib/billing";
 
 const storageContainers = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
@@ -189,8 +190,24 @@ storageContainers.post("/", requireAuth, async (c) => {
   if (name.length < 2) return c.json({ error: "Container name is required" }, 400);
   const slug = slugify(name);
   const db = createDbClient(c.env);
-  const existing = (await db.getStorageContainers(c.get("userId"))).find(container => container.slug === slug);
+  const containers = await db.getStorageContainers(c.get("userId"));
+  const existing = containers.find(container => container.slug === slug);
   if (existing) return c.json({ error: "A container with that name already exists" }, 409);
+  let entitlements;
+  try {
+    entitlements = await getEntitlements(db, c.env, c.get("userId"));
+  } catch (error) {
+    const status = error instanceof BillingError ? error.status : 502;
+    return c.json({ error: error instanceof Error ? error.message : "Could not verify account plan." }, status as 400);
+  }
+  if (containers.length >= entitlements.tier.limits.storageContainers) {
+    return c.json({
+      error: `Your ${entitlements.tier.name} plan allows up to ${entitlements.tier.limits.storageContainers} storage containers.`,
+      upgradeRequired: true,
+      limit: entitlements.tier.limits.storageContainers,
+      tier: entitlements.tierKey,
+    }, 402);
+  }
   const created = await db.createStorageContainer({
     user_id: c.get("userId"),
     name,
@@ -280,6 +297,24 @@ storageContainers.post("/:id/upload-url", requireAuth, async (c) => {
   const name = validRelativePath(body.name);
   const contentType = String(body.contentType ?? "application/octet-stream");
   if (!name) return c.json({ error: "Enter a valid object path" }, 400);
+  if (body.size !== undefined && (!Number.isFinite(Number(body.size)) || Number(body.size) < 0)) {
+    return c.json({ error: "size must be a non-negative number" }, 400);
+  }
+  let entitlements;
+  try {
+    entitlements = await getEntitlements(db, c.env, c.get("userId"));
+  } catch (error) {
+    const status = error instanceof BillingError ? error.status : 502;
+    return c.json({ error: error instanceof Error ? error.message : "Could not verify account plan." }, status as 400);
+  }
+  if (body.size !== undefined && Number(body.size) > entitlements.tier.limits.maxFileSizeBytes) {
+    return c.json({
+      error: `Your ${entitlements.tier.name} plan allows uploads up to ${Math.round(entitlements.tier.limits.maxFileSizeBytes / 1024 / 1024)} MB.`,
+      upgradeRequired: true,
+      limitBytes: entitlements.tier.limits.maxFileSizeBytes,
+      tier: entitlements.tierKey,
+    }, 413);
+  }
   const key = `containers/${c.get("userId")}/${container.id}/${name}`;
   const uploadUrl = await generateUploadUrl(key, contentType, c.env);
   return c.json({ uploadUrl, objectId: crypto.randomUUID(), key, name });
@@ -299,11 +334,30 @@ storageContainers.post("/:id/objects/confirm", requireAuth, async (c) => {
     await ensureParentFolders(db, container, userId, name);
     const existing = await db.getStorageObjectByKey(key, container.id, userId);
     if (existing?.is_folder) return c.json({ error: "A folder already exists at this object path" }, 409);
+    let entitlements;
+    try {
+      entitlements = await getEntitlements(db, c.env, userId);
+    } catch (error) {
+      const status = error instanceof BillingError ? error.status : 502;
+      return c.json({ error: error instanceof Error ? error.message : "Could not verify account plan." }, status as 400);
+    }
+    const uploadedObject = await c.env.IMAGES_BUCKET.head(key);
+    if (!uploadedObject) return c.json({ error: "Uploaded object could not be found in storage" }, 409);
+    if (uploadedObject.size > entitlements.tier.limits.maxFileSizeBytes) {
+      await deleteObject(key, c.env);
+      if (existing) await db.deleteStorageObject(existing.id, container.id, userId);
+      return c.json({
+        error: `Your ${entitlements.tier.name} plan allows uploads up to ${Math.round(entitlements.tier.limits.maxFileSizeBytes / 1024 / 1024)} MB.`,
+        upgradeRequired: true,
+        limitBytes: entitlements.tier.limits.maxFileSizeBytes,
+        tier: entitlements.tierKey,
+      }, 413);
+    }
     const object = existing
       ? await db.updateStorageObject(existing.id, container.id, userId, {
           name: name.split("/").pop(),
           content_type: body.contentType || null,
-          size: Number(body.size ?? 0),
+          size: uploadedObject.size,
           etag: body.etag || null,
           updated_at: new Date().toISOString(),
         })
@@ -313,7 +367,7 @@ storageContainers.post("/:id/objects/confirm", requireAuth, async (c) => {
           object_key: key,
           name: name.split("/").pop(),
           content_type: body.contentType || null,
-          size: Number(body.size ?? 0),
+          size: uploadedObject.size,
           etag: body.etag || null,
         });
     return c.json(objectApi(object, container.id, await resolveCdn(db, container, userId)), existing ? 200 : 201);
