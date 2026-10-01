@@ -307,7 +307,9 @@ export async function revokeCloudflareToken(token: string, env: OAuthEnvironment
     },
     body: new URLSearchParams({ token, token_type_hint: "refresh_token" }),
   });
-  if (!response.ok) throw new CloudflareRequestError("Cloudflare token revocation failed", 502);
+  if (!response.ok) {
+    throw new CloudflareRequestError("Cloudflare token revocation failed", 502, undefined, response.status);
+  }
 }
 
 export interface CloudflareApiEnvelope<T> {

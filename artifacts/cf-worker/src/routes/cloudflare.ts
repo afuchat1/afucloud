@@ -316,13 +316,29 @@ cloudflare.delete("/connection", requireAuth, requireAccountAuth, async c => {
     const db = createDbClient(c.env);
     const userId = c.get("userId");
     const connection = await db.getCloudflareConnection(userId);
-    if (connection) {
+    if (!connection) return c.json({ message: "Cloudflare was already disconnected" });
+
+    let revocationConfirmed = true;
+    try {
       const settings = oauthConfiguration(c.env);
       const encrypted = connection.encrypted_refresh_token ?? connection.encrypted_access_token;
       await revokeCloudflareToken(await decryptToken(encrypted, settings), settings);
-      await db.deleteCloudflareConnection(userId);
+    } catch (error) {
+      revocationConfirmed = false;
+      console.warn(JSON.stringify({
+        event: "cloudflare.oauth.disconnect_revocation_failed",
+        errorName: error instanceof Error ? error.name : "UnknownError",
+        httpStatus: safeHttpStatus(error),
+        oauthError: error instanceof CloudflareRequestError ? error.code : undefined,
+      }));
     }
-    return c.json({ message: "Cloudflare account disconnected" });
+
+    await db.deleteCloudflareConnection(userId);
+    return c.json({
+      message: revocationConfirmed
+        ? "AfuCloud removed the connection and Cloudflare confirmed token revocation."
+        : "AfuCloud removed the connection, but Cloudflare did not confirm token revocation. Remove AfuCloud from your Cloudflare authorized applications if you also want to revoke access there.",
+    });
   } catch (error) {
     const result = publicError(error);
     return c.json({ error: result.message }, result.status as 400 | 401 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503);

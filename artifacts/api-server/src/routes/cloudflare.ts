@@ -335,17 +335,35 @@ router.get("/v1/cloudflare/connection", guarded(async (req, res) => {
 }));
 
 router.delete("/v1/cloudflare/connection", guarded(async (req, res) => {
-  requireConfiguration();
   const userId = (req as AuthRequest).userId!;
   const connection = await findConnection(userId);
-  if (connection) {
+  if (!connection) {
+    res.json({ message: "Cloudflare was already disconnected" });
+    return;
+  }
+
+  let revocationConfirmed = true;
+  try {
     const token = connection.encryptedRefreshToken
       ? await decryptToken(connection.encryptedRefreshToken, oauthEnv())
       : await decryptToken(connection.encryptedAccessToken, oauthEnv());
     await revokeCloudflareToken(token, oauthEnv());
-    await db.delete(cloudflareConnectionsTable).where(eq(cloudflareConnectionsTable.id, connection.id));
+  } catch (error) {
+    revocationConfirmed = false;
+    console.warn(JSON.stringify({
+      event: "cloudflare.oauth.disconnect_revocation_failed",
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      httpStatus: error instanceof CloudflareRequestError ? error.upstreamStatus : undefined,
+      oauthError: error instanceof CloudflareRequestError ? error.code : undefined,
+    }));
   }
-  res.json({ message: "Cloudflare connection removed" });
+
+  await db.delete(cloudflareConnectionsTable).where(eq(cloudflareConnectionsTable.id, connection.id));
+  res.json({
+    message: revocationConfirmed
+      ? "AfuCloud removed the connection and Cloudflare confirmed token revocation."
+      : "AfuCloud removed the connection, but Cloudflare did not confirm token revocation. Remove AfuCloud from your Cloudflare authorized applications if you also want to revoke access there.",
+  });
 }));
 
 router.get("/v1/cloudflare/zones", guarded(async (req, res) => {

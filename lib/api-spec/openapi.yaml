@@ -662,10 +662,10 @@ paths:
     delete:
       operationId: disconnectCloudflare
       tags: [cloudflare]
-      summary: Revoke and remove the current user's Cloudflare connection
+      summary: Remove the current user's Cloudflare connection and attempt token revocation
       responses:
         "200":
-          description: Connection removed
+          description: Connection removed locally; the message warns if Cloudflare did not confirm token revocation
           content:
             application/json:
               schema:

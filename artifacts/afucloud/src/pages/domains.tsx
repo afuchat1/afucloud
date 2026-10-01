@@ -162,9 +162,9 @@ export default function DomainsPage() {
   const disconnect = async () => {
     if (!window.confirm('Disconnect Cloudflare? DNS management will be unavailable until you reconnect. Existing DNS records are not removed.')) return;
     try {
-      await disconnectCloudflare.mutateAsync();
+      const result = await disconnectCloudflare.mutateAsync();
       await Promise.all([connection.refetch(), zones.refetch()]);
-      toast({ title: 'Cloudflare disconnected' });
+      toast({ title: 'Cloudflare connection removed', description: result.message });
     } catch (error) {
       toast({ title: 'Could not disconnect Cloudflare', description: error instanceof Error ? error.message : 'Please try again', variant: 'destructive' });
     }
