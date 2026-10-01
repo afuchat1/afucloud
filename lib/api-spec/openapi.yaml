@@ -17,6 +17,8 @@ tags:
   - name: tokens
   - name: webhooks
   - name: activity
+  - name: domains
+  - name: cloudflare
 
 paths:
   /healthz:
@@ -645,6 +647,203 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProjectAnalyticsResponse"
 
+  /v1/cloudflare/connection:
+    get:
+      operationId: getCloudflareConnection
+      tags: [cloudflare]
+      summary: Get the current user's Cloudflare connection status
+      responses:
+        "200":
+          description: Cloudflare connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudflareConnectionStatus"
+    delete:
+      operationId: disconnectCloudflare
+      tags: [cloudflare]
+      summary: Revoke and remove the current user's Cloudflare connection
+      responses:
+        "200":
+          description: Connection removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /v1/cloudflare/connect:
+    post:
+      operationId: startCloudflareAuthorization
+      tags: [cloudflare]
+      summary: Start Cloudflare OAuth authorization
+      responses:
+        "200":
+          description: Cloudflare authorization URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudflareAuthorizationResponse"
+
+  /v1/cloudflare/zones:
+    get:
+      operationId: listCloudflareZones
+      tags: [cloudflare]
+      summary: List zones accessible through the current user's Cloudflare connection
+      responses:
+        "200":
+          description: Cloudflare zones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CloudflareZone"
+
+  /v1/domains/{domainId}/dns-records:
+    get:
+      operationId: listDomainDnsRecords
+      tags: [domains]
+      summary: List DNS records in the user's Cloudflare zone for this domain
+      parameters:
+        - name: domainId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: DNS zone and its matching records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudflareDnsRecordsResponse"
+    post:
+      operationId: createDomainDnsRecord
+      tags: [domains]
+      summary: Create a DNS record in the user's Cloudflare zone
+      parameters:
+        - name: domainId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloudflareDnsRecordInput"
+      responses:
+        "201":
+          description: DNS record created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudflareDnsRecord"
+
+  /v1/domains/{domainId}/dns-records/{recordId}:
+    patch:
+      operationId: updateDomainDnsRecord
+      tags: [domains]
+      summary: Update a DNS record in the user's Cloudflare zone
+      parameters:
+        - name: domainId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloudflareDnsRecordInput"
+      responses:
+        "200":
+          description: DNS record updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudflareDnsRecord"
+    delete:
+      operationId: deleteDomainDnsRecord
+      tags: [domains]
+      summary: Delete a DNS record from the user's Cloudflare zone
+      parameters:
+        - name: domainId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: DNS record deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /v1/domains/{domainId}/dns-records/{recordId}/verify:
+    post:
+      operationId: verifyDomainDnsRecord
+      tags: [domains]
+      summary: Check Cloudflare configuration and public DNS propagation for a record
+      parameters:
+        - name: domainId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: DNS verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudflareDnsVerification"
+
+  /v1/domains/{domainId}/auto-configure:
+    post:
+      operationId: autoConfigureDomainVerification
+      tags: [domains]
+      summary: Create the domain ownership TXT record in the connected Cloudflare zone
+      parameters:
+        - name: domainId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Domain verification DNS record configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudflareDnsAutoConfiguration"
+
 components:
   securitySchemes:
     BearerAuth:
@@ -1028,6 +1227,138 @@ components:
           type: boolean
         secret:
           type: ["string", "null"]
+
+    CloudflareConnectionStatus:
+      type: object
+      required: [connected]
+      properties:
+        connected:
+          type: boolean
+        expiresAt:
+          type: ["string", "null"]
+        scopes:
+          type: array
+          items:
+            type: string
+
+    CloudflareAuthorizationResponse:
+      type: object
+      required: [authorizationUrl]
+      properties:
+        authorizationUrl:
+          type: string
+
+    CloudflareZone:
+      type: object
+      required: [id, name, status]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+
+    CloudflareDnsRecord:
+      type: object
+      required: [id, type, name, content, ttl]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        name:
+          type: string
+        content:
+          type: string
+        ttl:
+          type: number
+        proxied:
+          type: ["boolean", "null"]
+        priority:
+          type: ["number", "null"]
+        comment:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        data:
+          type: object
+          additionalProperties: true
+        created_on:
+          type: ["string", "null"]
+        modified_on:
+          type: ["string", "null"]
+
+    CloudflareDnsRecordInput:
+      type: object
+      required: [type, name]
+      properties:
+        type:
+          type: string
+        name:
+          type: string
+        content:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+        ttl:
+          type: number
+        proxied:
+          type: boolean
+        priority:
+          type: number
+        comment:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    CloudflareDnsRecordsResponse:
+      type: object
+      required: [zone, records, total]
+      properties:
+        zone:
+          $ref: "#/components/schemas/CloudflareZone"
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/CloudflareDnsRecord"
+        total:
+          type: number
+
+    CloudflareDnsVerification:
+      type: object
+      required: [recordId, cloudflareVerified, publiclyVisible, answers, checkedAt]
+      properties:
+        recordId:
+          type: string
+        cloudflareVerified:
+          type: boolean
+        publiclyVisible:
+          type: boolean
+        answers:
+          type: array
+          items:
+            type: string
+        checkedAt:
+          type: string
+
+    CloudflareDnsAutoConfiguration:
+      type: object
+      required: [record, created, publiclyVisible, message]
+      properties:
+        record:
+          $ref: "#/components/schemas/CloudflareDnsRecord"
+        created:
+          type: boolean
+        publiclyVisible:
+          type: boolean
+        message:
+          type: string
 
     # ─── Activity ───
     ActivityLog:

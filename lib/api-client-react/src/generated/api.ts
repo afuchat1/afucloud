@@ -25,6 +25,14 @@ import type {
   ApiKey,
   ApiKeyInput,
   ApiKeyWithSecret,
+  CloudflareAuthorizationResponse,
+  CloudflareConnectionStatus,
+  CloudflareDnsAutoConfiguration,
+  CloudflareDnsRecord,
+  CloudflareDnsRecordInput,
+  CloudflareDnsRecordsResponse,
+  CloudflareDnsVerification,
+  CloudflareZone,
   ConfirmUploadInput,
   GetProjectAnalyticsParams,
   HealthStatus,
@@ -32,6 +40,7 @@ import type {
   ImageListResponse,
   ImageUpdate,
   ListActivityParams,
+  ListDomainDnsRecordsParams,
   ListImagesParams,
   MessageResponse,
   Project,
@@ -2192,4 +2201,752 @@ export function useGetProjectAnalytics<TData = Awaited<ReturnType<typeof getProj
 
 
 
+
+export const getGetCloudflareConnectionUrl = () => {
+
+
+
+
+  return `/api/v1/cloudflare/connection`
+}
+
+/**
+ * @summary Get the current user's Cloudflare connection status
+ */
+export const getCloudflareConnection = async ( options?: Parameters<typeof customFetch>[1]): Promise<CloudflareConnectionStatus> => {
+
+  return customFetch<CloudflareConnectionStatus>(getGetCloudflareConnectionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCloudflareConnectionQueryKey = () => {
+    return [
+    `/api/v1/cloudflare/connection`
+    ] as const;
+    }
+
+
+export const getGetCloudflareConnectionQueryOptions = <TData = Awaited<ReturnType<typeof getCloudflareConnection>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCloudflareConnection>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCloudflareConnectionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCloudflareConnection>>> = ({ signal }) => getCloudflareConnection({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCloudflareConnection>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCloudflareConnectionQueryResult = NonNullable<Awaited<ReturnType<typeof getCloudflareConnection>>>
+export type GetCloudflareConnectionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current user's Cloudflare connection status
+ */
+
+export function useGetCloudflareConnection<TData = Awaited<ReturnType<typeof getCloudflareConnection>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCloudflareConnection>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCloudflareConnectionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDisconnectCloudflareUrl = () => {
+
+
+
+
+  return `/api/v1/cloudflare/connection`
+}
+
+/**
+ * @summary Revoke and remove the current user's Cloudflare connection
+ */
+export const disconnectCloudflare = async ( options?: Parameters<typeof customFetch>[1]): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getDisconnectCloudflareUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectCloudflareMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectCloudflare>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectCloudflare>>, TError,void, TContext> => {
+
+const mutationKey = ['disconnectCloudflare'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectCloudflare>>, void> = () => {
+
+
+          return  disconnectCloudflare(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectCloudflareMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectCloudflare>>>
+
+    export type DisconnectCloudflareMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Revoke and remove the current user's Cloudflare connection
+ */
+export const useDisconnectCloudflare = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectCloudflare>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectCloudflare>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDisconnectCloudflareMutationOptions(options));
+    }
+
+export const getStartCloudflareAuthorizationUrl = () => {
+
+
+
+
+  return `/api/v1/cloudflare/connect`
+}
+
+/**
+ * @summary Start Cloudflare OAuth authorization
+ */
+export const startCloudflareAuthorization = async ( options?: Parameters<typeof customFetch>[1]): Promise<CloudflareAuthorizationResponse> => {
+
+  return customFetch<CloudflareAuthorizationResponse>(getStartCloudflareAuthorizationUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getStartCloudflareAuthorizationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startCloudflareAuthorization>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startCloudflareAuthorization>>, TError,void, TContext> => {
+
+const mutationKey = ['startCloudflareAuthorization'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startCloudflareAuthorization>>, void> = () => {
+
+
+          return  startCloudflareAuthorization(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartCloudflareAuthorizationMutationResult = NonNullable<Awaited<ReturnType<typeof startCloudflareAuthorization>>>
+
+    export type StartCloudflareAuthorizationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Start Cloudflare OAuth authorization
+ */
+export const useStartCloudflareAuthorization = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startCloudflareAuthorization>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startCloudflareAuthorization>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getStartCloudflareAuthorizationMutationOptions(options));
+    }
+
+export const getListCloudflareZonesUrl = () => {
+
+
+
+
+  return `/api/v1/cloudflare/zones`
+}
+
+/**
+ * @summary List zones accessible through the current user's Cloudflare connection
+ */
+export const listCloudflareZones = async ( options?: Parameters<typeof customFetch>[1]): Promise<CloudflareZone[]> => {
+
+  return customFetch<CloudflareZone[]>(getListCloudflareZonesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCloudflareZonesQueryKey = () => {
+    return [
+    `/api/v1/cloudflare/zones`
+    ] as const;
+    }
+
+
+export const getListCloudflareZonesQueryOptions = <TData = Awaited<ReturnType<typeof listCloudflareZones>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCloudflareZones>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCloudflareZonesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCloudflareZones>>> = ({ signal }) => listCloudflareZones({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCloudflareZones>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCloudflareZonesQueryResult = NonNullable<Awaited<ReturnType<typeof listCloudflareZones>>>
+export type ListCloudflareZonesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List zones accessible through the current user's Cloudflare connection
+ */
+
+export function useListCloudflareZones<TData = Awaited<ReturnType<typeof listCloudflareZones>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCloudflareZones>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCloudflareZonesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListDomainDnsRecordsUrl = (domainId: string,
+    params?: ListDomainDnsRecordsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/domains/${domainId}/dns-records?${stringifiedParams}` : `/api/v1/domains/${domainId}/dns-records`
+}
+
+/**
+ * @summary List DNS records in the user's Cloudflare zone for this domain
+ */
+export const listDomainDnsRecords = async (domainId: string,
+    params?: ListDomainDnsRecordsParams, options?: Parameters<typeof customFetch>[1]): Promise<CloudflareDnsRecordsResponse> => {
+
+  return customFetch<CloudflareDnsRecordsResponse>(getListDomainDnsRecordsUrl(domainId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDomainDnsRecordsQueryKey = (domainId: string,
+    params?: ListDomainDnsRecordsParams,) => {
+    return [
+    `/api/v1/domains/${domainId}/dns-records`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListDomainDnsRecordsQueryOptions = <TData = Awaited<ReturnType<typeof listDomainDnsRecords>>, TError = ErrorType<unknown>>(domainId: string,
+    params?: ListDomainDnsRecordsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDomainDnsRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDomainDnsRecordsQueryKey(domainId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDomainDnsRecords>>> = ({ signal }) => listDomainDnsRecords(domainId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: domainId !== null && domainId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDomainDnsRecords>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDomainDnsRecordsQueryResult = NonNullable<Awaited<ReturnType<typeof listDomainDnsRecords>>>
+export type ListDomainDnsRecordsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List DNS records in the user's Cloudflare zone for this domain
+ */
+
+export function useListDomainDnsRecords<TData = Awaited<ReturnType<typeof listDomainDnsRecords>>, TError = ErrorType<unknown>>(
+ domainId: string,
+    params?: ListDomainDnsRecordsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDomainDnsRecords>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDomainDnsRecordsQueryOptions(domainId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateDomainDnsRecordUrl = (domainId: string,) => {
+
+
+
+
+  return `/api/v1/domains/${domainId}/dns-records`
+}
+
+/**
+ * @summary Create a DNS record in the user's Cloudflare zone
+ */
+export const createDomainDnsRecord = async (domainId: string,
+    cloudflareDnsRecordInput: CloudflareDnsRecordInput, options?: Parameters<typeof customFetch>[1]): Promise<CloudflareDnsRecord> => {
+
+  return customFetch<CloudflareDnsRecord>(getCreateDomainDnsRecordUrl(domainId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cloudflareDnsRecordInput)
+  }
+);}
+
+
+
+
+
+export const getCreateDomainDnsRecordMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDomainDnsRecord>>, TError,{domainId: string;data: BodyType<CloudflareDnsRecordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDomainDnsRecord>>, TError,{domainId: string;data: BodyType<CloudflareDnsRecordInput>}, TContext> => {
+
+const mutationKey = ['createDomainDnsRecord'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDomainDnsRecord>>, {domainId: string;data: BodyType<CloudflareDnsRecordInput>}> = (props) => {
+          const {domainId,data} = props ?? {};
+
+          return  createDomainDnsRecord(domainId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDomainDnsRecordMutationResult = NonNullable<Awaited<ReturnType<typeof createDomainDnsRecord>>>
+    export type CreateDomainDnsRecordMutationBody = BodyType<CloudflareDnsRecordInput>
+    export type CreateDomainDnsRecordMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a DNS record in the user's Cloudflare zone
+ */
+export const useCreateDomainDnsRecord = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDomainDnsRecord>>, TError,{domainId: string;data: BodyType<CloudflareDnsRecordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDomainDnsRecord>>,
+        TError,
+        {domainId: string;data: BodyType<CloudflareDnsRecordInput>},
+        TContext
+      > => {
+      return useMutation(getCreateDomainDnsRecordMutationOptions(options));
+    }
+
+export const getUpdateDomainDnsRecordUrl = (domainId: string,
+    recordId: string,) => {
+
+
+
+
+  return `/api/v1/domains/${domainId}/dns-records/${recordId}`
+}
+
+/**
+ * @summary Update a DNS record in the user's Cloudflare zone
+ */
+export const updateDomainDnsRecord = async (domainId: string,
+    recordId: string,
+    cloudflareDnsRecordInput: CloudflareDnsRecordInput, options?: Parameters<typeof customFetch>[1]): Promise<CloudflareDnsRecord> => {
+
+  return customFetch<CloudflareDnsRecord>(getUpdateDomainDnsRecordUrl(domainId,recordId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(cloudflareDnsRecordInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateDomainDnsRecordMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDomainDnsRecord>>, TError,{domainId: string;recordId: string;data: BodyType<CloudflareDnsRecordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDomainDnsRecord>>, TError,{domainId: string;recordId: string;data: BodyType<CloudflareDnsRecordInput>}, TContext> => {
+
+const mutationKey = ['updateDomainDnsRecord'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDomainDnsRecord>>, {domainId: string;recordId: string;data: BodyType<CloudflareDnsRecordInput>}> = (props) => {
+          const {domainId,recordId,data} = props ?? {};
+
+          return  updateDomainDnsRecord(domainId,recordId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDomainDnsRecordMutationResult = NonNullable<Awaited<ReturnType<typeof updateDomainDnsRecord>>>
+    export type UpdateDomainDnsRecordMutationBody = BodyType<CloudflareDnsRecordInput>
+    export type UpdateDomainDnsRecordMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a DNS record in the user's Cloudflare zone
+ */
+export const useUpdateDomainDnsRecord = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDomainDnsRecord>>, TError,{domainId: string;recordId: string;data: BodyType<CloudflareDnsRecordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDomainDnsRecord>>,
+        TError,
+        {domainId: string;recordId: string;data: BodyType<CloudflareDnsRecordInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateDomainDnsRecordMutationOptions(options));
+    }
+
+export const getDeleteDomainDnsRecordUrl = (domainId: string,
+    recordId: string,) => {
+
+
+
+
+  return `/api/v1/domains/${domainId}/dns-records/${recordId}`
+}
+
+/**
+ * @summary Delete a DNS record from the user's Cloudflare zone
+ */
+export const deleteDomainDnsRecord = async (domainId: string,
+    recordId: string, options?: Parameters<typeof customFetch>[1]): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getDeleteDomainDnsRecordUrl(domainId,recordId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteDomainDnsRecordMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDomainDnsRecord>>, TError,{domainId: string;recordId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteDomainDnsRecord>>, TError,{domainId: string;recordId: string}, TContext> => {
+
+const mutationKey = ['deleteDomainDnsRecord'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteDomainDnsRecord>>, {domainId: string;recordId: string}> = (props) => {
+          const {domainId,recordId} = props ?? {};
+
+          return  deleteDomainDnsRecord(domainId,recordId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteDomainDnsRecordMutationResult = NonNullable<Awaited<ReturnType<typeof deleteDomainDnsRecord>>>
+
+    export type DeleteDomainDnsRecordMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a DNS record from the user's Cloudflare zone
+ */
+export const useDeleteDomainDnsRecord = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDomainDnsRecord>>, TError,{domainId: string;recordId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteDomainDnsRecord>>,
+        TError,
+        {domainId: string;recordId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteDomainDnsRecordMutationOptions(options));
+    }
+
+export const getVerifyDomainDnsRecordUrl = (domainId: string,
+    recordId: string,) => {
+
+
+
+
+  return `/api/v1/domains/${domainId}/dns-records/${recordId}/verify`
+}
+
+/**
+ * @summary Check Cloudflare configuration and public DNS propagation for a record
+ */
+export const verifyDomainDnsRecord = async (domainId: string,
+    recordId: string, options?: Parameters<typeof customFetch>[1]): Promise<CloudflareDnsVerification> => {
+
+  return customFetch<CloudflareDnsVerification>(getVerifyDomainDnsRecordUrl(domainId,recordId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getVerifyDomainDnsRecordMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyDomainDnsRecord>>, TError,{domainId: string;recordId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyDomainDnsRecord>>, TError,{domainId: string;recordId: string}, TContext> => {
+
+const mutationKey = ['verifyDomainDnsRecord'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyDomainDnsRecord>>, {domainId: string;recordId: string}> = (props) => {
+          const {domainId,recordId} = props ?? {};
+
+          return  verifyDomainDnsRecord(domainId,recordId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyDomainDnsRecordMutationResult = NonNullable<Awaited<ReturnType<typeof verifyDomainDnsRecord>>>
+
+    export type VerifyDomainDnsRecordMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Check Cloudflare configuration and public DNS propagation for a record
+ */
+export const useVerifyDomainDnsRecord = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyDomainDnsRecord>>, TError,{domainId: string;recordId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyDomainDnsRecord>>,
+        TError,
+        {domainId: string;recordId: string},
+        TContext
+      > => {
+      return useMutation(getVerifyDomainDnsRecordMutationOptions(options));
+    }
+
+export const getAutoConfigureDomainVerificationUrl = (domainId: string,) => {
+
+
+
+
+  return `/api/v1/domains/${domainId}/auto-configure`
+}
+
+/**
+ * @summary Create the domain ownership TXT record in the connected Cloudflare zone
+ */
+export const autoConfigureDomainVerification = async (domainId: string, options?: Parameters<typeof customFetch>[1]): Promise<CloudflareDnsAutoConfiguration> => {
+
+  return customFetch<CloudflareDnsAutoConfiguration>(getAutoConfigureDomainVerificationUrl(domainId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAutoConfigureDomainVerificationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof autoConfigureDomainVerification>>, TError,{domainId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof autoConfigureDomainVerification>>, TError,{domainId: string}, TContext> => {
+
+const mutationKey = ['autoConfigureDomainVerification'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof autoConfigureDomainVerification>>, {domainId: string}> = (props) => {
+          const {domainId} = props ?? {};
+
+          return  autoConfigureDomainVerification(domainId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AutoConfigureDomainVerificationMutationResult = NonNullable<Awaited<ReturnType<typeof autoConfigureDomainVerification>>>
+
+    export type AutoConfigureDomainVerificationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create the domain ownership TXT record in the connected Cloudflare zone
+ */
+export const useAutoConfigureDomainVerification = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof autoConfigureDomainVerification>>, TError,{domainId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof autoConfigureDomainVerification>>,
+        TError,
+        {domainId: string},
+        TContext
+      > => {
+      return useMutation(getAutoConfigureDomainVerificationMutationOptions(options));
+    }
 

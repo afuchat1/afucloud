@@ -28,6 +28,7 @@ CLOUDFLARE_ACCOUNT_ID = "42e79186125e8ff83e51f15816e074de"
 AFU_CUSTOM_HOSTNAME_TARGET = "verify.afuchat.com"
 CLOUDFLARE_R2_ACCESS_KEY_ID = "40916680c4892042d4ce49396ef62819"
 API_BASE_URL = "https://api.afuchat.com"
+CLOUDFLARE_OAUTH_REDIRECT_URI = "https://api.afuchat.com/v1/cloudflare/callback"
 NODE_ENV = "production"
 # Comma-separated exact dashboard origins outside the default *.afuchat.com allowlist.
 DASHBOARD_ALLOWED_ORIGINS = ""
@@ -36,6 +37,10 @@ DASHBOARD_ALLOWED_ORIGINS = ""
 # SUPABASE_SERVICE_KEY      — Supabase service role key
 # JWT_SECRET                — JWT signing secret
 # CLOUDFLARE_R2_SECRET_ACCESS_KEY  — R2 S3-compatible secret key
+# CLOUDFLARE_OAUTH_CLIENT_ID — OAuth client ID
+# CLOUDFLARE_OAUTH_CLIENT_SECRET — OAuth client secret
+# CLOUDFLARE_OAUTH_STATE_SECRET — HMAC key for one-time OAuth state
+# CLOUDFLARE_TOKEN_ENCRYPTION_KEY — 32-byte base64url key for stored OAuth tokens
 
 # ── Dev environment overrides ─────────────────────────────────────────────────
 [env.dev]

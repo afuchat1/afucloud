@@ -619,3 +619,205 @@ export const GetProjectAnalyticsResponse = zod.object({
 })
 
 
+/**
+ * @summary Get the current user's Cloudflare connection status
+ */
+export const GetCloudflareConnectionResponse = zod.object({
+  "connected": zod.boolean(),
+  "expiresAt": zod.string().nullish(),
+  "scopes": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Revoke and remove the current user's Cloudflare connection
+ */
+export const DisconnectCloudflareResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Start Cloudflare OAuth authorization
+ */
+export const StartCloudflareAuthorizationResponse = zod.object({
+  "authorizationUrl": zod.string()
+})
+
+
+/**
+ * @summary List zones accessible through the current user's Cloudflare connection
+ */
+export const ListCloudflareZonesResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "status": zod.string()
+})
+export const ListCloudflareZonesResponse = zod.array(ListCloudflareZonesResponseItem)
+
+
+/**
+ * @summary List DNS records in the user's Cloudflare zone for this domain
+ */
+export const ListDomainDnsRecordsParams = zod.object({
+  "domainId": zod.coerce.string()
+})
+
+export const ListDomainDnsRecordsQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "type": zod.coerce.string().optional()
+})
+
+export const ListDomainDnsRecordsResponse = zod.object({
+  "zone": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "status": zod.string()
+}),
+  "records": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "name": zod.string(),
+  "content": zod.string(),
+  "ttl": zod.number(),
+  "proxied": zod.boolean().nullish(),
+  "priority": zod.number().nullish(),
+  "comment": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional(),
+  "data": zod.record(zod.string(), zod.unknown()).optional(),
+  "created_on": zod.string().nullish(),
+  "modified_on": zod.string().nullish()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Create a DNS record in the user's Cloudflare zone
+ */
+export const CreateDomainDnsRecordParams = zod.object({
+  "domainId": zod.coerce.string()
+})
+
+export const CreateDomainDnsRecordBody = zod.object({
+  "type": zod.string(),
+  "name": zod.string(),
+  "content": zod.string().optional(),
+  "data": zod.record(zod.string(), zod.unknown()).optional(),
+  "ttl": zod.number().optional(),
+  "proxied": zod.boolean().optional(),
+  "priority": zod.number().optional(),
+  "comment": zod.string().optional(),
+  "tags": zod.array(zod.string()).optional()
+})
+
+export const CreateDomainDnsRecordResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "name": zod.string(),
+  "content": zod.string(),
+  "ttl": zod.number(),
+  "proxied": zod.boolean().nullish(),
+  "priority": zod.number().nullish(),
+  "comment": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional(),
+  "data": zod.record(zod.string(), zod.unknown()).optional(),
+  "created_on": zod.string().nullish(),
+  "modified_on": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update a DNS record in the user's Cloudflare zone
+ */
+export const UpdateDomainDnsRecordParams = zod.object({
+  "domainId": zod.coerce.string(),
+  "recordId": zod.coerce.string()
+})
+
+export const UpdateDomainDnsRecordBody = zod.object({
+  "type": zod.string(),
+  "name": zod.string(),
+  "content": zod.string().optional(),
+  "data": zod.record(zod.string(), zod.unknown()).optional(),
+  "ttl": zod.number().optional(),
+  "proxied": zod.boolean().optional(),
+  "priority": zod.number().optional(),
+  "comment": zod.string().optional(),
+  "tags": zod.array(zod.string()).optional()
+})
+
+export const UpdateDomainDnsRecordResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "name": zod.string(),
+  "content": zod.string(),
+  "ttl": zod.number(),
+  "proxied": zod.boolean().nullish(),
+  "priority": zod.number().nullish(),
+  "comment": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional(),
+  "data": zod.record(zod.string(), zod.unknown()).optional(),
+  "created_on": zod.string().nullish(),
+  "modified_on": zod.string().nullish()
+})
+
+
+/**
+ * @summary Delete a DNS record from the user's Cloudflare zone
+ */
+export const DeleteDomainDnsRecordParams = zod.object({
+  "domainId": zod.coerce.string(),
+  "recordId": zod.coerce.string()
+})
+
+export const DeleteDomainDnsRecordResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Check Cloudflare configuration and public DNS propagation for a record
+ */
+export const VerifyDomainDnsRecordParams = zod.object({
+  "domainId": zod.coerce.string(),
+  "recordId": zod.coerce.string()
+})
+
+export const VerifyDomainDnsRecordResponse = zod.object({
+  "recordId": zod.string(),
+  "cloudflareVerified": zod.boolean(),
+  "publiclyVisible": zod.boolean(),
+  "answers": zod.array(zod.string()),
+  "checkedAt": zod.string()
+})
+
+
+/**
+ * @summary Create the domain ownership TXT record in the connected Cloudflare zone
+ */
+export const AutoConfigureDomainVerificationParams = zod.object({
+  "domainId": zod.coerce.string()
+})
+
+export const AutoConfigureDomainVerificationResponse = zod.object({
+  "record": zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "name": zod.string(),
+  "content": zod.string(),
+  "ttl": zod.number(),
+  "proxied": zod.boolean().nullish(),
+  "priority": zod.number().nullish(),
+  "comment": zod.string().nullish(),
+  "tags": zod.array(zod.string()).optional(),
+  "data": zod.record(zod.string(), zod.unknown()).optional(),
+  "created_on": zod.string().nullish(),
+  "modified_on": zod.string().nullish()
+}),
+  "created": zod.boolean(),
+  "publiclyVisible": zod.boolean(),
+  "message": zod.string()
+})
+
+

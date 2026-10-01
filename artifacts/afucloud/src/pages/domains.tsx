@@ -9,10 +9,12 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   CheckCircle2, CircleAlert, Copy, Globe2, Link2, Plus, RefreshCw,
-  ShieldCheck, Trash2, X,
+  ShieldCheck, Trash2, X, ArrowUpRight, Cloud, LockKeyhole,
 } from 'lucide-react';
 import { API_BASE } from '@/lib/api-base';
 import { customFetchResponse } from '@workspace/api-client-react';
+import { useAutoConfigureDomainVerification, useDisconnectCloudflare, useGetCloudflareConnection, useListCloudflareZones, useStartCloudflareAuthorization } from '@workspace/api-client-react';
+import { Link } from 'wouter';
 const headers = () => ({
   'Content-Type': 'application/json',
 });
@@ -56,6 +58,11 @@ export default function DomainsPage() {
   const [hostnameLabel, setHostnameLabel] = useState('');
   const [hostnameService, setHostnameService] = useState('cdn');
   const [busy, setBusy] = useState<string | null>(null);
+  const connection = useGetCloudflareConnection();
+  const zones = useListCloudflareZones({ query: { enabled: !!connection.data?.connected, queryKey: ['/api/v1/cloudflare/zones'] } });
+  const startAuthorization = useStartCloudflareAuthorization();
+  const disconnectCloudflare = useDisconnectCloudflare();
+  const autoConfigure = useAutoConfigureDomainVerification();
 
   const { data: domains = [], isLoading } = useQuery<Domain[]>({
     queryKey: ['domains'],
@@ -132,13 +139,82 @@ export default function DomainsPage() {
     toast({ title: 'Copied to clipboard' });
   };
 
+  const connectCloudflare = async () => {
+    try {
+      const result = await startAuthorization.mutateAsync();
+      window.location.assign(result.authorizationUrl);
+    } catch (error) {
+      toast({ title: 'Could not start Cloudflare authorization', description: error instanceof Error ? error.message : 'Please try again', variant: 'destructive' });
+    }
+  };
+
+  const configureOwnership = async (domain: Domain) => {
+    try {
+      const result = await autoConfigure.mutateAsync({ domainId: domain.id });
+      await Promise.all([refresh(), connection.refetch()]);
+      toast({ title: result.created ? 'Ownership record configured' : 'Ownership record checked', description: result.message });
+    } catch (error) {
+      toast({ title: 'Could not configure ownership record', description: error instanceof Error ? error.message : 'Please try again', variant: 'destructive' });
+    }
+  };
+
+  const disconnect = async () => {
+    if (!window.confirm('Disconnect Cloudflare? DNS management will be unavailable until you reconnect. Existing DNS records are not removed.')) return;
+    try {
+      await disconnectCloudflare.mutateAsync();
+      await Promise.all([connection.refetch(), zones.refetch()]);
+      toast({ title: 'Cloudflare disconnected' });
+    } catch (error) {
+      toast({ title: 'Could not disconnect Cloudflare', description: error instanceof Error ? error.message : 'Please try again', variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Domains"
-        description="Verify domains and manage hostnames for AfuCloud services"
+        description="Connect Cloudflare, verify ownership, and manage DNS for domains you control."
         actions={<Button className="gap-2" onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" />Add domain</Button>}
       />
+
+      <section className="overflow-hidden rounded-xl border border-card-border bg-card" data-testid="cloudflare-connection">
+        <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Cloud className="h-5 w-5" /></div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">DNS provider</p>
+              <h2 className="mt-1 text-lg font-semibold">Cloudflare connection</h2>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">AfuCloud uses your authorization to write DNS records only to zones you can access. No API tokens are shown or stored in your browser.</p>
+              {connection.data?.connected && <div className="mt-3 flex flex-wrap gap-2" data-testid="cloudflare-connected-status">
+                <Status ok>Connected</Status>
+                {connection.data.expiresAt && <span className="text-xs text-muted-foreground">Authorization expires {new Date(connection.data.expiresAt).toLocaleDateString()}</span>}
+                {!!connection.data.scopes?.length && <span className="text-xs text-muted-foreground">Scopes: {connection.data.scopes.join(', ')}</span>}
+              </div>}
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            {connection.data?.connected ? <>
+              <Button variant="outline" onClick={() => connection.refetch()} disabled={connection.isFetching} data-testid="refresh-cloudflare-zones"><RefreshCw className="mr-2 h-4 w-4" />Refresh zones</Button>
+              <Button variant="outline" onClick={disconnect} disabled={disconnectCloudflare.isPending} data-testid="disconnect-cloudflare">{disconnectCloudflare.isPending ? 'Disconnecting…' : 'Disconnect'}</Button>
+            </> : <Button onClick={connectCloudflare} disabled={startAuthorization.isPending} data-testid="connect-cloudflare">
+              <Link2 className="mr-2 h-4 w-4" />{startAuthorization.isPending ? 'Starting…' : 'Connect Cloudflare'}
+            </Button>}
+          </div>
+        </div>
+        {connection.data?.connected && <div className="border-t border-border bg-muted/30 px-5 py-4 sm:px-6">
+          <div className="flex items-center justify-between gap-3">
+            <div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Accessible zones</p>
+              {zones.isLoading ? <p className="mt-1 text-sm text-muted-foreground">Loading Cloudflare zones…</p>
+                : zones.isError ? <div className="mt-1 flex items-center gap-2 text-sm text-destructive"><span>Could not load zones.</span><button className="underline" onClick={() => zones.refetch()}>Retry</button></div>
+                : !zones.data?.length ? <p className="mt-1 text-sm text-muted-foreground">No accessible zones found for this connection.</p>
+                : <p className="mt-1 text-sm text-muted-foreground">{zones.data.length} zone{zones.data.length === 1 ? '' : 's'} available · {zones.data.map(zone => zone.name).join(', ')}</p>}
+            </div>
+            <span className="hidden text-xs text-muted-foreground sm:inline-flex sm:items-center sm:gap-1"><LockKeyhole className="h-3.5 w-3.5" />OAuth authorization</span>
+          </div>
+        </div>}
+        {connection.isLoading && <div className="animate-pulse border-t border-border px-5 py-4 text-sm text-muted-foreground" data-testid="cloudflare-loading">Checking connection status…</div>}
+        {connection.isError && <div className="border-t border-border px-5 py-3 text-sm text-destructive" data-testid="cloudflare-connection-error">Connection status unavailable. <button className="underline" onClick={() => connection.refetch()}>Retry</button></div>}
+      </section>
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2">
@@ -170,7 +246,10 @@ export default function DomainsPage() {
               </div>
               <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
                 <span className="text-xs text-muted-foreground">{domain.hostnames.length} hostname{domain.hostnames.length === 1 ? '' : 's'} connected</span>
-                <Button variant="outline" size="sm" onClick={() => setSelected(domain)}>Manage</Button>
+                <div className="flex gap-2">
+                  <Link href={`/domains/${domain.id}/dns`} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent" data-testid={`manage-dns-${domain.id}`}>DNS records<ArrowUpRight className="h-3.5 w-3.5" /></Link>
+                  <Button variant="outline" size="sm" onClick={() => setSelected(domain)}>Manage</Button>
+                </div>
               </div>
             </div>
           ))}
@@ -204,7 +283,8 @@ export default function DomainsPage() {
 
                 {selected.verificationStatus !== 'verified' && (
                   <section className="rounded-lg border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900 dark:bg-amber-950/40">
-                    <div className="flex items-start justify-between gap-4"><div><h3 className="font-medium text-amber-900 dark:text-amber-100">Verify domain ownership</h3><p className="mt-1 text-xs leading-relaxed text-amber-800 dark:text-amber-200">Add this TXT record at your DNS provider, then check verification.</p></div><Button size="sm" variant="outline" onClick={() => verifyDomain(selected)} disabled={busy === `verify-${selected.id}`} className="shrink-0 gap-1.5"><RefreshCw className="h-3.5 w-3.5" />{busy === `verify-${selected.id}` ? 'Checking…' : 'Check DNS'}</Button></div>
+                    <div className="flex flex-col items-start justify-between gap-3 sm:flex-row"><div><h3 className="font-medium text-amber-900 dark:text-amber-100">Verify domain ownership</h3><p className="mt-1 text-xs leading-relaxed text-amber-800 dark:text-amber-200">Configure the AfuCloud verification TXT record in Cloudflare, or add it manually with your DNS provider.</p></div><div className="flex shrink-0 flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => configureOwnership(selected)} disabled={!connection.data?.connected || autoConfigure.isPending} data-testid="auto-configure-ownership">{autoConfigure.isPending ? 'Configuring…' : 'Configure in Cloudflare'}</Button><Button size="sm" variant="outline" onClick={() => verifyDomain(selected)} disabled={busy === `verify-${selected.id}`} className="gap-1.5" data-testid="verify-domain"><RefreshCw className="h-3.5 w-3.5" />{busy === `verify-${selected.id}` ? 'Checking…' : 'Check DNS'}</Button></div></div>
+                    {!connection.data?.connected && <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">Connect Cloudflare above to configure the record automatically.</p>}
                     <div className="mt-4 grid min-w-0 gap-2 text-xs sm:grid-cols-[100px_1fr]"><span className="text-muted-foreground">Type</span><code>TXT</code><span className="text-muted-foreground">Name</span><code>_afu-verification</code><span className="text-muted-foreground">Value</span><div className="flex min-w-0 items-center gap-2"><code className="min-w-0 break-all">{selected.dnsRecord.value}</code><Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => copy(selected.dnsRecord.value)}><Copy className="h-3 w-3" /></Button></div></div>
                   </section>
                 )}

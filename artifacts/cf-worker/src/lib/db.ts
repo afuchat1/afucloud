@@ -335,6 +335,40 @@ export function createDbClient(env: Env) {
       await request(`/hostnames?id=eq.${encodeURIComponent(id)}&domain_id=eq.${encodeURIComponent(domainId)}&user_id=eq.${encodeURIComponent(userId)}`, "DELETE");
     },
 
+    // ── Cloudflare OAuth connections ─────────────────────────────────────────
+    async getCloudflareConnection(userId: string) {
+      const r = await request(`/cloudflare_connections?user_id=eq.${encodeURIComponent(userId)}&limit=1`);
+      if (!r.ok) throw new Error(`Cloudflare connection lookup failed: HTTP ${r.status}`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async upsertCloudflareConnection(data: Record<string, unknown>) {
+      const r = await request(
+        "/cloudflare_connections?on_conflict=user_id",
+        "POST",
+        data,
+        { Prefer: "resolution=merge-duplicates,return=representation" },
+      );
+      if (!r.ok) throw new Error(`Cloudflare connection save failed: HTTP ${r.status}`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async updateCloudflareConnection(userId: string, data: Record<string, unknown>) {
+      const r = await request(
+        `/cloudflare_connections?user_id=eq.${encodeURIComponent(userId)}`,
+        "PATCH",
+        data,
+        { Prefer: "return=representation" },
+      );
+      if (!r.ok) throw new Error(`Cloudflare connection update failed: HTTP ${r.status}`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async deleteCloudflareConnection(userId: string) {
+      const r = await request(`/cloudflare_connections?user_id=eq.${encodeURIComponent(userId)}`, "DELETE");
+      if (!r.ok) throw new Error(`Cloudflare connection removal failed: HTTP ${r.status}`);
+    },
+
     // ── Storage containers and objects ────────────────────────────────────────
     async getStorageContainers(userId: string) {
       const r = await request(`/storage_containers?user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc`);

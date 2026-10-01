@@ -24,6 +24,7 @@ import SettingsPage from '@/pages/settings';
 import DocsPage from '@/pages/docs';
 import RoadmapPage from '@/pages/roadmap';
 import DomainsPage from '@/pages/domains';
+import DomainDnsPage from '@/pages/domain-dns';
 import StoragePage from '@/pages/storage';
 import NotFound from '@/pages/not-found';
 
@@ -94,6 +95,9 @@ function Router() {
       <Route path="/roadmap" component={RoadmapPage} />
 
       {/* Protected */}
+      <Route path="/domains/:domainId/dns">
+        <Protected><DomainDnsPage /></Protected>
+      </Route>
       <Route path="/dashboard">
         <Protected><DashboardPage /></Protected>
       </Route>

@@ -3,8 +3,8 @@ const decoder = new TextDecoder();
 
 export const CLOUDFLARE_OAUTH_SCOPES = [
   "zone.read",
-  "dns.read",
-  "dns.write",
+  "dns_records.read",
+  "dns_records.write",
   "offline_access",
 ] as const;
 
@@ -18,6 +18,7 @@ export interface OAuthEnvironment {
   CLOUDFLARE_OAUTH_CLIENT_ID?: string;
   CLOUDFLARE_OAUTH_CLIENT_SECRET?: string;
   CLOUDFLARE_OAUTH_REDIRECT_URI?: string;
+  CLOUDFLARE_OAUTH_STATE_SECRET?: string;
   CLOUDFLARE_TOKEN_ENCRYPTION_KEY?: string;
 }
 
@@ -60,6 +61,12 @@ function base64UrlToBytes(value: string): Uint8Array {
   return Uint8Array.from(binary, character => character.charCodeAt(0));
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer as ArrayBuffer;
+}
+
 export function randomUrlSafeToken(byteLength = 32): string {
   const bytes = new Uint8Array(byteLength);
   crypto.getRandomValues(bytes);
@@ -85,39 +92,71 @@ async function hmacKey(secret: string): Promise<CryptoKey> {
   );
 }
 
-export async function createOAuthState(userId: string, signingSecret: string): Promise<string> {
+export async function createOAuthState(
+  userId: string,
+  signingSecret: string,
+  returnOrigin?: string,
+): Promise<string> {
   const payload = bytesToBase64Url(encoder.encode(JSON.stringify({
     userId,
     expiresAt: Math.floor(Date.now() / 1000) + 600,
     nonce: randomUrlSafeToken(16),
+    ...(returnOrigin ? { returnOrigin } : {}),
   })));
   const key = await hmacKey(signingSecret);
   const signature = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(payload)));
   return `${payload}.${bytesToBase64Url(signature)}`;
 }
 
-export async function verifyOAuthState(state: string, signingSecret: string): Promise<string | null> {
+export async function verifyOAuthStateClaims(
+  state: string,
+  signingSecret: string,
+): Promise<{ userId: string; returnOrigin: string | null } | null> {
   const [payload, signature, ...extra] = state.split(".");
   if (!payload || !signature || extra.length) return null;
   try {
     const key = await hmacKey(signingSecret);
-    const valid = await crypto.subtle.verify("HMAC", key, base64UrlToBytes(signature), encoder.encode(payload));
+    const valid = await crypto.subtle.verify("HMAC", key, toArrayBuffer(base64UrlToBytes(signature)), encoder.encode(payload));
     if (!valid) return null;
     const claims = JSON.parse(decoder.decode(base64UrlToBytes(payload))) as {
       userId?: unknown;
       expiresAt?: unknown;
       nonce?: unknown;
+      returnOrigin?: unknown;
     };
     if (
       typeof claims.userId !== "string" ||
       typeof claims.expiresAt !== "number" ||
       claims.expiresAt < Math.floor(Date.now() / 1000) ||
-      typeof claims.nonce !== "string"
+      typeof claims.nonce !== "string" ||
+      (claims.returnOrigin !== undefined && typeof claims.returnOrigin !== "string")
     ) return null;
-    return claims.userId;
+    return {
+      userId: claims.userId,
+      returnOrigin: typeof claims.returnOrigin === "string" ? claims.returnOrigin : null,
+    };
   } catch {
     return null;
   }
+}
+
+export async function verifyOAuthState(state: string, signingSecret: string): Promise<string | null> {
+  return (await verifyOAuthStateClaims(state, signingSecret))?.userId ?? null;
+}
+
+export async function createPkcePairForState(
+  state: string,
+  signingSecret: string,
+): Promise<{ verifier: string; challenge: string }> {
+  const key = await hmacKey(signingSecret);
+  const verifierSignature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(`afucloud-cloudflare-pkce-v1:${state}`),
+  );
+  const verifier = bytesToBase64Url(new Uint8Array(verifierSignature));
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(verifier)));
+  return { verifier, challenge: bytesToBase64Url(digest) };
 }
 
 export function isCloudflareOAuthConfigured(env: OAuthEnvironment): boolean {
@@ -125,6 +164,7 @@ export function isCloudflareOAuthConfigured(env: OAuthEnvironment): boolean {
     env.CLOUDFLARE_OAUTH_CLIENT_ID &&
     env.CLOUDFLARE_OAUTH_CLIENT_SECRET &&
     env.CLOUDFLARE_OAUTH_REDIRECT_URI &&
+    env.CLOUDFLARE_OAUTH_STATE_SECRET &&
     env.CLOUDFLARE_TOKEN_ENCRYPTION_KEY,
   );
 }
@@ -140,7 +180,7 @@ export function getEncryptionKeyBytes(env: OAuthEnvironment): Uint8Array {
 export async function encryptToken(token: string, env: OAuthEnvironment): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
-    getEncryptionKeyBytes(env),
+    toArrayBuffer(getEncryptionKeyBytes(env)),
     { name: "AES-GCM" },
     false,
     ["encrypt"],
@@ -158,15 +198,15 @@ export async function decryptToken(encrypted: string, env: OAuthEnvironment): Pr
   }
   const key = await crypto.subtle.importKey(
     "raw",
-    getEncryptionKeyBytes(env),
+    toArrayBuffer(getEncryptionKeyBytes(env)),
     { name: "AES-GCM" },
     false,
     ["decrypt"],
   );
   const plaintext = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: base64UrlToBytes(ivText) },
+    { name: "AES-GCM", iv: toArrayBuffer(base64UrlToBytes(ivText)) },
     key,
-    base64UrlToBytes(ciphertextText),
+    toArrayBuffer(base64UrlToBytes(ciphertextText)),
   );
   return decoder.decode(plaintext);
 }

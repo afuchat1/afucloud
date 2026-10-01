@@ -208,6 +208,80 @@ export interface WebhookUpdate {
   secret?: string | null;
 }
 
+export interface CloudflareConnectionStatus {
+  connected: boolean;
+  /** @nullable */
+  expiresAt?: string | null;
+  scopes?: string[];
+}
+
+export interface CloudflareAuthorizationResponse {
+  authorizationUrl: string;
+}
+
+export interface CloudflareZone {
+  id: string;
+  name: string;
+  status: string;
+}
+
+export type CloudflareDnsRecordData = { [key: string]: unknown };
+
+export interface CloudflareDnsRecord {
+  id: string;
+  type: string;
+  name: string;
+  content: string;
+  ttl: number;
+  /** @nullable */
+  proxied?: boolean | null;
+  /** @nullable */
+  priority?: number | null;
+  /** @nullable */
+  comment?: string | null;
+  tags?: string[];
+  data?: CloudflareDnsRecordData;
+  /** @nullable */
+  created_on?: string | null;
+  /** @nullable */
+  modified_on?: string | null;
+}
+
+export type CloudflareDnsRecordInputData = { [key: string]: unknown };
+
+export interface CloudflareDnsRecordInput {
+  type: string;
+  name: string;
+  content?: string;
+  data?: CloudflareDnsRecordInputData;
+  ttl?: number;
+  proxied?: boolean;
+  priority?: number;
+  comment?: string;
+  tags?: string[];
+}
+
+export interface CloudflareDnsRecordsResponse {
+  zone: CloudflareZone;
+  records: CloudflareDnsRecord[];
+  total: number;
+}
+
+export interface CloudflareDnsVerification {
+  recordId: string;
+  cloudflareVerified: boolean;
+  publiclyVisible: boolean;
+  answers: string[];
+  checkedAt: string;
+}
+
+export interface CloudflareDnsAutoConfiguration {
+  record: CloudflareDnsRecord;
+  created: boolean;
+  publiclyVisible: boolean;
+  message: string;
+}
+
 export type ActivityLogMetadata = { [key: string]: unknown };
 
 export interface ActivityLog {
@@ -250,4 +324,9 @@ export const GetProjectAnalyticsPeriod = {
   '30d': '30d',
   '90d': '90d',
 } as const;
+
+export type ListDomainDnsRecordsParams = {
+search?: string;
+type?: string;
+};
 

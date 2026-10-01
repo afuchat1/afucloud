@@ -11,6 +11,7 @@ import activityRouter from "./activity";
 import storageRouter from "./storage";
 import domainsRouter from "./domains";
 import storageContainersRouter from "./storage-containers";
+import cloudflareRouter from "./cloudflare";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(activityRouter);
 router.use(storageRouter);
 router.use(domainsRouter);
 router.use(storageContainersRouter);
+router.use(cloudflareRouter);
 
 export default router;
