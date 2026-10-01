@@ -47,10 +47,12 @@ wrangler secret put CLOUDFLARE_R2_SECRET_ACCESS_KEY
 ## Cloudflare OAuth client provisioning
 - Creating or updating an OAuth client requires the account-level `OAuth Client Write` permission. A token that can list OAuth clients may still receive 403 on create.
 - Public visibility requires client URL domain verification by TXT record. Verification is asynchronous, and Cloudflare locks the client URL's domain once verification completes.
+- If the public homepage redirects from the apex to `www`, use the apex as `client_uri` so the ownership TXT record can be published without conflicting with a `www` CNAME. The redirect remains a valid homepage URL.
+- Cloudflare returns the OAuth client secret only once; write the client ID and secret directly to the production Worker secret bindings, never to Replit Secrets or frontend code.
 
 **Why:** OAuth client read/write permissions are separate, and public-client verification can leave a newly created client private while Cloudflare polls DNS.
 
-**How to apply:** Confirm write access before provisioning. Set the final client URL before verification, keep generated credentials in Worker secrets, and promote only when Cloudflare reports the domain verified.
+**How to apply:** Confirm write access before provisioning. Set the final client URL before verification, add the exact TXT value Cloudflare returns, keep generated credentials in Worker secrets, and promote only when Cloudflare reports the domain verified.
 
 ## Env binding name
 - R2 binding is `IMAGES_BUCKET` (not `R2_BUCKET`) — defined in wrangler.toml `[[r2_buckets]]`
