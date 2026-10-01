@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from 'next-themes';
 import { Route, Switch, Router as WouterRouter, Redirect } from 'wouter';
 import { AuthGuard } from '@/components/auth-guard';
+import { GuestGuard } from '@/components/guest-guard';
 import { Sidebar } from '@/components/sidebar';
 import { Menu, Cloud } from 'lucide-react';
 import LandingPage from '@/pages/landing';
@@ -81,8 +82,12 @@ function Router() {
     <Switch>
       {/* Public */}
       <Route path="/" component={LandingPage} />
-      <Route path="/login" component={LoginPage} />
-      <Route path="/register" component={RegisterPage} />
+      <Route path="/login">
+        <GuestGuard><LoginPage /></GuestGuard>
+      </Route>
+      <Route path="/register">
+        <GuestGuard><RegisterPage /></GuestGuard>
+      </Route>
 
       {/* Public pages — no sidebar */}
       <Route path="/docs" component={DocsPage} />

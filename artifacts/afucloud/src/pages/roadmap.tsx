@@ -2,6 +2,7 @@ import { Link } from 'wouter';
 import { Cloud, CheckCircle2, Circle, Clock, ArrowRight, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useDashboardSessionVisibility } from '@/hooks/use-dashboard-session-visibility';
 
 const phases = [
   {
@@ -225,6 +226,10 @@ const statusConfig = {
 };
 
 export default function RoadmapPage() {
+  const session = useDashboardSessionVisibility();
+  const isSignedIn = session === 'authenticated';
+  const canShowAccountActions = isSignedIn || session === 'unauthenticated';
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
@@ -244,14 +249,21 @@ export default function RoadmapPage() {
             <Link href="/docs" className="hover:text-foreground transition-colors">Docs</Link>
             <Link href="/roadmap" className="text-foreground font-medium">Roadmap</Link>
           </nav>
-          <div className="flex items-center gap-3">
-            <Link href="/login">
-              <Button variant="ghost" size="sm">Sign in</Button>
+          {session === 'unauthenticated' && (
+            <div className="flex items-center gap-3">
+              <Link href="/login">
+                <Button variant="ghost" size="sm">Sign in</Button>
+              </Link>
+              <Link href="/register">
+                <Button size="sm">Get started</Button>
+              </Link>
+            </div>
+          )}
+          {isSignedIn && (
+            <Link href="/dashboard">
+              <Button size="sm">Dashboard</Button>
             </Link>
-            <Link href="/register">
-              <Button size="sm">Get started</Button>
-            </Link>
-          </div>
+          )}
         </div>
       </header>
 
@@ -373,12 +385,14 @@ export default function RoadmapPage() {
             a production-grade API — free to start.
           </p>
           <div className="flex items-center justify-center gap-4">
-            <Link href="/register">
-              <Button size="lg" variant="secondary" className="gap-2 h-10 px-5 text-sm">
-                Create free account
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
+            {canShowAccountActions && (
+              <Link href={isSignedIn ? '/dashboard' : '/register'}>
+                <Button size="lg" variant="secondary" className="gap-2 h-10 px-5 text-sm">
+                  {isSignedIn ? 'Open dashboard' : 'Create free account'}
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            )}
             <Link href="/docs">
               <Button size="lg" variant="outline" className="gap-2 h-10 px-5 text-sm border-white/30 text-white hover:bg-white/10 hover:text-white">
                 View docs
@@ -400,7 +414,12 @@ export default function RoadmapPage() {
           <div className="flex items-center gap-6">
             <Link href="/docs" className="hover:text-foreground transition-colors">Documentation</Link>
             <Link href="/roadmap" className="hover:text-foreground transition-colors">Roadmap</Link>
-            <Link href="/register" className="hover:text-foreground transition-colors">Sign up</Link>
+            {session === 'unauthenticated' && (
+              <Link href="/register" className="hover:text-foreground transition-colors">Sign up</Link>
+            )}
+            {isSignedIn && (
+              <Link href="/dashboard" className="hover:text-foreground transition-colors">Dashboard</Link>
+            )}
           </div>
           <p>© 2026 AfuCloud. All rights reserved.</p>
         </div>

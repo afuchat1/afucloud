@@ -1,8 +1,11 @@
 import { Link } from 'wouter';
 import { Cloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useDashboardSessionVisibility } from '@/hooks/use-dashboard-session-visibility';
 
 export function PublicHeader() {
+  const session = useDashboardSessionVisibility();
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/50 bg-background/90 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
@@ -21,12 +24,21 @@ export function PublicHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link href="/login">
-            <Button variant="ghost" size="sm">Sign in</Button>
-          </Link>
-          <Link href="/register">
-            <Button size="sm">Get started</Button>
-          </Link>
+          {session === 'unauthenticated' && (
+            <>
+              <Link href="/login">
+                <Button variant="ghost" size="sm">Sign in</Button>
+              </Link>
+              <Link href="/register">
+                <Button size="sm">Get started</Button>
+              </Link>
+            </>
+          )}
+          {session === 'authenticated' && (
+            <Link href="/dashboard">
+              <Button size="sm">Dashboard</Button>
+            </Link>
+          )}
         </div>
       </div>
     </header>

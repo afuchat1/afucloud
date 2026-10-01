@@ -1,6 +1,7 @@
 import { Link } from 'wouter';
 import { Cloud, Upload, Key, Zap, Shield, Code2, ArrowRight, Check, Github, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useDashboardSessionVisibility } from '@/hooks/use-dashboard-session-visibility';
 
 const features = [
   {
@@ -93,6 +94,10 @@ const plans = [
 ];
 
 export default function LandingPage() {
+  const session = useDashboardSessionVisibility();
+  const isSignedIn = session === 'authenticated';
+  const canShowAccountActions = isSignedIn || session === 'unauthenticated';
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
       {/* Nav */}
@@ -111,14 +116,21 @@ export default function LandingPage() {
             <Link href="/docs" className="hover:text-foreground transition-colors">Docs</Link>
             <Link href="/roadmap" className="hover:text-foreground transition-colors">Roadmap</Link>
           </nav>
-          <div className="flex items-center gap-3">
-            <Link href="/login">
-              <Button variant="ghost" size="sm">Sign in</Button>
+          {session === 'unauthenticated' && (
+            <div className="flex items-center gap-3">
+              <Link href="/login">
+                <Button variant="ghost" size="sm">Sign in</Button>
+              </Link>
+              <Link href="/register">
+                <Button size="sm">Get started</Button>
+              </Link>
+            </div>
+          )}
+          {isSignedIn && (
+            <Link href="/dashboard">
+              <Button size="sm">Dashboard</Button>
             </Link>
-            <Link href="/register">
-              <Button size="sm">Get started</Button>
-            </Link>
-          </div>
+          )}
         </div>
       </header>
 
@@ -137,12 +149,14 @@ export default function LandingPage() {
           Built for teams who ship fast and demand reliability.
         </p>
         <div className="flex items-center justify-center gap-4">
-          <Link href="/register">
-            <Button size="lg" className="gap-2 h-11 px-6">
-              Start for free
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
+          {canShowAccountActions && (
+            <Link href={isSignedIn ? '/dashboard' : '/register'}>
+              <Button size="lg" className="gap-2 h-11 px-6">
+                {isSignedIn ? 'Open dashboard' : 'Start for free'}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          )}
           <Link href="/docs">
             <Button variant="outline" size="lg" className="gap-2 h-11 px-6">
               <Code2 className="h-4 w-4" />
@@ -195,14 +209,16 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <div className="mt-8">
-                <Link href="/register">
-                  <Button className="gap-2">
-                    Try the API
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-              </div>
+              {canShowAccountActions && (
+                <div className="mt-8">
+                  <Link href={isSignedIn ? '/dashboard' : '/register'}>
+                    <Button className="gap-2">
+                      {isSignedIn ? 'Open dashboard' : 'Try the API'}
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </div>
             <div className="rounded-xl border border-border bg-[#1C1C1C] overflow-hidden">
               <div className="flex items-center gap-1.5 px-4 py-3 border-b border-white/10">
@@ -249,15 +265,17 @@ export default function LandingPage() {
                 <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-primary shrink-0" />{plan.images} images</li>
                 <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-primary shrink-0" />{plan.api} API requests</li>
               </ul>
-              <Link href="/register">
-                <Button
-                  className="w-full"
-                  variant={plan.highlight ? 'default' : 'outline'}
-                  size="sm"
-                >
-                  {plan.cta}
-                </Button>
-              </Link>
+              {canShowAccountActions && (
+                <Link href={isSignedIn ? '/dashboard' : '/register'}>
+                  <Button
+                    className="w-full"
+                    variant={plan.highlight ? 'default' : 'outline'}
+                    size="sm"
+                  >
+                    {isSignedIn ? 'Open dashboard' : plan.cta}
+                  </Button>
+                </Link>
+              )}
             </div>
           ))}
         </div>
@@ -271,12 +289,14 @@ export default function LandingPage() {
             Join developers who trust AfuCloud for storing and delivering their digital assets.
           </p>
           <div className="flex items-center justify-center gap-4">
-            <Link href="/register">
-              <Button size="lg" variant="secondary" className="gap-2 h-11 px-6">
-                Create free account
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
+            {canShowAccountActions && (
+              <Link href={isSignedIn ? '/dashboard' : '/register'}>
+                <Button size="lg" variant="secondary" className="gap-2 h-11 px-6">
+                  {isSignedIn ? 'Open dashboard' : 'Create free account'}
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            )}
             <Link href="/docs">
               <Button size="lg" variant="outline" className="gap-2 h-11 px-6 border-white/30 text-white hover:bg-white/10 hover:text-white">
                 Read the docs
@@ -297,8 +317,15 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-6">
             <Link href="/docs" className="hover:text-foreground transition-colors">Documentation</Link>
-            <Link href="/login" className="hover:text-foreground transition-colors">Sign in</Link>
-            <Link href="/register" className="hover:text-foreground transition-colors">Sign up</Link>
+            {session === 'unauthenticated' && (
+              <>
+                <Link href="/login" className="hover:text-foreground transition-colors">Sign in</Link>
+                <Link href="/register" className="hover:text-foreground transition-colors">Sign up</Link>
+              </>
+            )}
+            {isSignedIn && (
+              <Link href="/dashboard" className="hover:text-foreground transition-colors">Dashboard</Link>
+            )}
           </div>
           <p>© 2026 AfuCloud. All rights reserved.</p>
         </div>
