@@ -3,8 +3,8 @@ const decoder = new TextDecoder();
 
 export const CLOUDFLARE_OAUTH_SCOPES = [
   "zone.read",
-  "dns_records.read",
-  "dns_records.write",
+  "dns.read",
+  "dns.write",
   "offline_access",
 ] as const;
 
