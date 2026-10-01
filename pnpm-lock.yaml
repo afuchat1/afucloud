@@ -365,6 +365,9 @@ importers:
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
+      '@workspace/cloudflare-integration':
+        specifier: workspace:*
+        version: link:../../lib/cloudflare-integration
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
@@ -426,6 +429,9 @@ importers:
 
   artifacts/cf-worker:
     dependencies:
+      '@workspace/cloudflare-integration':
+        specifier: workspace:*
+        version: link:../../lib/cloudflare-integration
       aws4fetch:
         specifier: ^1.0.20
         version: 1.0.20
@@ -466,6 +472,8 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 3.25.76
+
+  lib/cloudflare-integration: {}
 
   lib/db:
     dependencies:
