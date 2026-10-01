@@ -307,6 +307,40 @@ export function createDbClient(env: Env) {
     async deleteDomain(id: string, userId: string) {
       await request(`/domains?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, "DELETE");
     },
+    async getDomainRegistrationOrders(userId: string) {
+      const r = await request(`/domain_registration_orders?user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=100`);
+      if (!r.ok) throw new Error(`Domain registration order lookup failed: HTTP ${r.status}`);
+      return r.json() as Promise<any[]>;
+    },
+    async getDomainRegistrationOrder(id: string, userId: string) {
+      const r = await request(`/domain_registration_orders?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`);
+      if (!r.ok) throw new Error(`Domain registration order lookup failed: HTTP ${r.status}`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async createDomainRegistrationOrder(data: Record<string, unknown>) {
+      const r = await request("/domain_registration_orders", "POST", data, { Prefer: "return=representation" });
+      if (!r.ok) throw new Error(`Domain registration order could not be created: HTTP ${r.status}`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async updateDomainRegistrationOrder(
+      id: string,
+      userId: string,
+      data: Record<string, unknown>,
+      expectedStatus?: string,
+    ) {
+      const statusFilter = expectedStatus ? `&status=eq.${encodeURIComponent(expectedStatus)}` : "";
+      const r = await request(
+        `/domain_registration_orders?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}${statusFilter}`,
+        "PATCH",
+        { ...data, updated_at: new Date().toISOString() },
+        { Prefer: "return=representation" },
+      );
+      if (!r.ok) throw new Error(`Domain registration order could not be updated: HTTP ${r.status}`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
     async getHostnames(domainId: string, userId: string) {
       const r = await request(`/hostnames?domain_id=eq.${encodeURIComponent(domainId)}&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc`);
       return r.json() as Promise<any[]>;

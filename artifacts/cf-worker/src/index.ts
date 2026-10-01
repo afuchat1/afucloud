@@ -16,6 +16,7 @@ import storageRoutes from "./routes/storage";
 import domainRoutes from "./routes/domains";
 import { cloudflareRoutes, cloudflareDnsRoutes } from "./routes/cloudflare";
 import storageContainerRoutes from "./routes/storage-containers";
+import domainRegistrationRoutes from "./routes/domain-registrations";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -81,6 +82,7 @@ app.route("/v1/storage", storageRoutes);
 app.route("/v1/cloudflare", cloudflareRoutes);
 app.route("/v1/domains", cloudflareDnsRoutes);
 app.route("/v1/domains", domainRoutes);
+app.route("/v1/domains/registrations", domainRegistrationRoutes);
 app.route("/v1/storage-containers", storageContainerRoutes);
 
 // ── Project-scoped sub-routes ─────────────────────────────────────────────────

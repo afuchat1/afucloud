@@ -16,6 +16,7 @@ import { API_BASE } from '@/lib/api-base';
 import { customFetchResponse } from '@workspace/api-client-react';
 import { useAutoConfigureDomainVerification, useDisconnectCloudflare, useGetCloudflareConnection, useListCloudflareZones, useStartCloudflareAuthorization } from '@workspace/api-client-react';
 import { Link } from 'wouter';
+import { DomainRegistrationPanel } from './domain-registration-panel';
 const headers = () => ({
   'Content-Type': 'application/json',
 });
@@ -177,6 +178,8 @@ export default function DomainsPage() {
         description="Connect Cloudflare, verify ownership, and manage DNS for domains you control."
         actions={<Button className="gap-2" onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" />Add domain</Button>}
       />
+
+      <DomainRegistrationPanel />
 
       <section className="overflow-hidden rounded-xl border border-card-border bg-card" data-testid="cloudflare-connection">
         <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">

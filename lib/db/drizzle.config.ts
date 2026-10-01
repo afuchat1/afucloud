@@ -40,6 +40,7 @@ export default defineConfig({
     "hostnames",
     "storage_containers",
     "storage_objects",
+    "domain_registration_orders",
   ],
   dbCredentials: {
     url: dbUrl,

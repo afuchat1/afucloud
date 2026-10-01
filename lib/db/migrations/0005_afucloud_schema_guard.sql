@@ -20,7 +20,8 @@ BEGIN
     'domains',
     'hostnames',
     'storage_containers',
-    'storage_objects'
+    'storage_objects',
+    'domain_registration_orders'
   ] LOOP
     IF to_regclass('public.' || table_name) IS NOT NULL THEN
       RAISE EXCEPTION
