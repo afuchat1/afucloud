@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
-import { requireAuth } from "../middleware/auth";
+import { requireAccountAuth, requireAuth } from "../middleware/auth";
 import { copyObject, deleteObject, generateUploadUrl } from "../lib/storage";
 
 const storageContainers = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
+
+storageContainers.use("*", requireAuth, requireAccountAuth);
 
 function slugify(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);

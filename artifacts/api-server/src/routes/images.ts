@@ -1,11 +1,13 @@
 import { Router, type IRouter } from "express";
 import { eq, and, isNull, isNotNull, sql, desc } from "drizzle-orm";
 import { db, imagesTable, projectsTable } from "@workspace/db";
-import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { requireAuth, requireProjectAuth, type AuthRequest } from "../middlewares/requireAuth";
 import { generateUploadUrl, buildStorageKey, getPublicUrl, getDownloadUrl, deleteObject } from "../lib/storage";
 import crypto from "crypto";
 
 const router: IRouter = Router();
+
+router.use("/v1/projects/:projectId/images", requireAuth, requireProjectAuth);
 
 function toApiImage(img: typeof imagesTable.$inferSelect) {
   const downloadName = `afuchat-${(img.originalName || img.name || "image").split(/[\\/]/).pop()!.replace(/["\\\r\n]/g, "_")}`;

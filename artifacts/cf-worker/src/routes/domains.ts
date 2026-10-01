@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
-import { requireAuth } from "../middleware/auth";
+import { requireAccountAuth, requireAuth } from "../middleware/auth";
 
 const domains = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
+
+domains.use("*", requireAuth, requireAccountAuth);
 
 function normalizeDomain(input: string): string {
   return input.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.$/, "");

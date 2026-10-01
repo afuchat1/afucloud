@@ -29,7 +29,7 @@ export default function TokensPage() {
       { data: { name, description: '', expiresAt: null } },
       {
         onSuccess: (data: any) => {
-          setNewToken(data.token);
+           setNewToken(data.secret);
           queryClient.invalidateQueries({ queryKey: getListTokensQueryKey() });
           setName('');
         },
@@ -111,7 +111,7 @@ export default function TokensPage() {
               </div>
               <div className="flex items-center gap-3">
                 <Badge variant={token.status === 'active' ? 'default' : 'secondary'} className="text-xs">
-                  {token.status}
+                   {token.revokedAt ? 'revoked' : 'active'}
                 </Badge>
                 {token.lastUsedAt && (
                   <span className="text-xs text-muted-foreground hidden sm:block">

@@ -36,6 +36,10 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 
+app.use("/api", (_req: Request, res: Response) => {
+  res.status(404).json({ error: "Not found" });
+});
+
 // Keep unexpected route failures from becoming Express's HTML error page.
 // Clients always receive a stable JSON response, while the server log keeps
 // the diagnostic details for debugging.

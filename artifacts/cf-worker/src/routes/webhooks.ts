@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireProjectAuth } from "../middleware/auth";
 
 const webhooks = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
+
+webhooks.use("*", requireAuth, requireProjectAuth);
 
 // GET /v1/projects/:projectId/webhooks
 webhooks.get("/", requireAuth, async (c) => {

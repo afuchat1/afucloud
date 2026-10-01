@@ -2,10 +2,12 @@ import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, ilike, isNull, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { db, domainsTable, hostnamesTable, storageContainersTable, storageObjectsTable } from "@workspace/db";
-import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { requireAccountAuth, requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 import { copyObject, buildStorageKey, deleteObject, generateUploadUrl } from "../lib/storage";
 
 const router: IRouter = Router();
+
+router.use("/v1/storage-containers", requireAuth, requireAccountAuth);
 
 function slugify(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);

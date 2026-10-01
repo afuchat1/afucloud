@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
-import { requireAuth } from "../middleware/auth";
+import { requireAccountAuth, requireAuth } from "../middleware/auth";
 import { generateSecureToken, hashToken } from "../lib/auth";
 import { dispatchWebhook } from "./webhooks";
 
@@ -23,19 +23,19 @@ function toToken(t: any, secret?: string) {
 }
 
 // GET /v1/tokens
-tokens.get("/", requireAuth, async (c) => {
+tokens.get("/", requireAuth, requireAccountAuth, async (c) => {
   const db = createDbClient(c.env);
   const list = await db.getPersonalTokens(c.get("userId"));
   return c.json(list.map(t => toToken(t)));
 });
 
 // POST /v1/tokens
-tokens.post("/", requireAuth, async (c) => {
+tokens.post("/", requireAuth, requireAccountAuth, async (c) => {
   const { name, description, scopes = [], expiresAt } = await c.req.json().catch(() => ({}));
   if (!name) return c.json({ error: "name is required" }, 400);
   const db = createDbClient(c.env);
-  const rawToken = generateSecureToken();
-  const prefix = `afu_pat_${rawToken.slice(4, 12)}`;
+  const rawToken = `afu_pat_${crypto.randomUUID().replace(/-/g, "")}`;
+  const prefix = rawToken.slice(0, 16);
   const token_hash = await hashToken(rawToken);
   const token = await db.createPersonalToken({
     user_id: c.get("userId"),
@@ -55,7 +55,7 @@ tokens.post("/", requireAuth, async (c) => {
 });
 
 // DELETE /v1/tokens/:id
-tokens.delete("/:id", requireAuth, async (c) => {
+tokens.delete("/:id", requireAuth, requireAccountAuth, async (c) => {
   const db = createDbClient(c.env);
   const id = c.req.param("id")!;
   await db.revokePersonalToken(id, c.get("userId"));

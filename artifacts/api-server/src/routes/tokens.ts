@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, personalTokensTable } from "@workspace/db";
-import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { requireAccountAuth, requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 import { generateTokenWithPrefix } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -18,16 +18,16 @@ function toToken(t: typeof personalTokensTable.$inferSelect) {
 }
 
 // GET /v1/tokens
-router.get("/v1/tokens", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/v1/tokens", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const tokens = await db.select().from(personalTokensTable).where(eq(personalTokensTable.userId, req.userId!));
   res.json(tokens.map(toToken));
 });
 
 // POST /v1/tokens
-router.post("/v1/tokens", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/v1/tokens", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const { name, description, scopes = [], expiresAt } = req.body ?? {};
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
-  const { raw, hashed, prefix } = generateTokenWithPrefix("pat");
+  const { raw, hashed, prefix } = generateTokenWithPrefix("afu_pat");
   const [token] = await db.insert(personalTokensTable).values({
     userId: req.userId!, name, description, prefix, tokenHash: hashed, scopes,
     expiresAt: expiresAt ? new Date(expiresAt) : null,
@@ -36,7 +36,7 @@ router.post("/v1/tokens", requireAuth, async (req: AuthRequest, res): Promise<vo
 });
 
 // DELETE /v1/tokens/:id
-router.delete("/v1/tokens/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/v1/tokens/:id", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const id = req.params.id as string;
   const [deleted] = await db.delete(personalTokensTable).where(eq(personalTokensTable.id, id)).returning();
   if (!deleted) { res.status(404).json({ error: "Token not found" }); return; }

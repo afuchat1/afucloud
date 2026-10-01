@@ -1,12 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq, and, isNull, sql, count } from "drizzle-orm";
 import { db, projectsTable, imagesTable } from "@workspace/db";
-import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { requireAccountAuth, requireAuth, requireProjectAuth, type AuthRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
 // GET /v1/analytics/overview
-router.get("/v1/analytics/overview", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/v1/analytics/overview", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const projects = await db.select({ id: projectsTable.id }).from(projectsTable).where(eq(projectsTable.userId, req.userId!));
   const projectIds = projects.map(p => p.id);
 
@@ -39,7 +39,7 @@ router.get("/v1/analytics/overview", requireAuth, async (req: AuthRequest, res):
 });
 
 // GET /v1/projects/:projectId/analytics
-router.get("/v1/projects/:projectId/analytics", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/v1/projects/:projectId/analytics", requireAuth, requireProjectAuth, async (req: AuthRequest, res): Promise<void> => {
   const projectId = req.params.projectId as string;
   const [p] = await db.select().from(projectsTable).where(and(eq(projectsTable.id, projectId), eq(projectsTable.userId, req.userId!))).limit(1);
   if (!p) { res.status(404).json({ error: "Project not found" }); return; }

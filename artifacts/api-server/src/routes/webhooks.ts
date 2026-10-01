@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, webhooksTable, projectsTable } from "@workspace/db";
-import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { requireAuth, requireProjectAuth, type AuthRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
+
+router.use("/v1/projects/:projectId/webhooks", requireAuth, requireProjectAuth);
 
 async function assertProjectOwner(projectId: string, userId: string, res: Parameters<Parameters<typeof router.get>[1]>[1]): Promise<boolean> {
   const [p] = await db.select().from(projectsTable).where(and(eq(projectsTable.id, projectId), eq(projectsTable.userId, userId))).limit(1);

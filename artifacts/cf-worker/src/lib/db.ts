@@ -105,6 +105,11 @@ export function createDbClient(env: Env) {
       const rows = await r.json() as any[];
       return rows[0] ?? null;
     },
+    async getProjectOwnerId(id: string) {
+      const r = await request(`/projects?id=eq.${encodeURIComponent(id)}&select=user_id&limit=1`);
+      const rows = await r.json() as Array<{ user_id?: string }>;
+      return rows[0]?.user_id ?? null;
+    },
     async createProject(data: { name: string; slug: string; description?: string; user_id: string }) {
       const r = await request("/projects", "POST", data, { Prefer: "return=representation" });
       const rows = await r.json() as any[];
@@ -228,6 +233,11 @@ export function createDbClient(env: Env) {
       const rows = await r.json() as any[];
       return rows[0] ?? null;
     },
+    async touchApiKey(id: string) {
+      await request(`/api_keys?id=eq.${encodeURIComponent(id)}`, "PATCH", {
+        last_used_at: new Date().toISOString(),
+      });
+    },
 
     // ── Personal Tokens ─────────────────────────────────────────────────────
     async getPersonalTokens(userId: string) {
@@ -242,6 +252,16 @@ export function createDbClient(env: Env) {
     async revokePersonalToken(id: string, userId: string) {
       await request(`/personal_tokens?id=eq.${id}&user_id=eq.${userId}`, "PATCH", {
         revoked_at: new Date().toISOString(),
+      });
+    },
+    async getPersonalTokenByHash(tokenHash: string) {
+      const r = await request(`/personal_tokens?token_hash=eq.${encodeURIComponent(tokenHash)}&limit=1`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async touchPersonalToken(id: string) {
+      await request(`/personal_tokens?id=eq.${encodeURIComponent(id)}`, "PATCH", {
+        last_used_at: new Date().toISOString(),
       });
     },
 

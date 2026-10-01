@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
-import { requireAuth } from "../middleware/auth";
+import { requireAccountAuth, requireAuth, requireProjectAuth } from "../middleware/auth";
 
 const analytics = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
 // GET /v1/analytics/overview
-analytics.get("/overview", requireAuth, async (c) => {
+analytics.get("/overview", requireAuth, requireAccountAuth, async (c) => {
   const db = createDbClient(c.env);
   const userId = c.get("userId");
   const projects = await db.getProjects(userId);
@@ -29,7 +29,7 @@ analytics.get("/overview", requireAuth, async (c) => {
 });
 
 // GET /v1/projects/:projectId/analytics
-analytics.get("/projects/:projectId", requireAuth, async (c) => {
+analytics.get("/projects/:projectId", requireAuth, requireProjectAuth, async (c) => {
   const projectId = c.req.param("projectId");
   const db = createDbClient(c.env);
   const project = await db.getProject(projectId, c.get("userId"));

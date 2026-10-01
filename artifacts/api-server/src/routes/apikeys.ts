@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, apiKeysTable, projectsTable } from "@workspace/db";
-import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { requireAccountAuth, requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 import { generateTokenWithPrefix } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -22,7 +22,7 @@ function toApiKey(k: typeof apiKeysTable.$inferSelect) {
 }
 
 // GET /v1/projects/:projectId/api-keys
-router.get("/v1/projects/:projectId/api-keys", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/v1/projects/:projectId/api-keys", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const projectId = req.params.projectId as string;
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
   const keys = await db.select().from(apiKeysTable).where(eq(apiKeysTable.projectId, projectId));
@@ -30,7 +30,7 @@ router.get("/v1/projects/:projectId/api-keys", requireAuth, async (req: AuthRequ
 });
 
 // POST /v1/projects/:projectId/api-keys
-router.post("/v1/projects/:projectId/api-keys", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/v1/projects/:projectId/api-keys", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const projectId = req.params.projectId as string;
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
   const { name, environment = "development", scopes = [] } = req.body ?? {};
@@ -44,7 +44,7 @@ router.post("/v1/projects/:projectId/api-keys", requireAuth, async (req: AuthReq
 });
 
 // DELETE /v1/projects/:projectId/api-keys/:id
-router.delete("/v1/projects/:projectId/api-keys/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/v1/projects/:projectId/api-keys/:id", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const { projectId, id } = req.params as { projectId: string; id: string };
   if (!await assertProjectOwner(projectId, req.userId!, res)) return;
   const [deleted] = await db.delete(apiKeysTable).where(and(eq(apiKeysTable.id, id), eq(apiKeysTable.projectId, projectId))).returning();

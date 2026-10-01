@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
-import { requireAuth } from "../middleware/auth";
+import { requireAccountAuth, requireAuth, requireProjectAuth } from "../middleware/auth";
 import { dispatchWebhook } from "./webhooks";
 
 const projects = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
+
+projects.use("/:id", requireAuth, requireProjectAuth);
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 60)
@@ -19,13 +21,15 @@ async function withStats(db: ReturnType<typeof createDbClient>, project: any) {
 // GET /v1/projects
 projects.get("/", requireAuth, async (c) => {
   const db = createDbClient(c.env);
-  const list = await db.getProjects(c.get("userId"));
+  const list = c.get("authKind") === "project_key"
+    ? [await db.getProject(c.get("projectId")!, c.get("userId"))].filter(Boolean)
+    : await db.getProjects(c.get("userId"));
   const withStatsList = await Promise.all(list.map(p => withStats(db, p)));
   return c.json(withStatsList);
 });
 
 // POST /v1/projects
-projects.post("/", requireAuth, async (c) => {
+projects.post("/", requireAuth, requireAccountAuth, async (c) => {
   const { name, description } = await c.req.json().catch(() => ({}));
   if (!name) return c.json({ error: "name is required" }, 400);
   const db = createDbClient(c.env);
@@ -44,7 +48,7 @@ projects.get("/:id", requireAuth, async (c) => {
 });
 
 // PATCH /v1/projects/:id
-projects.patch("/:id", requireAuth, async (c) => {
+projects.patch("/:id", requireAuth, requireAccountAuth, async (c) => {
   const db = createDbClient(c.env);
   const existing = await db.getProject(c.req.param("id"), c.get("userId"));
   if (!existing) return c.json({ error: "Project not found" }, 404);
@@ -57,7 +61,7 @@ projects.patch("/:id", requireAuth, async (c) => {
 });
 
 // DELETE /v1/projects/:id
-projects.delete("/:id", requireAuth, async (c) => {
+projects.delete("/:id", requireAuth, requireAccountAuth, async (c) => {
   const db = createDbClient(c.env);
   const existing = await db.getProject(c.req.param("id"), c.get("userId"));
   if (!existing) return c.json({ error: "Project not found" }, 404);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { PageHeader } from '@/components/page-header';
-import { BookOpen, Code, Zap, Lock, Upload, Image, Webhook, Key, ArrowRight, Copy, Check, Menu, X } from 'lucide-react';
+import { BookOpen, Code, Zap, Upload, Image, Webhook, Key, ArrowRight, Copy, Check, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { PublicHeader } from '@/components/public-header';
@@ -33,7 +33,6 @@ function CodeBlock({ code, language = 'bash' }: { code: string; language?: strin
 
 const sections = [
   { id: 'quickstart', icon: Zap, title: 'Quick Start', badge: 'Start here' },
-  { id: 'auth', icon: Lock, title: 'Authentication' },
   { id: 'upload', icon: Upload, title: 'Uploading Images' },
   { id: 'images', icon: Image, title: 'Managing Images' },
   { id: 'apikeys', icon: Key, title: 'API Keys' },
@@ -131,66 +130,20 @@ export default function DocsPage() {
                   Get your first image uploaded to AfuCloud in under 5 minutes.
                 </p>
                 <ol className="space-y-4 text-sm text-muted-foreground">
-                  <li className="flex gap-3"><span className="shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">1</span><span>Register for an account and create your first project from the dashboard.</span></li>
-                  <li className="flex gap-3"><span className="shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">2</span><span>Create an API key for your project under <strong>Project → API Keys</strong>.</span></li>
-                  <li className="flex gap-3"><span className="shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">3</span><span>Request a pre-signed upload URL and upload your first image.</span></li>
+                  <li className="flex gap-3"><span className="shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">1</span><span>Create an AfuCloud project from the dashboard.</span></li>
+                  <li className="flex gap-3"><span className="shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">2</span><span>Create a project API key under <strong>Project → API Keys</strong>, or create an account access token for automation.</span></li>
+                  <li className="flex gap-3"><span className="shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">3</span><span>Use that credential on project-data requests. Login and account credential endpoints are not part of the developer API.</span></li>
                 </ol>
               </div>
-              <CodeBlock language="bash" code={`# 1. Register
-curl -X POST ${BASE}/v1/auth/register \\
-  -H "Content-Type: application/json" \\
-  -d '{"email":"you@example.com","password":"secret","name":"Your Name"}'
+              <CodeBlock language="bash" code={`# Use a project API key created in the dashboard
+curl -X GET ${BASE}/v1/projects/{projectId}/images \\
+  -H "Authorization: Bearer afu_prod_..."
 
-# 2. Login and get access token
-curl -X POST ${BASE}/v1/auth/login \\
-  -H "Content-Type: application/json" \\
-  -d '{"email":"you@example.com","password":"secret"}'
-
-# 3. Create a project
+# Account access tokens can manage all projects and account resources
 curl -X POST ${BASE}/v1/projects \\
-  -H "Authorization: Bearer <token>" \\
+  -H "Authorization: Bearer afu_pat_..." \\
   -H "Content-Type: application/json" \\
-  -d '{"name":"My App","slug":"my-app"}'`} />
-          </article>
-
-          {/* Auth */}
-          <article
-            id="docs-auth"
-            className={cn('scroll-mt-4 space-y-6', activeSection === 'auth' ? 'block' : 'block lg:hidden')}
-          >
-              <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
-                <h2 className="text-base font-semibold">Authentication</h2>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  AfuCloud uses JWT access tokens. Tokens expire after 15 minutes; use the refresh token to renew them.
-                  Include the token in every protected request via the <code className="rounded bg-muted px-1.5 font-mono text-xs">Authorization</code> header.
-                </p>
-              </div>
-              <CodeBlock language="bash" code={`# Register
-POST ${BASE}/v1/auth/register
-{ "email": "you@example.com", "password": "secret", "name": "Your Name" }
-
-# Login
-POST ${BASE}/v1/auth/login
-{ "email": "you@example.com", "password": "secret" }
-
-# Response
-{
-  "accessToken": "eyJ...",
-  "refreshToken": "rt_...",
-  "user": { "id": "...", "email": "...", "name": "..." }
-}
-
-# Refresh
-POST ${BASE}/v1/auth/refresh
-{ "refreshToken": "rt_..." }
-
-# Protected request
-GET ${BASE}/v1/auth/me
-Authorization: Bearer <accessToken>`} />
-              <CodeBlock language="bash" code={`# Change password
-PATCH ${BASE}/v1/auth/me/password
-Authorization: Bearer <token>
-{ "currentPassword": "old", "newPassword": "new" }`} />
+  -d '{"name":"My App"}'`} />
           </article>
 
           {/* Upload */}
@@ -416,13 +369,6 @@ const isValid = crypto.timingSafeEqual(
                   <tbody className="divide-y divide-card-border">
                     {[
                       ['GET', '/healthz', '—', 'Health check'],
-                      ['POST', '/v1/auth/register', '—', 'Register new user'],
-                      ['POST', '/v1/auth/login', '—', 'Login, get tokens'],
-                      ['POST', '/v1/auth/refresh', '—', 'Refresh access token'],
-                      ['POST', '/v1/auth/logout', '✓', 'Logout (revoke refresh token)'],
-                      ['GET', '/v1/auth/me', '✓', 'Get current user'],
-                      ['PATCH', '/v1/auth/me/update', '✓', 'Update profile'],
-                      ['PATCH', '/v1/auth/me/password', '✓', 'Change password'],
                       ['GET', '/v1/projects', '✓', 'List projects'],
                       ['POST', '/v1/projects', '✓', 'Create project'],
                       ['GET', '/v1/projects/:id', '✓', 'Get project'],
@@ -444,8 +390,6 @@ const isValid = crypto.timingSafeEqual(
                       ['POST', '/v1/projects/:id/webhooks', '✓', 'Create webhook'],
                       ['PATCH', '/v1/projects/:id/webhooks/:whId', '✓', 'Update webhook'],
                       ['DELETE', '/v1/projects/:id/webhooks/:whId', '✓', 'Delete webhook'],
-                      ['GET', '/v1/analytics/overview', '✓', 'Platform analytics overview'],
-                      ['GET', '/v1/projects/:id/analytics', '✓', 'Per-project analytics'],
                       ['GET', '/v1/tokens', '✓', 'List personal tokens'],
                       ['POST', '/v1/tokens', '✓', 'Create personal token'],
                       ['DELETE', '/v1/tokens/:id', '✓', 'Revoke personal token'],

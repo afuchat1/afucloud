@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
-import { requireAuth } from "../middleware/auth";
-import { generateSecureToken, hashToken } from "../lib/auth";
+import { requireAccountAuth, requireAuth } from "../middleware/auth";
+import { hashToken } from "../lib/auth";
 
 const apikeys = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
@@ -21,7 +21,7 @@ function toApiKey(k: any, secret?: string) {
 }
 
 // GET /v1/projects/:projectId/api-keys
-apikeys.get("/", requireAuth, async (c) => {
+apikeys.get("/", requireAuth, requireAccountAuth, async (c) => {
   const projectId = c.req.param("projectId")!;
   const db = createDbClient(c.env);
   const project = await db.getProject(projectId, c.get("userId"));
@@ -31,16 +31,16 @@ apikeys.get("/", requireAuth, async (c) => {
 });
 
 // POST /v1/projects/:projectId/api-keys
-apikeys.post("/", requireAuth, async (c) => {
+apikeys.post("/", requireAuth, requireAccountAuth, async (c) => {
   const projectId = c.req.param("projectId")!;
   const db = createDbClient(c.env);
   const project = await db.getProject(projectId, c.get("userId"));
   if (!project) return c.json({ error: "Project not found" }, 404);
   const { name, environment = "development", scopes = [] } = await c.req.json().catch(() => ({}));
   if (!name) return c.json({ error: "name is required" }, 400);
-  const rawKey = generateSecureToken();
   const envShort = environment === "production" ? "prod" : environment === "testing" ? "test" : "dev";
-  const prefix = `afu_${envShort}_${rawKey.slice(4, 12)}`;
+  const rawKey = `afu_${envShort}_${crypto.randomUUID().replace(/-/g, "")}`;
+  const prefix = rawKey.slice(0, 16);
   const key_hash = await hashToken(rawKey);
   const key = await db.createApiKey({ project_id: projectId, name, environment, prefix, key_hash, scopes });
   await db.logActivity({ user_id: c.get("userId"), project_id: projectId, action: "create", resource: "api_key", resource_id: key.id });
@@ -48,7 +48,7 @@ apikeys.post("/", requireAuth, async (c) => {
 });
 
 // DELETE /v1/projects/:projectId/api-keys/:keyId
-apikeys.delete("/:keyId", requireAuth, async (c) => {
+apikeys.delete("/:keyId", requireAuth, requireAccountAuth, async (c) => {
   const projectId = c.req.param("projectId")!;
   const keyId = c.req.param("keyId")!;
   const db = createDbClient(c.env);

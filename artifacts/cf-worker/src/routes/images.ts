@@ -1,11 +1,13 @@
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireProjectAuth } from "../middleware/auth";
 import { generateUploadUrl, buildStorageKey, getPublicUrl, deleteObject } from "../lib/storage";
 import { dispatchWebhook } from "./webhooks";
 
 const images = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
+
+images.use("*", requireAuth, requireProjectAuth);
 
 function toApiImage(img: any, env: Env) {
   return {

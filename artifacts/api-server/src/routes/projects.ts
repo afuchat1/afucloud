@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql, isNull, count } from "drizzle-orm";
 import { db, projectsTable, imagesTable } from "@workspace/db";
-import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { requireAccountAuth, requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
@@ -24,7 +24,9 @@ async function getProjectWithStats(id: string, userId: string) {
 
 // GET /v1/projects
 router.get("/v1/projects", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const projects = await db.select().from(projectsTable).where(eq(projectsTable.userId, req.userId!));
+  const projects = req.authKind === "project_key"
+    ? await db.select().from(projectsTable).where(and(eq(projectsTable.id, req.projectId!), eq(projectsTable.userId, req.userId!)))
+    : await db.select().from(projectsTable).where(eq(projectsTable.userId, req.userId!));
   const withStats = await Promise.all(projects.map(async (p) => {
     const [s] = await db.select({
       imageCount: count(imagesTable.id),
@@ -36,7 +38,7 @@ router.get("/v1/projects", requireAuth, async (req: AuthRequest, res): Promise<v
 });
 
 // POST /v1/projects
-router.post("/v1/projects", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.post("/v1/projects", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const { name, description } = req.body ?? {};
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
   const slug = slugify(name);
@@ -52,7 +54,7 @@ router.get("/v1/projects/:id", requireAuth, async (req: AuthRequest, res): Promi
 });
 
 // PATCH /v1/projects/:id
-router.patch("/v1/projects/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/v1/projects/:id", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const id = req.params.id as string;
   const [existing] = await db.select().from(projectsTable).where(and(eq(projectsTable.id, id), eq(projectsTable.userId, req.userId!))).limit(1);
   if (!existing) { res.status(404).json({ error: "Project not found" }); return; }
@@ -66,7 +68,7 @@ router.patch("/v1/projects/:id", requireAuth, async (req: AuthRequest, res): Pro
 });
 
 // DELETE /v1/projects/:id
-router.delete("/v1/projects/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.delete("/v1/projects/:id", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const id = req.params.id as string;
   const [existing] = await db.select().from(projectsTable).where(and(eq(projectsTable.id, id), eq(projectsTable.userId, req.userId!))).limit(1);
   if (!existing) { res.status(404).json({ error: "Project not found" }); return; }

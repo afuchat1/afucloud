@@ -25,6 +25,9 @@ export interface Env {
 export interface AuthVariables {
   userId: string;
   email: string;
+  authKind: "jwt" | "personal_token" | "project_key";
+  projectId?: string;
+  scopes: string[];
 }
 
 export type AppContext = Context<{ Bindings: Env; Variables: AuthVariables }>;

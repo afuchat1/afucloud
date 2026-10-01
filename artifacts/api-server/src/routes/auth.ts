@@ -9,7 +9,7 @@ import {
   hashToken,
   refreshTokenExpiresAt,
 } from "../lib/auth";
-import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { requireAccountAuth, requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 import crypto from "crypto";
 
@@ -215,7 +215,7 @@ router.post("/v1/auth/refresh", async (req, res): Promise<void> => {
 });
 
 // GET /v1/auth/me
-router.get("/v1/auth/me", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/v1/auth/me", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const [authUser] = await db.select().from(authUsersTable).where(eq(authUsersTable.id, req.userId!)).limit(1);
   if (!authUser) { res.status(404).json({ error: "User not found" }); return; }
   const profile = await ensureAfuCloudProfile(authUser);
@@ -223,7 +223,7 @@ router.get("/v1/auth/me", requireAuth, async (req: AuthRequest, res): Promise<vo
 });
 
 // PATCH /v1/auth/me/update
-router.patch("/v1/auth/me/update", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/v1/auth/me/update", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const { name, avatar } = req.body ?? {};
   const updates: Record<string, unknown> = {};
   if (name != null) updates.name = name;
@@ -235,7 +235,7 @@ router.patch("/v1/auth/me/update", requireAuth, async (req: AuthRequest, res): P
 });
 
 // PATCH /v1/auth/me/password
-router.patch("/v1/auth/me/password", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/v1/auth/me/password", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
   const { currentPassword, newPassword } = req.body ?? {};
   if (!currentPassword || !newPassword) {
     res.status(400).json({ error: "currentPassword and newPassword are required" });
@@ -257,16 +257,6 @@ router.patch("/v1/auth/me/password", requireAuth, async (req: AuthRequest, res):
     .set({ encryptedPassword, updatedAt: new Date() })
     .where(eq(authUsersTable.id, req.userId!));
   res.json({ message: "Password updated successfully" });
-});
-
-// POST /v1/auth/forgot-password (stub)
-router.post("/v1/auth/forgot-password", async (_req, res): Promise<void> => {
-  res.json({ message: "If that email exists, a reset link has been sent." });
-});
-
-// POST /v1/auth/reset-password (stub)
-router.post("/v1/auth/reset-password", async (_req, res): Promise<void> => {
-  res.json({ message: "Password reset successfully." });
 });
 
 export default router;

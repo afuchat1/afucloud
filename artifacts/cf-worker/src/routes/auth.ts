@@ -7,7 +7,7 @@ import {
   generateSecureToken, hashToken, refreshTokenExpiresAt,
   extractBearerToken, verifyAccessToken,
 } from "../lib/auth";
-import { requireAuth } from "../middleware/auth";
+import { requireAccountAuth, requireAuth } from "../middleware/auth";
 
 const auth = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
@@ -130,7 +130,7 @@ auth.post("/refresh", async (c) => {
 });
 
 // GET /v1/auth/me
-auth.get("/me", requireAuth, async (c) => {
+auth.get("/me", requireAuth, requireAccountAuth, async (c) => {
   const db = createDbClient(c.env);
   const user = await db.getUserById(c.get("userId"));
   if (!user) return c.json({ error: "User not found" }, 404);
@@ -138,7 +138,7 @@ auth.get("/me", requireAuth, async (c) => {
 });
 
 // PATCH /v1/auth/me/update
-auth.patch("/me/update", requireAuth, async (c) => {
+auth.patch("/me/update", requireAuth, requireAccountAuth, async (c) => {
   const { name, avatar } = await c.req.json().catch(() => ({}));
   const updates: Record<string, unknown> = {};
   if (name != null) updates.name = name;
@@ -149,7 +149,7 @@ auth.patch("/me/update", requireAuth, async (c) => {
 });
 
 // PATCH /v1/auth/me/password
-auth.patch("/me/password", requireAuth, async (c) => {
+auth.patch("/me/password", requireAuth, requireAccountAuth, async (c) => {
   const { currentPassword, newPassword } = await c.req.json().catch(() => ({}));
   if (!currentPassword || !newPassword) return c.json({ error: "currentPassword and newPassword are required" }, 400);
   if (newPassword.length < 8) return c.json({ error: "Password must be at least 8 characters" }, 400);
@@ -158,8 +158,5 @@ auth.patch("/me/password", requireAuth, async (c) => {
   if (!user) return c.json({ error: "User not found" }, 404);
   return c.json({ error: "Password changes must be completed through Supabase Auth." }, 501);
 });
-
-auth.post("/forgot-password", async (c) => c.json({ message: "If that email exists, a reset link has been sent." }));
-auth.post("/reset-password", async (c) => c.json({ message: "Password reset successfully." }));
 
 export default auth;
