@@ -5,7 +5,7 @@ description: Connected production catalog facts that affect multi-product work a
 
 # Live Supabase schema and staging
 
-The connected Supabase project contains a much broader multi-product catalog than the local Drizzle schema index. Live inventory found 201 tables in `afuchat`, 23 in `afuai`, 11 in `afucloud`, shared `accounts` and `auth` schemas, and multiple additional domain schemas. Product-related entities are not always in a schema named after the product.
+The connected Supabase project contains a much broader multi-product catalog than the local Drizzle schema index. The 2026-09-25 live inventory found 201 tables in `afuchat`, 23 in `afuai`, 11 in `afucloud`, shared `accounts` and `auth` schemas, and multiple additional domain schemas. Product-related entities are not always in a schema named after the product.
 
 **Why:** The local schema index only represents AfuCloud plus shared auth/profile tables, so it is not a reliable inventory for cross-product dashboard work.
 
@@ -22,3 +22,9 @@ Supabase's security advisor reported RLS disabled on all 11 `afucloud` tables: `
 **Why:** Enabling RLS without policies can block access paths, while leaving it disabled exposes these tables to Supabase `anon` and `authenticated` roles.
 
 **How to apply:** Surface this risk and design table-specific policies and Worker/service-role behavior before changing RLS. Never apply blanket `ENABLE ROW LEVEL SECURITY` as an automatic fix.
+
+The local migration files do not guarantee that an external Supabase production schema is current. On 2026-10-01, `afucloud.cloudflare_connections` was absent even though its migration existed locally; after explicit approval, the table was added and verified with RLS and the required `service_role` access.
+
+**Why:** The missing relation prevented the Cloudflare OAuth callback from persisting a successful connection.
+
+**How to apply:** Verify live relations and role privileges before diagnosing PostgREST-backed features. For external production changes, use the narrow approved migration and verify the resulting schema and service-role access before committing it.
