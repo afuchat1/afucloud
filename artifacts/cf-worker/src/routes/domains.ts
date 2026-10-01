@@ -4,15 +4,47 @@ import { createDbClient } from "../lib/db";
 import { requireAccountAuth, requireAuth } from "../middleware/auth";
 
 const domains = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
+const DEFAULT_CDN_TARGET = "cdn.afuchat.com";
+const DNS_LOOKUP_TIMEOUT_MS = 5_000;
+const HTTPS_CHECK_TIMEOUT_MS = 5_000;
 
 domains.use("*", requireAuth, requireAccountAuth);
 
 function normalizeDomain(input: string): string {
-  return input.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.$/, "");
+  const value = input.trim();
+  if (!value || value.length > 2_048) return "";
+
+  const withoutScheme = value.replace(/^https?:\/\//i, "");
+  const authority = withoutScheme.split(/[/?#]/, 1)[0] ?? "";
+  const suffix = withoutScheme.slice(authority.length);
+  if (!authority || authority.includes("@") || authority.includes(":") || (suffix && suffix !== "/")) return "";
+
+  try {
+    return new URL(`https://${authority}`).hostname.toLowerCase().replace(/\.$/, "");
+  } catch {
+    return "";
+  }
 }
 
 function isRootDomain(domain: string): boolean {
-  return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(domain);
+  if (domain.length > 253) return false;
+  const labels = domain.split(".");
+  return labels.length >= 2 &&
+    !labels.every(label => /^\d+$/.test(label)) &&
+    (labels.at(-1)?.length ?? 0) >= 2 &&
+    labels.every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
+}
+
+function normalizeDnsName(name: string): string {
+  return name.trim().toLowerCase().replace(/\.+$/, "");
+}
+
+function cdnTarget(env: Env): string {
+  const target = normalizeDnsName(env.AFU_CDN_TARGET ?? DEFAULT_CDN_TARGET);
+  if (!target.endsWith(".afuchat.com")) {
+    throw new Error("AFU_CDN_TARGET must use the afuchat.com service domain");
+  }
+  return target;
 }
 
 function apiHostname(hostname: any, env: Env) {
@@ -27,7 +59,7 @@ function apiHostname(hostname: any, env: Env) {
     dnsRecord: {
       type: "CNAME",
       name: hostname.hostname,
-      value: env.AFU_CDN_TARGET ?? "cdn.afucloud.dev",
+      value: cdnTarget(env),
     },
     createdAt: hostname.created_at,
   };
@@ -56,20 +88,42 @@ async function resolveTxt(name: string): Promise<string[]> {
   const url = new URL("https://cloudflare-dns.com/dns-query");
   url.searchParams.set("name", name);
   url.searchParams.set("type", "TXT");
-  const response = await fetch(url, { headers: { accept: "application/dns-json" } });
+  const response = await fetch(url, {
+    headers: { accept: "application/dns-json" },
+    signal: AbortSignal.timeout(DNS_LOOKUP_TIMEOUT_MS),
+  });
   if (!response.ok) throw new Error("DNS lookup failed");
   const dns = await response.json() as { Answer?: Array<{ data?: string }> };
-  return (dns.Answer ?? []).map(answer => (answer.data ?? "").replace(/^"|"$/g, "").replace(/\\"/g, '"'));
+  return (dns.Answer ?? []).map(answer => (answer.data ?? "")
+    .replace(/"\s*"/g, "")
+    .replace(/^"|"$/g, "")
+    .replace(/\\"/g, '"'));
 }
 
 async function resolveCname(name: string): Promise<string[]> {
   const url = new URL("https://cloudflare-dns.com/dns-query");
   url.searchParams.set("name", name);
   url.searchParams.set("type", "CNAME");
-  const response = await fetch(url, { headers: { accept: "application/dns-json" } });
+  const response = await fetch(url, {
+    headers: { accept: "application/dns-json" },
+    signal: AbortSignal.timeout(DNS_LOOKUP_TIMEOUT_MS),
+  });
   if (!response.ok) throw new Error("DNS lookup failed");
   const dns = await response.json() as { Answer?: Array<{ data?: string }> };
-  return (dns.Answer ?? []).map(answer => (answer.data ?? "").replace(/\.$/, ""));
+  return (dns.Answer ?? []).map(answer => normalizeDnsName(answer.data ?? ""));
+}
+
+async function hasValidHttpsCertificate(hostname: string): Promise<boolean> {
+  try {
+    const response = await fetch(`https://${hostname}/`, {
+      method: "HEAD",
+      redirect: "manual",
+      signal: AbortSignal.timeout(HTTPS_CHECK_TIMEOUT_MS),
+    });
+    return response.status < 500 && response.status !== 421;
+  } catch {
+    return false;
+  }
 }
 
 async function domainResponse(db: ReturnType<typeof createDbClient>, id: string, userId: string, env: Env) {
@@ -163,13 +217,19 @@ domains.post("/:domainId/hostnames/:hostnameId/verify", requireAuth, async (c) =
   } catch {
     return c.json({ error: "DNS verification service is temporarily unavailable" }, 502);
   }
-  const expected = (c.env.AFU_CDN_TARGET ?? "cdn.afucloud.dev").replace(/\.$/, "");
-  if (!values.some(value => value === expected)) {
+  const expected = cdnTarget(c.env);
+  if (!values.some(value => normalizeDnsName(value) === expected)) {
+    await db.updateHostname(hostname.id, c.get("userId"), {
+      status: "pending",
+      ssl_status: "pending",
+      dns_status: "pending",
+    });
     return c.json({ error: "CNAME record not found", dnsRecord: { type: "CNAME", name: hostname.hostname, value: expected } }, 422);
   }
+  const sslActive = await hasValidHttpsCertificate(hostname.hostname);
   const updated = await db.updateHostname(hostname.id, c.get("userId"), {
-    status: "active",
-    ssl_status: "active",
+    status: sslActive ? "active" : "pending",
+    ssl_status: sslActive ? "active" : "pending",
     dns_status: "configured",
   });
   return c.json(apiHostname(updated, c.env));
