@@ -51,3 +51,16 @@ export async function signUpWithSupabase(
   });
   return response?.user ?? null;
 }
+
+export async function updatePasswordWithSupabase(env: Env, userId: string, password: string): Promise<boolean> {
+  const response = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    method: "PUT",
+    headers: {
+      apikey: env.SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ password }),
+  });
+  return response.ok;
+}

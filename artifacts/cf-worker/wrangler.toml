@@ -29,6 +29,8 @@ AFU_CDN_TARGET = "cdn.afuchat.com"
 CLOUDFLARE_R2_ACCESS_KEY_ID = "40916680c4892042d4ce49396ef62819"
 API_BASE_URL = "https://api.afuchat.com"
 NODE_ENV = "production"
+# Comma-separated exact dashboard origins outside the default *.afuchat.com allowlist.
+DASHBOARD_ALLOWED_ORIGINS = ""
 
 # ── Secrets (set via: wrangler secret put SECRET_NAME) ────────────────────────
 # SUPABASE_SERVICE_KEY      — Supabase service role key

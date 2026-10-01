@@ -29,21 +29,21 @@ const allowedOrigins = new Set([
 app.use(
   "*",
   cors({
-    origin: (origin) => {
+    origin: (origin, c) => {
       if (!origin) return origin;
-      if (
-        allowedOrigins.has(origin) ||
-        origin.endsWith(".afuchat.com") ||
-        origin.endsWith(".vercel.app") ||
-        origin.endsWith(".replit.dev") ||
-        origin.endsWith(".replit.app")
-      ) {
-        return origin;
-      }
+      const configured = new Set(
+        (c.env.DASHBOARD_ALLOWED_ORIGINS ?? "").split(",").map((item: string) => item.trim()).filter(Boolean),
+      );
+      if (allowedOrigins.has(origin) || configured.has(origin)) return origin;
+      try {
+        const url = new URL(origin);
+        if (url.protocol === "https:" && (url.hostname === "afuchat.com" || url.hostname.endsWith(".afuchat.com"))) return origin;
+      } catch {}
       return null;
     },
     allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Afu-CSRF"],
+    credentials: true,
     exposeHeaders: ["Content-Range", "X-AfuCloud-Request-Id"],
     maxAge: 86400,
   }),
@@ -71,7 +71,7 @@ app.get("/healthz", (c) =>
 );
 
 // ── API routes ────────────────────────────────────────────────────────────────
-app.route("/v1/auth", authRoutes);
+app.route("/v1/dashboard/session", authRoutes);
 app.route("/v1/projects", projectRoutes);
 app.route("/v1/analytics", analyticsRoutes);
 app.route("/v1/tokens", tokenRoutes);

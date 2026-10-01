@@ -12,8 +12,8 @@ import {
   ShieldCheck, Trash2, X,
 } from 'lucide-react';
 import { API_BASE } from '@/lib/api-base';
+import { customFetchResponse } from '@workspace/api-client-react';
 const headers = () => ({
-  Authorization: `Bearer ${localStorage.getItem('afucloud_token') ?? ''}`,
   'Content-Type': 'application/json',
 });
 
@@ -30,7 +30,7 @@ type Domain = {
 };
 
 async function jsonFetch(path: string, init?: RequestInit) {
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers: { ...headers(), ...(init?.headers ?? {}) } });
+  const res = await customFetchResponse(`${API_BASE}${path}`, { ...init, headers: { ...headers(), ...(init?.headers ?? {}) } });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;

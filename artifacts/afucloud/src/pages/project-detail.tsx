@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'wouter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  customFetchResponse,
   useGetProject,
   useGetProjectStats,
   useListImages,
@@ -48,8 +49,7 @@ const ALLOWED_TYPES = [
 ];
 
 function authHeaders() {
-  const token = localStorage.getItem('afucloud_token') ?? '';
-  return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  return { 'Content-Type': 'application/json' };
 }
 
 function uploadWithProgress(
@@ -158,7 +158,7 @@ export default function ProjectDetailPage() {
   const { data: trashData, isLoading: trashLoading, refetch: refetchTrash } = useQuery({
     queryKey: ['trash', projectId],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/v1/projects/${projectId}/images/trash`, { headers: authHeaders() });
+      const res = await customFetchResponse(`${API_BASE}/v1/projects/${projectId}/images/trash`, { headers: authHeaders() });
       if (!res.ok) throw new Error('Failed to load trash');
       return res.json() as Promise<{ images: Image[]; total: number }>;
     },
@@ -205,7 +205,7 @@ export default function ProjectDetailPage() {
       updateQueueItem(item.id, { status: 'uploading', progress: 0 });
       try {
         const urlRes = await withRetry(async () => {
-          const response = await fetch(`${API_BASE}/v1/projects/${projectId}/images/upload-url`, {
+          const response = await customFetchResponse(`${API_BASE}/v1/projects/${projectId}/images/upload-url`, {
             method: 'POST',
             headers: authHeaders(),
             body: JSON.stringify({
@@ -224,7 +224,7 @@ export default function ProjectDetailPage() {
       const { uploadUrl, imageId, key } = await urlRes.json();
       await withRetry(() => uploadWithProgress(uploadUrl, item.file, (pct) => updateQueueItem(item.id, { progress: Math.round(pct * 0.9) })));
       const confirmRes = await withRetry(async () => {
-        const response = await fetch(`${API_BASE}/v1/projects/${projectId}/images/confirm-upload`, {
+        const response = await customFetchResponse(`${API_BASE}/v1/projects/${projectId}/images/confirm-upload`, {
           method: 'POST',
           headers: authHeaders(),
           body: JSON.stringify({ imageId, key, size: item.file.size, originalName: item.file.name, name: item.file.name }),
@@ -289,7 +289,7 @@ export default function ProjectDetailPage() {
     if (!confirm(`Move ${selectedIds.size} image${selectedIds.size !== 1 ? 's' : ''} to the Recycle Bin?`)) return;
     setIsBulkProcessing(true);
     await Promise.allSettled(Array.from(selectedIds).map(id =>
-      fetch(`${API_BASE}/v1/projects/${projectId}/images/${id}`, { method: 'DELETE', headers: authHeaders() })
+      customFetchResponse(`${API_BASE}/v1/projects/${projectId}/images/${id}`, { method: 'DELETE', headers: authHeaders() })
     ));
     queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
     queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey(projectId) });
@@ -303,7 +303,7 @@ export default function ProjectDetailPage() {
     setIsBulkProcessing(true);
     const album = bulkAlbumInput.trim() || null;
     await Promise.allSettled(Array.from(selectedIds).map(id =>
-      fetch(`${API_BASE}/v1/projects/${projectId}/images/${id}`, {
+      customFetchResponse(`${API_BASE}/v1/projects/${projectId}/images/${id}`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ album }),
@@ -323,7 +323,7 @@ export default function ProjectDetailPage() {
     const images = allImages.filter(img => selectedIds.has(img.id));
     await Promise.allSettled(images.map(img => {
       const newTags = Array.from(new Set([...(img.tags ?? []), tag]));
-      return fetch(`${API_BASE}/v1/projects/${projectId}/images/${img.id}`, {
+      return customFetchResponse(`${API_BASE}/v1/projects/${projectId}/images/${img.id}`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ tags: newTags }),
@@ -347,7 +347,7 @@ export default function ProjectDetailPage() {
   const handleSoftDelete = async (imageId: string) => {
     if (!confirm('Move this image to the Recycle Bin?')) return;
     try {
-      const res = await fetch(`${API_BASE}/v1/projects/${projectId}/images/${imageId}`, { method: 'DELETE', headers: authHeaders() });
+      const res = await customFetchResponse(`${API_BASE}/v1/projects/${projectId}/images/${imageId}`, { method: 'DELETE', headers: authHeaders() });
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
         queryClient.invalidateQueries({ queryKey: getGetProjectStatsQueryKey(projectId) });
@@ -364,7 +364,7 @@ export default function ProjectDetailPage() {
 
   const handleRestore = async (imageId: string) => {
     try {
-      const res = await fetch(`${API_BASE}/v1/projects/${projectId}/images/${imageId}/restore`, { method: 'POST', headers: authHeaders() });
+      const res = await customFetchResponse(`${API_BASE}/v1/projects/${projectId}/images/${imageId}/restore`, { method: 'POST', headers: authHeaders() });
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
         queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
@@ -377,7 +377,7 @@ export default function ProjectDetailPage() {
   const handlePermanentDelete = async (imageId: string, name: string) => {
     if (!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
     try {
-      const res = await fetch(`${API_BASE}/v1/projects/${projectId}/images/${imageId}/permanent`, { method: 'DELETE', headers: authHeaders() });
+      const res = await customFetchResponse(`${API_BASE}/v1/projects/${projectId}/images/${imageId}/permanent`, { method: 'DELETE', headers: authHeaders() });
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
         toast({ title: 'Permanently deleted' });
@@ -393,7 +393,7 @@ export default function ProjectDetailPage() {
     if (count === 0) return;
     if (!confirm(`Permanently delete all ${count} images in the Recycle Bin? This cannot be undone.`)) return;
     try {
-      const res = await fetch(`${API_BASE}/v1/projects/${projectId}/images/trash`, { method: 'DELETE', headers: authHeaders() });
+      const res = await customFetchResponse(`${API_BASE}/v1/projects/${projectId}/images/trash`, { method: 'DELETE', headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
         queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
@@ -406,7 +406,7 @@ export default function ProjectDetailPage() {
     const images = trashData?.images ?? [];
     if (images.length === 0) return;
     await Promise.all(images.map(img =>
-      fetch(`${API_BASE}/v1/projects/${projectId}/images/${img.id}/restore`, { method: 'POST', headers: authHeaders() })
+      customFetchResponse(`${API_BASE}/v1/projects/${projectId}/images/${img.id}/restore`, { method: 'POST', headers: authHeaders() })
     ));
     queryClient.invalidateQueries({ queryKey: ['trash', projectId] });
     queryClient.invalidateQueries({ queryKey: getListImagesQueryKey(projectId) });
@@ -427,7 +427,7 @@ export default function ProjectDetailPage() {
     if (Object.keys(updates).length === 0) return;
     setIsSavingDetails(true);
     try {
-      const res = await fetch(`${API_BASE}/v1/projects/${projectId}/images/${selectedImage.id}`, {
+      const res = await customFetchResponse(`${API_BASE}/v1/projects/${projectId}/images/${selectedImage.id}`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify(updates),

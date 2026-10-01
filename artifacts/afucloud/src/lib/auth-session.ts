@@ -1,11 +1,32 @@
-import type { AuthResponse } from '@workspace/api-client-react';
+import { clearCsrfToken, customFetch } from "@workspace/api-client-react";
 
-export function storeAuthTokens(auth: Pick<AuthResponse, 'accessToken' | 'refreshToken'>): void {
-  localStorage.setItem('afucloud_token', auth.accessToken);
-  localStorage.setItem('afucloud_refresh_token', auth.refreshToken);
+export interface DashboardUser {
+  id: string;
+  email: string;
+  name: string;
+  avatar?: string | null;
+  emailVerified: boolean;
+  createdAt: string;
 }
 
 export function clearAuthTokens(): void {
-  localStorage.removeItem('afucloud_token');
-  localStorage.removeItem('afucloud_refresh_token');
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("afucloud_token");
+    localStorage.removeItem("afucloud_refresh_token");
+  }
+  clearCsrfToken();
+}
+
+export function clearLegacyAuthTokens(): void {
+  clearAuthTokens();
+}
+
+export function dashboardSessionRequest<T = unknown>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<T> {
+  return customFetch<T>(`/api/v1/dashboard/session/${endpoint.replace(/^\/+/, "")}`, {
+    ...options,
+    responseType: "json",
+  });
 }

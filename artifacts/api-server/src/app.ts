@@ -5,6 +5,7 @@ import express, {
   type Response,
 } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -30,9 +31,37 @@ app.use(
     },
   }),
 );
-app.use(cors());
+const configuredOrigins = new Set(
+  (process.env.DASHBOARD_ALLOWED_ORIGINS ?? "").split(",").map((origin) => origin.trim()).filter(Boolean),
+);
+function isDashboardOrigin(origin: string): boolean {
+  if (configuredOrigins.has(origin)) return true;
+  try {
+    const url = new URL(origin);
+    const host = url.hostname.toLowerCase();
+    const secure = url.protocol === "https:";
+    if (!secure && process.env.NODE_ENV !== "development") return false;
+    return host === "afuchat.com" || host.endsWith(".afuchat.com") ||
+      (process.env.NODE_ENV === "development" && (host.endsWith(".replit.dev") || host.endsWith(".replit.app")));
+  } catch {
+    return false;
+  }
+}
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin) {
+      callback(null, false);
+      return;
+    }
+    callback(null, isDashboardOrigin(origin) ? origin : false);
+  },
+  credentials: true,
+  methods: ["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Afu-CSRF"],
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 app.use("/api", router);
 

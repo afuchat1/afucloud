@@ -1,54 +1,54 @@
-import { useEffect, useState } from 'react';
-import { useLocation } from 'wouter';
-import { refreshToken, useGetMe } from '@workspace/api-client-react';
-import { clearAuthTokens, storeAuthTokens } from '@/lib/auth-session';
+import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
+import { clearAuthTokens, clearLegacyAuthTokens, dashboardSessionRequest, type DashboardUser } from "@/lib/auth-session";
 
 interface AuthGuardProps {
   children: React.ReactNode;
 }
 
+type SessionState = "checking" | "authenticated" | "unauthenticated" | "unavailable";
+
 function isUnauthorized(error: unknown): boolean {
   return Boolean(
     error &&
-      typeof error === 'object' &&
-      'status' in error &&
+      typeof error === "object" &&
+      "status" in error &&
       (error as { status?: unknown }).status === 401,
   );
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const [, setLocation] = useLocation();
-  const [token, setToken] = useState<string | null>(null);
-  const [sessionReady, setSessionReady] = useState(false);
+  const queryClient = useQueryClient();
+  const [state, setState] = useState<SessionState>("checking");
 
   useEffect(() => {
     let active = true;
+    clearLegacyAuthTokens();
 
     async function restoreSession() {
-      const accessToken = localStorage.getItem('afucloud_token');
-      const refresh = localStorage.getItem('afucloud_refresh_token');
-
-      if (!refresh) {
-        if (active) setToken(accessToken);
-        setSessionReady(true);
+      try {
+        await dashboardSessionRequest<DashboardUser>("me");
+        if (active) setState("authenticated");
         return;
+      } catch (error) {
+        if (!isUnauthorized(error)) {
+          if (active) setState("unavailable");
+          return;
+        }
       }
 
       try {
-        const auth = await refreshToken({ refreshToken: refresh });
-        storeAuthTokens(auth);
-        if (active) setToken(auth.accessToken);
+        await dashboardSessionRequest<DashboardUser>("refresh", { method: "POST" });
+        if (active) setState("authenticated");
       } catch (error) {
         if (isUnauthorized(error)) {
           clearAuthTokens();
-          if (active) setToken(null);
+          if (active) setState("unauthenticated");
         } else if (active) {
-          // Keep the saved session on network/server errors; /me below can
-          // still validate the current access token if the API is available.
-          setToken(accessToken);
+          setState("unavailable");
         }
-      } finally {
-        if (active) setSessionReady(true);
       }
     }
 
@@ -58,32 +58,21 @@ export function AuthGuard({ children }: AuthGuardProps) {
     };
   }, []);
 
-  const { data: user, isLoading, error } = useGetMe({
-    query: {
-      queryKey: ['/api/v1/auth/me'],
-      enabled: sessionReady && !!token,
-      retry: false,
-    },
-  });
+  useEffect(() => {
+    const handleExpiredSession = () => {
+      clearAuthTokens();
+      queryClient.clear();
+      setState("unauthenticated");
+    };
+    window.addEventListener("afucloud:session-expired", handleExpiredSession);
+    return () => window.removeEventListener("afucloud:session-expired", handleExpiredSession);
+  }, [queryClient]);
 
   useEffect(() => {
-    if (!sessionReady) return;
+    if (state === "unauthenticated") setLocation("/login");
+  }, [state, setLocation]);
 
-    if (!token) {
-      setLocation('/login');
-      return;
-    }
-
-    if (!isLoading) {
-      if (isUnauthorized(error)) {
-        clearAuthTokens();
-        setToken(null);
-        setLocation('/login');
-      }
-    }
-  }, [sessionReady, token, isLoading, error, setLocation]);
-
-  if (!sessionReady || (!!token && isLoading)) {
+  if (state === "checking" || state === "unauthenticated") {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -94,7 +83,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  if (token && (error || !user)) {
+  if (state === "unavailable") {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-background p-6">
         <div className="max-w-sm space-y-3 text-center">

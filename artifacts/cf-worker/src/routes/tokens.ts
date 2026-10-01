@@ -31,8 +31,13 @@ tokens.get("/", requireAuth, requireAccountAuth, async (c) => {
 
 // POST /v1/tokens
 tokens.post("/", requireAuth, requireAccountAuth, async (c) => {
-  const { name, description, scopes = [], expiresAt } = await c.req.json().catch(() => ({}));
+  const body = await c.req.json().catch(() => ({}));
+  const { name, description, expiresAt } = body as Record<string, unknown>;
+  const scopes = Array.isArray((body as Record<string, unknown>).scopes)
+    ? (body as { scopes: unknown[] }).scopes
+    : ["account:*"];
   if (!name) return c.json({ error: "name is required" }, 400);
+  if (!scopes.every((scope) => typeof scope === "string")) return c.json({ error: "scopes must be an array of strings" }, 400);
   const db = createDbClient(c.env);
   const rawToken = `afu_pat_${crypto.randomUUID().replace(/-/g, "")}`;
   const prefix = rawToken.slice(0, 16);

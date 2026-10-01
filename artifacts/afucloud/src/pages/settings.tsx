@@ -1,34 +1,48 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { useGetMe, useUpdateProfile, useLogout } from '@workspace/api-client-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { User, Shield, LogOut } from 'lucide-react';
-import { API_BASE } from '@/lib/api-base';
-import { clearAuthTokens } from '@/lib/auth-session';
+import { clearAuthTokens, dashboardSessionRequest, type DashboardUser } from '@/lib/auth-session';
 
-async function changePassword(currentPassword: string, newPassword: string, token: string) {
-  const res = await fetch(`${API_BASE}/v1/auth/me/password`, {
+async function changePassword(currentPassword: string, newPassword: string) {
+  return dashboardSessionRequest('me/password', {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ currentPassword, newPassword }),
   });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Failed to change password');
-  }
-  return res.json();
 }
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const { data: user, isLoading } = useGetMe();
-  const updateMutation = useUpdateProfile();
-  const logoutMutation = useLogout();
+  const queryClient = useQueryClient();
+  const { data: user, isLoading } = useQuery({
+    queryKey: ['dashboard-session', 'me'],
+    queryFn: () => dashboardSessionRequest<DashboardUser>('me'),
+  });
+  const updateMutation = useMutation({
+    mutationFn: (data: { name: string }) => dashboardSessionRequest<DashboardUser>('me/update', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+    onSuccess: (updatedUser) => {
+      queryClient.setQueryData(['dashboard-session', 'me'], updatedUser);
+      toast({ title: 'Saved', description: 'Profile updated successfully' });
+    },
+    onError: (err: Error) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
+  });
+  const logoutMutation = useMutation({
+    mutationFn: () => dashboardSessionRequest('logout', { method: 'POST' }),
+    onSettled: () => {
+      clearAuthTokens();
+      queryClient.clear();
+      setLocation('/login');
+    },
+  });
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -47,25 +61,11 @@ export default function SettingsPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    updateMutation.mutate(
-      { data: { name } },
-      {
-        onSuccess: () => toast({ title: 'Saved', description: 'Profile updated successfully' }),
-        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
-      }
-    );
+    updateMutation.mutate({ name });
   };
 
   const handleLogout = () => {
-    logoutMutation.mutate(
-      { data: { refreshToken: localStorage.getItem('afucloud_refresh_token') ?? '' } },
-      {
-        onSettled: () => {
-          clearAuthTokens();
-          setLocation('/login');
-        },
-      },
-    );
+    logoutMutation.mutate();
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -78,10 +78,9 @@ export default function SettingsPage() {
       toast({ title: 'Password too short', description: 'Must be at least 8 characters', variant: 'destructive' });
       return;
     }
-    const token = localStorage.getItem('afucloud_token') || '';
     setChangingPassword(true);
     try {
-      await changePassword(currentPassword, newPassword, token);
+      await changePassword(currentPassword, newPassword);
       toast({ title: 'Password changed', description: 'Your password has been updated successfully' });
       setCurrentPassword('');
       setNewPassword('');

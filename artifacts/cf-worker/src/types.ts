@@ -10,6 +10,7 @@ export interface Env {
   CLOUDFLARE_ACCOUNT_ID: string;
   CLOUDFLARE_R2_ACCESS_KEY_ID: string;
   API_BASE_URL?: string;
+  DASHBOARD_ALLOWED_ORIGINS?: string;
   NODE_ENV: string;
   AFU_CDN_TARGET?: string;
 
@@ -25,7 +26,7 @@ export interface Env {
 export interface AuthVariables {
   userId: string;
   email: string;
-  authKind: "jwt" | "personal_token" | "project_key";
+  authKind: "dashboard_session" | "personal_token" | "project_key";
   projectId?: string;
   scopes: string[];
 }

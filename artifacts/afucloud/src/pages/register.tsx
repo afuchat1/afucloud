@@ -1,22 +1,23 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { useRegister } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Database, AlertCircle } from 'lucide-react';
 import { AuthHeader } from '@/components/auth-header';
-import { storeAuthTokens } from '@/lib/auth-session';
+import { dashboardSessionRequest } from '@/lib/auth-session';
 
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
-  const registerMutation = useRegister();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,26 +31,23 @@ export default function RegisterPage() {
       return;
     }
     
-    registerMutation.mutate(
-      { data: { name, email, password } },
-      {
-        onSuccess: (data) => {
-          storeAuthTokens(data);
-          toast({
-            title: 'Account created',
-            description: 'Welcome to AfuCloud',
-          });
-          setLocation('/dashboard');
-        },
-        onError: (error) => {
-          toast({
-            title: 'Registration failed',
-            description: error.message || 'Please try again',
-            variant: 'destructive',
-          });
-        },
-      }
-    );
+    setIsSubmitting(true);
+    setRegisterError(null);
+    try {
+      await dashboardSessionRequest('register', {
+        method: 'POST',
+        body: JSON.stringify({ name, email, password }),
+      });
+      queryClient.clear();
+      toast({ title: 'Account created', description: 'Welcome to AfuCloud' });
+      setLocation('/dashboard');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Please try again';
+      setRegisterError(message);
+      toast({ title: 'Registration failed', description: message, variant: 'destructive' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -93,7 +91,7 @@ export default function RegisterPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                disabled={registerMutation.isPending}
+                disabled={isSubmitting}
                 data-testid="input-name"
               />
             </div>
@@ -107,7 +105,7 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={registerMutation.isPending}
+                disabled={isSubmitting}
                 data-testid="input-email"
               />
             </div>
@@ -121,13 +119,13 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={registerMutation.isPending}
+                disabled={isSubmitting}
                 data-testid="input-password"
               />
               <p className="text-xs text-muted-foreground">Must be at least 8 characters</p>
             </div>
 
-            {registerMutation.isError && (
+            {registerError && (
               <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
                 <AlertCircle className="h-4 w-4" />
                 <span>Registration failed. Please try again.</span>
@@ -137,10 +135,10 @@ export default function RegisterPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={registerMutation.isPending}
+              disabled={isSubmitting}
               data-testid="button-submit"
             >
-              {registerMutation.isPending ? 'Creating account...' : 'Create account'}
+              {isSubmitting ? 'Creating account...' : 'Create account'}
             </Button>
           </form>
 

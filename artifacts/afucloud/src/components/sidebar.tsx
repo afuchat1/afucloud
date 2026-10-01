@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, Link } from 'wouter';
-import { useGetMe } from '@workspace/api-client-react';
+import { useQuery } from '@tanstack/react-query';
+import { dashboardSessionRequest, type DashboardUser } from '@/lib/auth-session';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -63,7 +64,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     location === '/domains' ||
     location.startsWith('/domains/');
   const [imagesExpanded, setImagesExpanded] = useState(isProductRoute);
-  const { data: user } = useGetMe({ query: { queryKey: ['/api/v1/auth/me'], retry: false } });
+  const { data: user } = useQuery({
+    queryKey: ['dashboard-session', 'me'],
+    queryFn: () => dashboardSessionRequest<DashboardUser>('me'),
+    retry: false,
+  });
   const handleNavClick = () => {
     // Close drawer on mobile after navigating
     onClose?.();

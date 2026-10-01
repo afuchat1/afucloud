@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { setBaseUrl } from '@workspace/api-client-react';
+import { clearLegacyAuthTokens } from '@/lib/auth-session';
 
 import App from './App';
 
@@ -12,5 +13,6 @@ const apiBaseUrl = import.meta.env.DEV
   ? null
   : (import.meta.env.VITE_API_BASE_URL || 'https://api.afuchat.com');
 setBaseUrl(apiBaseUrl);
+clearLegacyAuthTokens();
 
 createRoot(document.getElementById('root')!).render(<App />);

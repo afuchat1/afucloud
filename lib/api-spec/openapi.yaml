@@ -607,6 +607,44 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityLog"
 
+  /v1/analytics/overview:
+    get:
+      operationId: getAnalyticsOverview
+      tags: [analytics]
+      summary: Get account-wide analytics overview
+      responses:
+        "200":
+          description: Account analytics summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsOverviewResponse"
+
+  /v1/projects/{projectId}/analytics:
+    get:
+      operationId: getProjectAnalytics
+      tags: [analytics]
+      summary: Get analytics for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [7d, 30d, 90d]
+            default: 30d
+      responses:
+        "200":
+          description: Project analytics and daily usage series
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectAnalyticsResponse"
+
 components:
   securitySchemes:
     BearerAuth:
@@ -629,87 +667,54 @@ components:
         message:
           type: string
 
-    # ─── Auth ───
-    RegisterInput:
+    AnalyticsOverviewResponse:
       type: object
-      required: [email, password, name]
+      required: [totalProjects, totalImages, totalStorageUsed, totalBandwidth, totalApiRequests, recentUploads]
       properties:
-        email:
-          type: string
-        password:
-          type: string
-          minLength: 8
-        name:
-          type: string
+        totalProjects:
+          type: number
+        totalImages:
+          type: number
+        totalStorageUsed:
+          type: number
+        totalBandwidth:
+          type: number
+        totalApiRequests:
+          type: number
+        recentUploads:
+          type: number
 
-    LoginInput:
+    ProjectAnalyticsResponse:
       type: object
-      required: [email, password]
+      required: [uploads, downloads, storageUsed, bandwidth, apiRequests, dailyStats]
       properties:
-        email:
-          type: string
-        password:
-          type: string
+        uploads:
+          type: number
+        downloads:
+          type: number
+        storageUsed:
+          type: number
+        bandwidth:
+          type: number
+        apiRequests:
+          type: number
+        dailyStats:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectDailyStat"
 
-    RefreshInput:
+    ProjectDailyStat:
       type: object
-      required: [refreshToken]
+      required: [date, uploads, downloads, bandwidth]
       properties:
-        refreshToken:
+        date:
           type: string
-
-    ForgotPasswordInput:
-      type: object
-      required: [email]
-      properties:
-        email:
-          type: string
-
-    ResetPasswordInput:
-      type: object
-      required: [token, password]
-      properties:
-        token:
-          type: string
-        password:
-          type: string
-          minLength: 8
-
-    ProfileUpdate:
-      type: object
-      properties:
-        name:
-          type: string
-        avatar:
-          type: ["string", "null"]
-
-    User:
-      type: object
-      required: [id, email, name, createdAt]
-      properties:
-        id:
-          type: string
-        email:
-          type: string
-        name:
-          type: string
-        avatar:
-          type: ["string", "null"]
-        emailVerified:
-          type: boolean
-        createdAt:
-          type: string
-
-    AuthResponse:
-      type: object
-      required: [user, accessToken, refreshToken]
-      properties:
-        user:
-          $ref: "#/components/schemas/User"
-        accessToken:
-          type: string
-        refreshToken:
-          type: string
+        uploads:
+          type: number
+        downloads:
+          type: number
+        bandwidth:
+          type: number
 
     # ─── Projects ───
     Project:

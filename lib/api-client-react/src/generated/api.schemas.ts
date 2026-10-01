@@ -13,52 +13,29 @@ export interface MessageResponse {
   message: string;
 }
 
-export interface RegisterInput {
-  email: string;
-  /** @minLength 8 */
-  password: string;
-  name: string;
+export interface AnalyticsOverviewResponse {
+  totalProjects: number;
+  totalImages: number;
+  totalStorageUsed: number;
+  totalBandwidth: number;
+  totalApiRequests: number;
+  recentUploads: number;
 }
 
-export interface LoginInput {
-  email: string;
-  password: string;
+export interface ProjectDailyStat {
+  date: string;
+  uploads: number;
+  downloads: number;
+  bandwidth: number;
 }
 
-export interface RefreshInput {
-  refreshToken: string;
-}
-
-export interface ForgotPasswordInput {
-  email: string;
-}
-
-export interface ResetPasswordInput {
-  token: string;
-  /** @minLength 8 */
-  password: string;
-}
-
-export interface ProfileUpdate {
-  name?: string;
-  /** @nullable */
-  avatar?: string | null;
-}
-
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  /** @nullable */
-  avatar?: string | null;
-  emailVerified?: boolean;
-  createdAt: string;
-}
-
-export interface AuthResponse {
-  user: User;
-  accessToken: string;
-  refreshToken: string;
+export interface ProjectAnalyticsResponse {
+  uploads: number;
+  downloads: number;
+  storageUsed: number;
+  bandwidth: number;
+  apiRequests: number;
+  dailyStats: ProjectDailyStat[];
 }
 
 export interface Project {
@@ -208,31 +185,6 @@ export type TokenWithSecret = Token & {
   secret: string;
 };
 
-export interface AnalyticsOverview {
-  totalProjects: number;
-  totalImages: number;
-  totalStorageUsed: number;
-  totalBandwidth: number;
-  totalApiRequests: number;
-  recentUploads?: number;
-}
-
-export interface DailyStat {
-  date: string;
-  uploads: number;
-  downloads: number;
-  bandwidth: number;
-}
-
-export interface ProjectAnalytics {
-  uploads: number;
-  downloads: number;
-  storageUsed: number;
-  bandwidth: number;
-  apiRequests: number;
-  dailyStats: DailyStat[];
-}
-
 export interface Webhook {
   id: string;
   projectId: string;
@@ -281,12 +233,21 @@ page?: string;
 limit?: string;
 };
 
-export type GetProjectAnalyticsParams = {
-period?: string;
-};
-
 export type ListActivityParams = {
 projectId?: string;
 limit?: string;
 };
+
+export type GetProjectAnalyticsParams = {
+period?: GetProjectAnalyticsPeriod;
+};
+
+export type GetProjectAnalyticsPeriod = typeof GetProjectAnalyticsPeriod[keyof typeof GetProjectAnalyticsPeriod];
+
+
+export const GetProjectAnalyticsPeriod = {
+  '7d': '7d',
+  '30d': '30d',
+  '90d': '90d',
+} as const;
 

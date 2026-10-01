@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql, isNull, count } from "drizzle-orm";
 import { db, projectsTable, imagesTable } from "@workspace/db";
-import { requireAccountAuth, requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { requireAccountAuth, requireAuth, requireProjectAuth, type AuthRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
@@ -47,7 +47,7 @@ router.post("/v1/projects", requireAuth, requireAccountAuth, async (req: AuthReq
 });
 
 // GET /v1/projects/:id
-router.get("/v1/projects/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/v1/projects/:id", requireAuth, requireProjectAuth, async (req: AuthRequest, res): Promise<void> => {
   const project = await getProjectWithStats(req.params.id as string, req.userId!);
   if (!project) { res.status(404).json({ error: "Project not found" }); return; }
   res.json(project);
@@ -77,7 +77,7 @@ router.delete("/v1/projects/:id", requireAuth, requireAccountAuth, async (req: A
 });
 
 // GET /v1/projects/:id/stats
-router.get("/v1/projects/:id/stats", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/v1/projects/:id/stats", requireAuth, requireProjectAuth, async (req: AuthRequest, res): Promise<void> => {
   const id = req.params.id as string;
   const [existing] = await db.select().from(projectsTable).where(and(eq(projectsTable.id, id), eq(projectsTable.userId, req.userId!))).limit(1);
   if (!existing) { res.status(404).json({ error: "Project not found" }); return; }

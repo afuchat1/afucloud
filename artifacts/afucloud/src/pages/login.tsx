@@ -1,45 +1,46 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { useLogin } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Database, AlertCircle } from 'lucide-react';
 import { AuthHeader } from '@/components/auth-header';
-import { storeAuthTokens } from '@/lib/auth-session';
+import { dashboardSessionRequest } from '@/lib/auth-session';
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
-  const loginMutation = useLogin();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    loginMutation.mutate(
-      { data: { email, password } },
-      {
-        onSuccess: (data) => {
-          storeAuthTokens(data);
-          toast({
-            title: 'Welcome back',
-            description: 'Successfully logged in',
-          });
-          setLocation('/dashboard');
-        },
-        onError: (error) => {
-          toast({
-            title: 'Login failed',
-            description: error.message || 'Invalid credentials',
-            variant: 'destructive',
-          });
-        },
-      }
-    );
+    setIsSubmitting(true);
+    setLoginError(false);
+    try {
+      await dashboardSessionRequest('login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      queryClient.clear();
+      toast({ title: 'Welcome back', description: 'Successfully logged in' });
+      setLocation('/dashboard');
+    } catch (error) {
+      setLoginError(true);
+      toast({
+        title: 'Login failed',
+        description: error instanceof Error ? error.message : 'Invalid credentials',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -83,7 +84,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={loginMutation.isPending}
+                disabled={isSubmitting}
                 data-testid="input-email"
               />
             </div>
@@ -97,12 +98,12 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={loginMutation.isPending}
+                disabled={isSubmitting}
                 data-testid="input-password"
               />
             </div>
 
-            {loginMutation.isError && (
+            {loginError && (
               <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
                 <AlertCircle className="h-4 w-4" />
                 <span>Invalid email or password</span>
@@ -112,10 +113,10 @@ export default function LoginPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={loginMutation.isPending}
+              disabled={isSubmitting}
               data-testid="button-submit"
             >
-              {loginMutation.isPending ? 'Signing in...' : 'Sign in'}
+              {isSubmitting ? 'Signing in...' : 'Sign in'}
             </Button>
           </form>
 

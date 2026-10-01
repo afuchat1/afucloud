@@ -17,6 +17,8 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _csrfToken: string | null = null;
+let _dashboardRefreshPromise: Promise<boolean> | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,6 +44,10 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+export function clearCsrfToken(): void {
+  _csrfToken = null;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -326,10 +332,56 @@ async function parseSuccessBody(
   }
 }
 
-export async function customFetch<T = unknown>(
+function getDashboardSessionEndpoint(input: RequestInfo | URL, endpoint: string): string {
+  if (typeof window === "undefined") throw new Error("Dashboard sessions require a browser");
+  if (_baseUrl) {
+    const base = new URL(_baseUrl, window.location.href);
+    return `${base.origin}${base.pathname.replace(/\/+$/, "")}/v1/dashboard/session/${endpoint}`;
+  }
+  const requestUrl = new URL(resolveUrl(input), window.location.href);
+  const apiPrefix = requestUrl.pathname.startsWith("/api/") ? "/api" : "";
+  return `${requestUrl.origin}${apiPrefix}/v1/dashboard/session/${endpoint}`;
+}
+
+async function getDashboardCsrfToken(input: RequestInfo | URL): Promise<string> {
+  if (_csrfToken) return _csrfToken;
+  const endpoint = getDashboardSessionEndpoint(input, "csrf");
+
+  const response = await fetch(endpoint, { method: "GET", credentials: "include", headers: { accept: "application/json" } });
+  if (!response.ok) throw new Error(`Unable to initialize dashboard session security (HTTP ${response.status})`);
+  const body = await response.json() as { csrfToken?: unknown };
+  if (typeof body.csrfToken !== "string" || !body.csrfToken) {
+    throw new Error("Dashboard session security token was not returned");
+  }
+  _csrfToken = body.csrfToken;
+  return _csrfToken;
+}
+
+async function refreshDashboardSession(input: RequestInfo | URL): Promise<boolean> {
+  if (_dashboardRefreshPromise) return _dashboardRefreshPromise;
+  _dashboardRefreshPromise = (async () => {
+    try {
+      const csrfToken = await getDashboardCsrfToken(input);
+      const response = await fetch(getDashboardSessionEndpoint(input, "refresh"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "X-Afu-CSRF": csrfToken, "Content-Type": "application/json" },
+        body: "{}",
+      });
+      return response.ok;
+    } catch {
+      return false;
+    } finally {
+      _dashboardRefreshPromise = null;
+    }
+  })();
+  return _dashboardRefreshPromise;
+}
+
+export async function customFetchResponse(
   input: RequestInfo | URL,
   options: CustomFetchOptions = {},
-): Promise<T> {
+): Promise<Response> {
   input = applyBaseUrl(input);
   const { responseType = "auto", headers: headersInit, ...init } = options;
 
@@ -353,12 +405,6 @@ export async function customFetch<T = unknown>(
     headers.set("accept", DEFAULT_JSON_ACCEPT);
   }
 
-  // Inject Authorization header from localStorage
-  const token = typeof window !== 'undefined' ? localStorage.getItem('afucloud_token') : null;
-  if (token && !headers.has("authorization")) {
-    headers.set("authorization", `Bearer ${token}`);
-  }
-
   // Attach bearer token when an auth getter is configured and no
   // Authorization header has been explicitly provided.
   if (_authTokenGetter && !headers.has("authorization")) {
@@ -368,9 +414,44 @@ export async function customFetch<T = unknown>(
     }
   }
 
-  const requestInfo = { method, url: resolveUrl(input) };
+  const hasDeveloperCredential = headers.has("authorization");
+  const credentials = init.credentials ?? (hasDeveloperCredential ? "omit" : "include");
+  if (
+    typeof window !== "undefined" &&
+    !hasDeveloperCredential &&
+    !["GET", "HEAD", "OPTIONS"].includes(method)
+  ) {
+    headers.set("X-Afu-CSRF", await getDashboardCsrfToken(input));
+  }
 
-  const response = await fetch(input, { ...init, method, headers });
+  const fetchInit = { ...init, method, headers, credentials };
+  const firstInput = isRequest(input) ? input.clone() : input;
+  let response = await fetch(firstInput, fetchInit);
+  const requestUrl = typeof window !== "undefined" ? new URL(resolveUrl(input), window.location.href) : null;
+  const isSessionEndpoint = requestUrl?.pathname.includes("/dashboard/session/") ?? false;
+  if (response.status === 401 && typeof window !== "undefined" && !hasDeveloperCredential && !isSessionEndpoint) {
+    if (await refreshDashboardSession(input)) {
+      const retryInput = isRequest(input) ? input.clone() : input;
+      response = await fetch(retryInput, fetchInit);
+    } else {
+      window.dispatchEvent(new Event("afucloud:session-expired"));
+    }
+  }
+  return response;
+}
+
+export async function customFetch<T = unknown>(
+  input: RequestInfo | URL,
+  options: CustomFetchOptions = {},
+): Promise<T> {
+  const responseType = options.responseType ?? "auto";
+  const method = resolveMethod(input, options.method);
+  const requestInfo = {
+    method,
+    url: resolveUrl(applyBaseUrl(input)),
+  };
+
+  const response = await customFetchResponse(input, options);
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

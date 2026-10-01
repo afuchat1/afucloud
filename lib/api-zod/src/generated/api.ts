@@ -17,148 +17,6 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * @summary Register a new user account
- */
-export const registerBodyPasswordMin = 8;
-
-
-
-export const RegisterBody = zod.object({
-  "email": zod.string(),
-  "password": zod.string().min(registerBodyPasswordMin),
-  "name": zod.string()
-})
-
-export const RegisterResponse = zod.object({
-  "user": zod.object({
-  "id": zod.string(),
-  "email": zod.string(),
-  "name": zod.string(),
-  "avatar": zod.string().nullish(),
-  "emailVerified": zod.boolean().optional(),
-  "createdAt": zod.string()
-}),
-  "accessToken": zod.string(),
-  "refreshToken": zod.string()
-})
-
-
-/**
- * @summary Login with email and password
- */
-export const LoginBody = zod.object({
-  "email": zod.string(),
-  "password": zod.string()
-})
-
-export const LoginResponse = zod.object({
-  "user": zod.object({
-  "id": zod.string(),
-  "email": zod.string(),
-  "name": zod.string(),
-  "avatar": zod.string().nullish(),
-  "emailVerified": zod.boolean().optional(),
-  "createdAt": zod.string()
-}),
-  "accessToken": zod.string(),
-  "refreshToken": zod.string()
-})
-
-
-/**
- * @summary Logout current session
- */
-export const LogoutBody = zod.object({
-  "refreshToken": zod.string()
-})
-
-export const LogoutResponse = zod.object({
-  "message": zod.string()
-})
-
-
-/**
- * @summary Refresh access token
- */
-export const RefreshTokenBody = zod.object({
-  "refreshToken": zod.string()
-})
-
-export const RefreshTokenResponse = zod.object({
-  "user": zod.object({
-  "id": zod.string(),
-  "email": zod.string(),
-  "name": zod.string(),
-  "avatar": zod.string().nullish(),
-  "emailVerified": zod.boolean().optional(),
-  "createdAt": zod.string()
-}),
-  "accessToken": zod.string(),
-  "refreshToken": zod.string()
-})
-
-
-/**
- * @summary Get current authenticated user
- */
-export const GetMeResponse = zod.object({
-  "id": zod.string(),
-  "email": zod.string(),
-  "name": zod.string(),
-  "avatar": zod.string().nullish(),
-  "emailVerified": zod.boolean().optional(),
-  "createdAt": zod.string()
-})
-
-
-/**
- * @summary Update user profile
- */
-export const UpdateProfileBody = zod.object({
-  "name": zod.string().optional(),
-  "avatar": zod.string().nullish()
-})
-
-export const UpdateProfileResponse = zod.object({
-  "id": zod.string(),
-  "email": zod.string(),
-  "name": zod.string(),
-  "avatar": zod.string().nullish(),
-  "emailVerified": zod.boolean().optional(),
-  "createdAt": zod.string()
-})
-
-
-/**
- * @summary Send password reset email
- */
-export const ForgotPasswordBody = zod.object({
-  "email": zod.string()
-})
-
-export const ForgotPasswordResponse = zod.object({
-  "message": zod.string()
-})
-
-
-/**
- * @summary Reset password with token
- */
-export const resetPasswordBodyPasswordMin = 8;
-
-
-
-export const ResetPasswordBody = zod.object({
-  "token": zod.string(),
-  "password": zod.string().min(resetPasswordBodyPasswordMin)
-})
-
-export const ResetPasswordResponse = zod.object({
-  "message": zod.string()
-})
-
-
-/**
  * @summary List all user projects
  */
 export const ListProjectsResponseItem = zod.object({
@@ -621,45 +479,6 @@ export const RevokeTokenResponse = zod.object({
 
 
 /**
- * @summary Platform-wide analytics overview for the user
- */
-export const GetAnalyticsOverviewResponse = zod.object({
-  "totalProjects": zod.number(),
-  "totalImages": zod.number(),
-  "totalStorageUsed": zod.number(),
-  "totalBandwidth": zod.number(),
-  "totalApiRequests": zod.number(),
-  "recentUploads": zod.number().optional()
-})
-
-
-/**
- * @summary Analytics for a specific project
- */
-export const GetProjectAnalyticsParams = zod.object({
-  "projectId": zod.coerce.string()
-})
-
-export const GetProjectAnalyticsQueryParams = zod.object({
-  "period": zod.coerce.string().optional()
-})
-
-export const GetProjectAnalyticsResponse = zod.object({
-  "uploads": zod.number(),
-  "downloads": zod.number(),
-  "storageUsed": zod.number(),
-  "bandwidth": zod.number(),
-  "apiRequests": zod.number(),
-  "dailyStats": zod.array(zod.object({
-  "date": zod.string(),
-  "uploads": zod.number(),
-  "downloads": zod.number(),
-  "bandwidth": zod.number()
-}))
-})
-
-
-/**
  * @summary List webhooks for a project
  */
 export const ListWebhooksParams = zod.object({
@@ -757,5 +576,46 @@ export const ListActivityResponseItem = zod.object({
   "createdAt": zod.string()
 })
 export const ListActivityResponse = zod.array(ListActivityResponseItem)
+
+
+/**
+ * @summary Get account-wide analytics overview
+ */
+export const GetAnalyticsOverviewResponse = zod.object({
+  "totalProjects": zod.number(),
+  "totalImages": zod.number(),
+  "totalStorageUsed": zod.number(),
+  "totalBandwidth": zod.number(),
+  "totalApiRequests": zod.number(),
+  "recentUploads": zod.number()
+})
+
+
+/**
+ * @summary Get analytics for a project
+ */
+export const GetProjectAnalyticsParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const getProjectAnalyticsQueryPeriodDefault = `30d`;
+
+export const GetProjectAnalyticsQueryParams = zod.object({
+  "period": zod.enum(['7d', '30d', '90d']).default(getProjectAnalyticsQueryPeriodDefault)
+})
+
+export const GetProjectAnalyticsResponse = zod.object({
+  "uploads": zod.number(),
+  "downloads": zod.number(),
+  "storageUsed": zod.number(),
+  "bandwidth": zod.number(),
+  "apiRequests": zod.number(),
+  "dailyStats": zod.array(zod.object({
+  "date": zod.string(),
+  "uploads": zod.number(),
+  "downloads": zod.number(),
+  "bandwidth": zod.number()
+}))
+})
 
 

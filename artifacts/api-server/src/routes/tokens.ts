@@ -25,7 +25,12 @@ router.get("/v1/tokens", requireAuth, requireAccountAuth, async (req: AuthReques
 
 // POST /v1/tokens
 router.post("/v1/tokens", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
-  const { name, description, scopes = [], expiresAt } = req.body ?? {};
+  const { name, description, expiresAt } = req.body ?? {};
+  const scopes = Array.isArray(req.body?.scopes) ? req.body.scopes : ["account:*"];
+  if (!scopes.every((scope: unknown) => typeof scope === "string")) {
+    res.status(400).json({ error: "scopes must be an array of strings" });
+    return;
+  }
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
   const { raw, hashed, prefix } = generateTokenWithPrefix("afu_pat");
   const [token] = await db.insert(personalTokensTable).values({

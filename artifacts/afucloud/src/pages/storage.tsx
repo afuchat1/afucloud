@@ -9,13 +9,13 @@ import { useToast } from '@/hooks/use-toast';
 import { formatBytes, formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { API_BASE } from '@/lib/api-base';
+import { customFetchResponse } from '@workspace/api-client-react';
 import {
   ChevronRight, Cloud, Copy, File, Folder, FolderPlus, HardDrive, MoreHorizontal,
   Pencil, Plus, RefreshCw, Settings2, Trash2, Upload, X,
 } from 'lucide-react';
 
 const authHeaders = () => ({
-  Authorization: `Bearer ${localStorage.getItem('afucloud_token') ?? ''}`,
   'Content-Type': 'application/json',
 });
 
@@ -48,7 +48,7 @@ function isPdf(object: StorageObject): boolean {
 }
 
 async function jsonFetch(path: string, init?: RequestInit) {
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers: { ...authHeaders(), ...(init?.headers ?? {}) } });
+  const res = await customFetchResponse(`${API_BASE}${path}`, { ...init, headers: { ...authHeaders(), ...(init?.headers ?? {}) } });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;

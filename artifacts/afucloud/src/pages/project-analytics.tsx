@@ -35,12 +35,13 @@ export default function ProjectAnalyticsPage() {
   const params = useParams();
   const projectId = params.id!;
   const [period, setPeriod] = useState('30d');
+  const selectedPeriod = period as '7d' | '30d' | '90d';
 
   const { data: project } = useGetProject(projectId);
   const { data: analytics, isLoading } = useGetProjectAnalytics(
     projectId,
-    { period },
-    { query: liveQueryOptions(getGetProjectAnalyticsQueryKey(projectId, { period })) },
+    { period: selectedPeriod },
+    { query: liveQueryOptions(getGetProjectAnalyticsQueryKey(projectId, { period: selectedPeriod })) },
   );
 
   const dailyStats = analytics?.dailyStats ?? [];

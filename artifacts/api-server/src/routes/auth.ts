@@ -9,11 +9,56 @@ import {
   hashToken,
   refreshTokenExpiresAt,
 } from "../lib/auth";
-import { requireAccountAuth, requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import {
+  DASHBOARD_ACCESS_COOKIE,
+  DASHBOARD_CSRF_COOKIE,
+  DASHBOARD_REFRESH_COOKIE,
+  requireCsrf,
+  requireDashboardSession,
+  rejectDeveloperCredential,
+  type AuthRequest,
+} from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 import crypto from "crypto";
 
 const router: IRouter = Router();
+const ACCESS_COOKIE_MAX_AGE = 60 * 60 * 1000;
+const REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
+
+function sessionCookieOptions(httpOnly: boolean, maxAge: number) {
+  return {
+    httpOnly,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge,
+  };
+}
+
+function setDashboardCookies(
+  res: Parameters<Parameters<typeof router.post>[1]>[1],
+  accessToken: string,
+  refreshToken: string,
+): void {
+  res.cookie(DASHBOARD_ACCESS_COOKIE, accessToken, sessionCookieOptions(true, ACCESS_COOKIE_MAX_AGE));
+  res.cookie(DASHBOARD_REFRESH_COOKIE, refreshToken, sessionCookieOptions(true, REFRESH_COOKIE_MAX_AGE));
+}
+
+function clearDashboardCookies(res: Parameters<Parameters<typeof router.post>[1]>[1]): void {
+  const options = sessionCookieOptions(true, 0);
+  res.clearCookie(DASHBOARD_ACCESS_COOKIE, options);
+  res.clearCookie(DASHBOARD_REFRESH_COOKIE, options);
+  res.clearCookie(DASHBOARD_CSRF_COOKIE, { ...options, httpOnly: false });
+}
+
+router.get("/v1/dashboard/session/csrf", rejectDeveloperCredential, (req: AuthRequest, res): void => {
+  const existing = req.cookies?.[DASHBOARD_CSRF_COOKIE];
+  const csrfToken = typeof existing === "string" && /^[a-f0-9]{64}$/i.test(existing)
+    ? existing
+    : generateSecureToken();
+  res.cookie(DASHBOARD_CSRF_COOKIE, csrfToken, sessionCookieOptions(false, REFRESH_COOKIE_MAX_AGE));
+  res.json({ csrfToken });
+});
 
 type AuthMetadata = Record<string, unknown>;
 
@@ -89,8 +134,8 @@ async function findSharedAuthUser(email: string) {
   }
 }
 
-// POST /v1/auth/register
-router.post("/v1/auth/register", async (req, res): Promise<void> => {
+// Dashboard session routes are intentionally separate from developer bearer-token routes.
+router.post("/v1/dashboard/session/register", rejectDeveloperCredential, requireCsrf, async (req, res): Promise<void> => {
   const { password, name } = req.body ?? {};
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   if (!email || !password || !name) {
@@ -127,15 +172,11 @@ router.post("/v1/auth/register", async (req, res): Promise<void> => {
     tokenHash: hashToken(rawRefresh),
     expiresAt: refreshTokenExpiresAt(),
   });
-  res.status(201).json({
-    user: toApiUser(authUser, user),
-    accessToken,
-    refreshToken: rawRefresh,
-  });
+  setDashboardCookies(res, accessToken, rawRefresh);
+  res.status(201).json({ user: toApiUser(authUser, user) });
 });
 
-// POST /v1/auth/login
-router.post("/v1/auth/login", async (req, res): Promise<void> => {
+router.post("/v1/dashboard/session/login", rejectDeveloperCredential, requireCsrf, async (req, res): Promise<void> => {
   const { password } = req.body ?? {};
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   if (!email || !password) {
@@ -161,40 +202,39 @@ router.post("/v1/auth/login", async (req, res): Promise<void> => {
       tokenHash: hashToken(rawRefresh),
       expiresAt: refreshTokenExpiresAt(),
     });
-    res.json({
-      user: toApiUser(sharedAuthUser, user),
-      accessToken,
-      refreshToken: rawRefresh,
-    });
+    setDashboardCookies(res, accessToken, rawRefresh);
+    res.json({ user: toApiUser(sharedAuthUser, user) });
   } catch (error) {
     authUnavailable(res, "auth.login", error);
   }
 });
 
-// POST /v1/auth/logout
-router.post("/v1/auth/logout", async (req, res): Promise<void> => {
-  const { refreshToken } = req.body ?? {};
+router.post("/v1/dashboard/session/logout", rejectDeveloperCredential, requireCsrf, async (req, res): Promise<void> => {
+  const refreshToken = req.cookies?.[DASHBOARD_REFRESH_COOKIE];
   if (typeof refreshToken === "string" && refreshToken.length > 0) {
     await db.delete(refreshTokensTable).where(eq(refreshTokensTable.tokenHash, hashToken(refreshToken)));
   }
+  clearDashboardCookies(res);
   res.json({ message: "Logged out" });
 });
 
-// POST /v1/auth/refresh
-router.post("/v1/auth/refresh", async (req, res): Promise<void> => {
-  const { refreshToken } = req.body ?? {};
+router.post("/v1/dashboard/session/refresh", rejectDeveloperCredential, requireCsrf, async (req, res): Promise<void> => {
+  const refreshToken = req.cookies?.[DASHBOARD_REFRESH_COOKIE];
   if (!refreshToken) {
-    res.status(400).json({ error: "refreshToken is required" });
+    clearDashboardCookies(res);
+    res.status(401).json({ error: "Dashboard session expired" });
     return;
   }
   const [record] = await db.select().from(refreshTokensTable)
     .where(eq(refreshTokensTable.tokenHash, hashToken(refreshToken))).limit(1);
   if (!record || record.expiresAt < new Date()) {
-    res.status(401).json({ error: "Invalid or expired refresh token" });
+    clearDashboardCookies(res);
+    res.status(401).json({ error: "Invalid or expired dashboard session" });
     return;
   }
   const [authUser] = await db.select().from(authUsersTable).where(eq(authUsersTable.id, record.userId)).limit(1);
   if (!authUser) {
+    clearDashboardCookies(res);
     res.status(401).json({ error: "User not found" });
     return;
   }
@@ -207,15 +247,11 @@ router.post("/v1/auth/refresh", async (req, res): Promise<void> => {
     tokenHash: hashToken(newRaw),
     expiresAt: refreshTokenExpiresAt(),
   });
-  res.json({
-    user: toApiUser(authUser, user),
-    accessToken,
-    refreshToken: newRaw,
-  });
+  setDashboardCookies(res, accessToken, newRaw);
+  res.json({ user: toApiUser(authUser, user) });
 });
 
-// GET /v1/auth/me
-router.get("/v1/auth/me", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/v1/dashboard/session/me", requireDashboardSession, async (req: AuthRequest, res): Promise<void> => {
   const [authUser] = await db.select().from(authUsersTable).where(eq(authUsersTable.id, req.userId!)).limit(1);
   if (!authUser) { res.status(404).json({ error: "User not found" }); return; }
   const profile = await ensureAfuCloudProfile(authUser);
@@ -223,7 +259,7 @@ router.get("/v1/auth/me", requireAuth, requireAccountAuth, async (req: AuthReque
 });
 
 // PATCH /v1/auth/me/update
-router.patch("/v1/auth/me/update", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/v1/dashboard/session/me/update", requireDashboardSession, async (req: AuthRequest, res): Promise<void> => {
   const { name, avatar } = req.body ?? {};
   const updates: Record<string, unknown> = {};
   if (name != null) updates.name = name;
@@ -235,7 +271,7 @@ router.patch("/v1/auth/me/update", requireAuth, requireAccountAuth, async (req: 
 });
 
 // PATCH /v1/auth/me/password
-router.patch("/v1/auth/me/password", requireAuth, requireAccountAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/v1/dashboard/session/me/password", requireDashboardSession, async (req: AuthRequest, res): Promise<void> => {
   const { currentPassword, newPassword } = req.body ?? {};
   if (!currentPassword || !newPassword) {
     res.status(400).json({ error: "currentPassword and newPassword are required" });
