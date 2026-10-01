@@ -8,3 +8,4 @@
 - [API workflow database target](api-workflow-supabase-env.md) — keep the API package in the pnpm workspace and provide Supabase target variables so it cannot fall back to DATABASE_URL
 - [Local API token signing](local-api-token-signing.md) — development uses an in-memory JWT key when no persisted JWT_SECRET is available; production still requires explicit configuration
 - [Live Supabase schema and staging](supabase-live-schema-staging.md) — the production catalog is much broader than local Drizzle, staging has no migration baseline, and AfuCloud RLS is disabled
+- [Cloudflare Pages custom domains](cloudflare-pages-domains.md) — associate the hostname with its Pages project before creating the DNS CNAME, or 522 can persist
