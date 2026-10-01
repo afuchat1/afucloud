@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@workspace/cloudflare-integration": "workspace:*",
     "hono": "^4.7.11",
     "jose": "^5.9.6",
     "aws4fetch": "^1.0.20",

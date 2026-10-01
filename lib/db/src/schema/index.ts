@@ -9,3 +9,4 @@ export * from "./activity";
 export * from "./auth-users";
 export * from "./domains";
 export * from "./storage-containers";
+export * from "./cloudflare-connections";
