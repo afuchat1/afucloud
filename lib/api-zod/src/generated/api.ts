@@ -821,3 +821,28 @@ export const AutoConfigureDomainVerificationResponse = zod.object({
 })
 
 
+/**
+ * @summary Create missing DNS-only CNAME records for this domain's CDN hostnames
+ */
+export const AutoConfigureCdnHostnamesParams = zod.object({
+  "domainId": zod.coerce.string()
+})
+
+export const AutoConfigureCdnHostnamesResponse = zod.object({
+  "domainId": zod.string(),
+  "target": zod.string(),
+  "total": zod.number(),
+  "created": zod.number(),
+  "unchanged": zod.number(),
+  "conflicts": zod.number(),
+  "failed": zod.number(),
+  "results": zod.array(zod.object({
+  "hostnameId": zod.string(),
+  "hostname": zod.string(),
+  "status": zod.enum(['created', 'already_configured', 'conflict', 'failed']),
+  "message": zod.string(),
+  "recordId": zod.string().nullish()
+}))
+})
+
+

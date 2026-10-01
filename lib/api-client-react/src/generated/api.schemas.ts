@@ -282,6 +282,36 @@ export interface CloudflareDnsAutoConfiguration {
   message: string;
 }
 
+export type CloudflareHostnameDnsResultStatus = typeof CloudflareHostnameDnsResultStatus[keyof typeof CloudflareHostnameDnsResultStatus];
+
+
+export const CloudflareHostnameDnsResultStatus = {
+  created: 'created',
+  already_configured: 'already_configured',
+  conflict: 'conflict',
+  failed: 'failed',
+} as const;
+
+export interface CloudflareHostnameDnsResult {
+  hostnameId: string;
+  hostname: string;
+  status: CloudflareHostnameDnsResultStatus;
+  message: string;
+  /** @nullable */
+  recordId?: string | null;
+}
+
+export interface CloudflareHostnameDnsAutoConfiguration {
+  domainId: string;
+  target: string;
+  total: number;
+  created: number;
+  unchanged: number;
+  conflicts: number;
+  failed: number;
+  results: CloudflareHostnameDnsResult[];
+}
+
 export type ActivityLogMetadata = { [key: string]: unknown };
 
 export interface ActivityLog {

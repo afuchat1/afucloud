@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'wouter';
 import {
   useCreateDomainDnsRecord,
+  useAutoConfigureCdnHostnames,
   useDeleteDomainDnsRecord,
   useGetCloudflareConnection,
   useListCloudflareZones,
@@ -29,7 +30,19 @@ import {
   LoaderCircle, Pencil, Plus, RefreshCw, ShieldCheck, Trash2,
 } from 'lucide-react';
 
-type Domain = { id: string; hostname: string; verificationStatus: string; dnsStatus: string };
+type DomainHostname = {
+  id: string;
+  hostname: string;
+  service: string;
+  dnsRecord: { type: string; name: string; value: string };
+};
+type Domain = {
+  id: string;
+  hostname: string;
+  verificationStatus: string;
+  dnsStatus: string;
+  hostnames: DomainHostname[];
+};
 const recordTypes = ['A', 'AAAA', 'CAA', 'CERT', 'CNAME', 'DNSKEY', 'DS', 'HTTPS', 'LOC', 'MX', 'NAPTR', 'NS', 'PTR', 'SMIMEA', 'SRV', 'SSHFP', 'SVCB', 'TLSA', 'TXT', 'URI'];
 const headers = { 'Content-Type': 'application/json' };
 
@@ -66,6 +79,7 @@ export default function DomainDnsPage() {
     query: { enabled: !!domainId && !!connection.data?.connected, queryKey: ['/api/v1/domains', domainId, 'dns-records'] },
   });
   const createRecord = useCreateDomainDnsRecord();
+  const autoConfigureHostnames = useAutoConfigureCdnHostnames();
   const updateRecord = useUpdateDomainDnsRecord();
   const deleteRecord = useDeleteDomainDnsRecord();
   const verifyRecord = useVerifyDomainDnsRecord();
@@ -80,6 +94,7 @@ export default function DomainDnsPage() {
   const [saving, setSaving] = useState(false);
 
   const recordList = recordsQuery.data?.records ?? [];
+  const cdnHostnames = domain?.hostnames.filter(hostname => hostname.service === 'cdn') ?? [];
   const filtered = useMemo(() => recordList.filter(record =>
     (typeFilter === 'all' || record.type === typeFilter) &&
     (!filter || `${record.name} ${record.content} ${record.comment ?? ''}`.toLowerCase().includes(filter.toLowerCase()))
@@ -88,6 +103,34 @@ export default function DomainDnsPage() {
 
   const reloadRecords = async () => {
     await queryClient.invalidateQueries({ queryKey: recordsQuery.queryKey });
+  };
+  const configureCdnDns = async () => {
+    if (!domain || cdnHostnames.length === 0) return;
+    try {
+      const result = await autoConfigureHostnames.mutateAsync({ domainId });
+      setFilter('');
+      setTypeFilter('CNAME');
+      const [refreshed] = await Promise.all([
+        recordsQuery.refetch(),
+        queryClient.invalidateQueries({ queryKey: ['domains'] }),
+      ]);
+      const issues = result.results
+        .filter(item => item.status === 'conflict' || item.status === 'failed')
+        .map(item => item.hostname);
+      const summary = `${result.created} created · ${result.unchanged} already correct · ${result.conflicts} conflicts · ${result.failed} failed.`;
+      const issueNames = issues.length ? ` No changes were made to: ${issues.join(', ')}.` : '';
+      toast({
+        title: refreshed.isError ? 'DNS configured; records could not be refreshed' : 'CDN hostname DNS configured',
+        description: `${summary}${issueNames}${refreshed.isError ? ' Use Refresh DNS records to reload the list.' : ''}`,
+        ...(result.conflicts > 0 || result.failed > 0 || refreshed.isError ? { variant: 'destructive' as const } : {}),
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not configure CDN hostname DNS',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'destructive',
+      });
+    }
   };
   const openCreate = () => { setEditing(null); setForm(emptyForm()); setEditorOpen(true); };
   const openEdit = (record: CloudflareDnsRecord) => {
@@ -194,13 +237,20 @@ export default function DomainDnsPage() {
 
       <section className="overflow-hidden rounded-xl border border-card-border bg-card">
         <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <div><h2 className="font-semibold">DNS records</h2><p className="mt-0.5 text-xs text-muted-foreground">{recordsQuery.data?.total ?? 0} records · changes are written to Cloudflare</p></div>
-          <div className="flex gap-2">
-            <Input aria-label="Search DNS records" placeholder="Filter name or value" value={filter} onChange={event => setFilter(event.target.value)} className="h-9 w-full sm:w-48" data-testid="dns-search" />
-            <select value={typeFilter} onChange={event => setTypeFilter(event.target.value)} aria-label="Filter by record type" className="h-9 rounded-md border border-input bg-background px-2 text-sm" data-testid="dns-type-filter">
-              <option value="all">All types</option>{recordTypes.map(type => <option key={type}>{type}</option>)}
-            </select>
-            <Button variant="outline" size="icon" aria-label="Refresh DNS records" onClick={() => recordsQuery.refetch()} disabled={recordsQuery.isFetching} data-testid="refresh-dns-records"><RefreshCw className={`h-4 w-4 ${recordsQuery.isFetching ? 'animate-spin' : ''}`} /></Button>
+          <div><h2 className="font-semibold">DNS records</h2><p className="mt-0.5 text-xs text-muted-foreground">{recordsQuery.data?.total ?? 0} records · changes are written to Cloudflare</p>
+            {cdnHostnames.length > 0 && <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">Configure missing DNS-only CNAMEs for {cdnHostnames.length} CDN hostname{cdnHostnames.length === 1 ? '' : 's'} in one action. They point to <code>{cdnHostnames[0].dnsRecord.value}</code>; conflicting records are left untouched, and TLS setup is separate.</p>}
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {cdnHostnames.length > 0 && <Button variant="outline" onClick={configureCdnDns} disabled={!connection.data?.connected || !matchedZone || domain?.verificationStatus !== 'verified' || autoConfigureHostnames.isPending} data-testid="configure-cdn-hostnames">
+              <Cloud className="mr-2 h-4 w-4" />{autoConfigureHostnames.isPending ? 'Configuring…' : 'Configure CDN hostnames'}
+            </Button>}
+            <div className="flex min-w-0 gap-2">
+              <Input aria-label="Search DNS records" placeholder="Filter name or value" value={filter} onChange={event => setFilter(event.target.value)} className="h-9 min-w-0 flex-1 sm:w-48 sm:flex-none" data-testid="dns-search" />
+              <select value={typeFilter} onChange={event => setTypeFilter(event.target.value)} aria-label="Filter by record type" className="h-9 rounded-md border border-input bg-background px-2 text-sm" data-testid="dns-type-filter">
+                <option value="all">All types</option>{recordTypes.map(type => <option key={type}>{type}</option>)}
+              </select>
+              <Button variant="outline" size="icon" aria-label="Refresh DNS records" onClick={() => recordsQuery.refetch()} disabled={recordsQuery.isFetching} data-testid="refresh-dns-records"><RefreshCw className={`h-4 w-4 ${recordsQuery.isFetching ? 'animate-spin' : ''}`} /></Button>
+            </div>
           </div>
         </div>
         {!connection.isLoading && !connection.data?.connected && <div className="p-10 text-center" data-testid="dns-disconnected">

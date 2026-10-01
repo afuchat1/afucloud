@@ -32,6 +32,7 @@ import type {
   CloudflareDnsRecordInput,
   CloudflareDnsRecordsResponse,
   CloudflareDnsVerification,
+  CloudflareHostnameDnsAutoConfiguration,
   CloudflareZone,
   ConfirmUploadInput,
   GetProjectAnalyticsParams,
@@ -2948,5 +2949,76 @@ export const useAutoConfigureDomainVerification = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAutoConfigureDomainVerificationMutationOptions(options));
+    }
+
+export const getAutoConfigureCdnHostnamesUrl = (domainId: string,) => {
+
+
+
+
+  return `/api/v1/domains/${domainId}/hostnames/auto-configure`
+}
+
+/**
+ * @summary Create missing DNS-only CNAME records for this domain's CDN hostnames
+ */
+export const autoConfigureCdnHostnames = async (domainId: string, options?: Parameters<typeof customFetch>[1]): Promise<CloudflareHostnameDnsAutoConfiguration> => {
+
+  return customFetch<CloudflareHostnameDnsAutoConfiguration>(getAutoConfigureCdnHostnamesUrl(domainId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAutoConfigureCdnHostnamesMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof autoConfigureCdnHostnames>>, TError,{domainId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof autoConfigureCdnHostnames>>, TError,{domainId: string}, TContext> => {
+
+const mutationKey = ['autoConfigureCdnHostnames'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof autoConfigureCdnHostnames>>, {domainId: string}> = (props) => {
+          const {domainId} = props ?? {};
+
+          return  autoConfigureCdnHostnames(domainId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AutoConfigureCdnHostnamesMutationResult = NonNullable<Awaited<ReturnType<typeof autoConfigureCdnHostnames>>>
+
+    export type AutoConfigureCdnHostnamesMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create missing DNS-only CNAME records for this domain's CDN hostnames
+ */
+export const useAutoConfigureCdnHostnames = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof autoConfigureCdnHostnames>>, TError,{domainId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof autoConfigureCdnHostnames>>,
+        TError,
+        {domainId: string},
+        TContext
+      > => {
+      return useMutation(getAutoConfigureCdnHostnamesMutationOptions(options));
     }
 

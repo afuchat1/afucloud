@@ -844,6 +844,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/CloudflareDnsAutoConfiguration"
 
+  /v1/domains/{domainId}/hostnames/auto-configure:
+    post:
+      operationId: autoConfigureCdnHostnames
+      tags: [domains]
+      summary: Create missing DNS-only CNAME records for this domain's CDN hostnames
+      parameters:
+        - name: domainId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Per-hostname Cloudflare DNS configuration results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudflareHostnameDnsAutoConfiguration"
+
 components:
   securitySchemes:
     BearerAuth:
@@ -1359,6 +1378,45 @@ components:
           type: boolean
         message:
           type: string
+
+    CloudflareHostnameDnsResult:
+      type: object
+      required: [hostnameId, hostname, status, message]
+      properties:
+        hostnameId:
+          type: string
+        hostname:
+          type: string
+        status:
+          type: string
+          enum: [created, already_configured, conflict, failed]
+        message:
+          type: string
+        recordId:
+          type: ["string", "null"]
+
+    CloudflareHostnameDnsAutoConfiguration:
+      type: object
+      required: [domainId, target, total, created, unchanged, conflicts, failed, results]
+      properties:
+        domainId:
+          type: string
+        target:
+          type: string
+        total:
+          type: number
+        created:
+          type: number
+        unchanged:
+          type: number
+        conflicts:
+          type: number
+        failed:
+          type: number
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/CloudflareHostnameDnsResult"
 
     # ─── Activity ───
     ActivityLog:

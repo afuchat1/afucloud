@@ -4,6 +4,7 @@ import {
   assertCloudflareId,
   buildDnsRecordPayload,
   CLOUDFLARE_DNS_RECORD_TYPES,
+  CloudflareRequestError,
   cloudflareApi,
   createCloudflareAuthorizationUrl,
   createOAuthState,
@@ -20,11 +21,13 @@ import {
   cloudflareConnectionsTable,
   db,
   domainsTable,
+  hostnamesTable,
 } from "@workspace/db";
 import { requireAccountAuth, requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 const DNS_LOOKUP_TIMEOUT_MS = 5_000;
+const DEFAULT_CUSTOM_HOSTNAME_TARGET = "verify.afuchat.com";
 
 type CloudflareZone = { id: string; name: string; status: string };
 type CloudflareRecord = {
@@ -196,6 +199,25 @@ function normalizeDnsValue(value: string, type: string): string {
     : unquoted;
 }
 
+function hostnameDnsTarget(): string {
+  const target = normalizeDnsName(
+    process.env.AFU_CUSTOM_HOSTNAME_TARGET ?? DEFAULT_CUSTOM_HOSTNAME_TARGET,
+  );
+  const labels = target.split(".");
+  if (
+    !target.endsWith(".afuchat.com") ||
+    target.length > 253 ||
+    labels.some(label => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+  ) {
+    throw Object.assign(new Error("Hostname DNS target is not configured correctly"), { status: 503 });
+  }
+  return target;
+}
+
+function normalizeDnsName(value: string): string {
+  return value.trim().toLowerCase().replace(/\.+$/, "");
+}
+
 function recordVisible(record: CloudflareRecord, answers: string[]): boolean {
   if (record.proxied && ["A", "AAAA", "CNAME"].includes(record.type)) return answers.length > 0;
   const expected = normalizeDnsValue(record.content, record.type);
@@ -365,6 +387,198 @@ router.get("/v1/domains/:domainId/dns-records", guarded(async (req, res) => {
       (!search || record.name.toLowerCase().includes(search) || record.content.toLowerCase().includes(search)) &&
       (!type || record.type === type));
     res.json({ zone: apiZone(zone), records: records.map(apiRecord), total: records.length });
+  } catch (error) {
+    if (!sendKnownError(res, error)) throw error;
+  }
+}));
+
+router.post("/v1/domains/:domainId/hostnames/auto-configure", guarded(async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).userId!;
+    const domain = await ownedDomain(req, userId);
+    if (domain.verificationStatus !== "verified") {
+      res.status(409).json({ error: "Verify the root domain before configuring hostname DNS" });
+      return;
+    }
+
+    const hostnames = await db.select().from(hostnamesTable).where(and(
+      eq(hostnamesTable.domainId, domain.id),
+      eq(hostnamesTable.userId, userId),
+      eq(hostnamesTable.service, "cdn"),
+    ));
+    const target = hostnameDnsTarget();
+    const accessToken = await accessTokenFor(userId);
+    const zone = await zoneForDomain(accessToken, domain.hostname);
+    const records = await recordsInZone(accessToken, zone.id);
+    const rootName = normalizeDnsName(domain.hostname);
+    const results: Array<{
+      hostnameId: string;
+      hostname: string;
+      status: "created" | "already_configured" | "conflict" | "failed";
+      message: string;
+      recordId: string | null;
+    }> = [];
+    const matchingRecords = (hostname: string) =>
+      records.filter(record => normalizeDnsName(record.name) === normalizeDnsName(hostname));
+    const saveDnsStatus = async (hostnameId: string) => {
+      const [updated] = await db.update(hostnamesTable).set({ dnsStatus: "configured" }).where(and(
+        eq(hostnamesTable.id, hostnameId),
+        eq(hostnamesTable.domainId, domain.id),
+        eq(hostnamesTable.userId, userId),
+      )).returning({ id: hostnamesTable.id });
+      return Boolean(updated);
+    };
+
+    for (const [index, hostname] of hostnames.entries()) {
+      const name = normalizeDnsName(hostname.hostname);
+      const labels = name.split(".");
+      const hostLabels = labels.slice(0, -rootName.split(".").length);
+      if (
+        !name.endsWith(`.${rootName}`) ||
+        name.length > 253 ||
+        hostLabels.length !== 1 ||
+        !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(hostLabels[0] ?? "")
+      ) {
+        results.push({
+          hostnameId: hostname.id,
+          hostname: hostname.hostname,
+          status: "failed",
+          message: "The saved hostname is outside this domain or invalid; no DNS record was changed.",
+          recordId: null,
+        });
+        continue;
+      }
+
+      const current = matchingRecords(hostname.hostname);
+      if (current.length > 0) {
+        const correct = current.length === 1 &&
+          current[0].type.toUpperCase() === "CNAME" &&
+          normalizeDnsName(current[0].content) === target &&
+          !current[0].proxied;
+        if (!correct) {
+          results.push({
+            hostnameId: hostname.id,
+            hostname: hostname.hostname,
+            status: "conflict",
+            message: "An existing DNS record conflicts with the required DNS-only CNAME; no record was changed.",
+            recordId: null,
+          });
+          continue;
+        }
+
+        const saved = await saveDnsStatus(hostname.id).catch(() => false);
+        results.push({
+          hostnameId: hostname.id,
+          hostname: hostname.hostname,
+          status: saved ? "already_configured" : "failed",
+          message: saved
+            ? "The matching CNAME is already configured."
+            : "The CNAME is configured in Cloudflare, but AfuCloud could not update hostname status. Retry is safe.",
+          recordId: current[0].id,
+        });
+        continue;
+      }
+
+      const payload = buildDnsRecordPayload({
+        type: "CNAME",
+        name,
+        content: target,
+        ttl: 1,
+        proxied: false,
+        comment: "AfuCloud CDN hostname",
+      }, zone.name);
+      let record: CloudflareRecord | null = null;
+      let createdByThisRequest = false;
+      let upstreamStatus = 0;
+      try {
+        const created = await cloudflareApi<CloudflareRecord>(accessToken, `zones/${zone.id}/dns_records`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        record = created.result;
+        createdByThisRequest = true;
+        records.push(record);
+      } catch (error) {
+        upstreamStatus = error instanceof CloudflareRequestError ? error.status : 0;
+        // A concurrent request may have created the same record after our initial zone read.
+        try {
+          const latest = await recordsInZone(accessToken, zone.id);
+          const concurrent = latest.filter(item => normalizeDnsName(item.name) === name);
+          if (
+            concurrent.length === 1 &&
+            concurrent[0].type.toUpperCase() === "CNAME" &&
+            normalizeDnsName(concurrent[0].content) === target &&
+            !concurrent[0].proxied
+          ) {
+            record = concurrent[0];
+            records.push(record);
+          } else if (concurrent.length > 0) {
+            results.push({
+              hostnameId: hostname.id,
+              hostname: hostname.hostname,
+              status: "conflict",
+              message: "An existing DNS record conflicts with the required DNS-only CNAME; no record was changed.",
+              recordId: null,
+            });
+            continue;
+          }
+        } catch {
+          // Preserve a failed result if Cloudflare cannot be checked again.
+        }
+      }
+
+      if (!record) {
+        const failureMessage = upstreamStatus === 401 || upstreamStatus === 403
+          ? "Cloudflare denied DNS write access. Reconnect and approve DNS write permission, then retry."
+          : upstreamStatus === 429
+            ? "Cloudflare rate-limited DNS changes. Retry shortly."
+            : upstreamStatus >= 500
+              ? "Cloudflare is temporarily unavailable. Retry shortly."
+              : "Cloudflare could not create the CNAME. Retry or check the zone permissions.";
+        results.push({
+          hostnameId: hostname.id,
+          hostname: hostname.hostname,
+          status: "failed",
+          message: failureMessage,
+          recordId: null,
+        });
+        if (upstreamStatus === 401 || upstreamStatus === 403 || upstreamStatus === 429 || upstreamStatus >= 500) {
+          for (const pending of hostnames.slice(index + 1)) {
+            results.push({
+              hostnameId: pending.id,
+              hostname: pending.hostname,
+              status: "failed",
+              message: failureMessage,
+              recordId: null,
+            });
+          }
+          break;
+        }
+        continue;
+      }
+
+      const saved = await saveDnsStatus(hostname.id).catch(() => false);
+      results.push({
+        hostnameId: hostname.id,
+        hostname: hostname.hostname,
+        status: saved ? (createdByThisRequest ? "created" : "already_configured") : "failed",
+        message: saved
+          ? (createdByThisRequest ? "CNAME created in Cloudflare." : "The matching CNAME was created by a concurrent request.")
+          : "The CNAME is configured in Cloudflare, but AfuCloud could not update hostname status. Retry is safe.",
+        recordId: record.id,
+      });
+    }
+
+    res.json({
+      domainId: domain.id,
+      target,
+      total: results.length,
+      created: results.filter(result => result.status === "created").length,
+      unchanged: results.filter(result => result.status === "already_configured").length,
+      conflicts: results.filter(result => result.status === "conflict").length,
+      failed: results.filter(result => result.status === "failed").length,
+      results,
+    });
   } catch (error) {
     if (!sendKnownError(res, error)) throw error;
   }

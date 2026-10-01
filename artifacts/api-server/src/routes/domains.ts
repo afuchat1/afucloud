@@ -42,7 +42,12 @@ function normalizeDnsName(name: string): string {
 
 function customHostnameTarget(): string {
   const target = normalizeDnsName(process.env.AFU_CUSTOM_HOSTNAME_TARGET ?? DEFAULT_CUSTOM_HOSTNAME_TARGET);
-  if (!target.endsWith(".afuchat.com")) {
+  const labels = target.split(".");
+  if (
+    !target.endsWith(".afuchat.com") ||
+    target.length > 253 ||
+    labels.some(label => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+  ) {
     throw new Error("AFU_CUSTOM_HOSTNAME_TARGET must use the afuchat.com service domain");
   }
   return target;
