@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useLocation, Link } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
-import { dashboardSessionRequest, type DashboardUser } from '@/lib/auth-session';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { clearAuthTokens, dashboardSessionRequest, type DashboardUser } from '@/lib/auth-session';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -18,6 +19,7 @@ import {
   Globe2,
   HardDrive,
   ChevronDown,
+  LogOut,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -56,6 +58,8 @@ interface SidebarProps {
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const isProductRoute =
     location === '/projects' ||
     location.startsWith('/projects/') ||
@@ -69,6 +73,23 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     queryFn: () => dashboardSessionRequest<DashboardUser>('me'),
     retry: false,
   });
+  const logoutMutation = useMutation({
+    mutationFn: () => dashboardSessionRequest('logout', { method: 'POST' }),
+    onSuccess: () => {
+      clearAuthTokens();
+      queryClient.clear();
+      setLocation('/login');
+      onClose?.();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Could not sign out',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleNavClick = () => {
     // Close drawer on mobile after navigating
     onClose?.();
@@ -213,6 +234,17 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               {user?.email ?? ''}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => logoutMutation.mutate()}
+            disabled={logoutMutation.isPending}
+            className="flex shrink-0 items-center gap-1.5 rounded px-2 py-1.5 text-xs font-medium text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors disabled:opacity-50"
+            title="Sign out"
+            aria-label="Sign out"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            <span>{logoutMutation.isPending ? 'Signing out…' : 'Sign out'}</span>
+          </button>
         </div>
       </div>
     </div>

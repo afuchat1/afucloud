@@ -37,10 +37,17 @@ export default function SettingsPage() {
   });
   const logoutMutation = useMutation({
     mutationFn: () => dashboardSessionRequest('logout', { method: 'POST' }),
-    onSettled: () => {
+    onSuccess: () => {
       clearAuthTokens();
       queryClient.clear();
       setLocation('/login');
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Could not sign out',
+        description: error.message,
+        variant: 'destructive',
+      });
     },
   });
 
