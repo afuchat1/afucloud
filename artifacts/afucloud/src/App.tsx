@@ -7,7 +7,8 @@ import { Route, Switch, Router as WouterRouter, Redirect } from 'wouter';
 import { AuthGuard } from '@/components/auth-guard';
 import { GuestGuard } from '@/components/guest-guard';
 import { Sidebar } from '@/components/sidebar';
-import { Menu, Cloud } from 'lucide-react';
+import { AfuCloudLogo } from '@/components/afucloud-logo';
+import { Menu } from 'lucide-react';
 import LandingPage from '@/pages/landing';
 import LoginPage from '@/pages/login';
 import RegisterPage from '@/pages/register';
@@ -55,9 +56,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary">
-              <Cloud className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={2.5} />
-            </div>
+            <AfuCloudLogo className="h-6 w-6 rounded bg-primary" iconClassName="h-3.5 w-3.5 text-primary-foreground" />
             <span className="text-sm font-semibold tracking-tight">AfuCloud</span>
           </div>
         </header>

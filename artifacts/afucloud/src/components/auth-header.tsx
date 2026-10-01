@@ -1,13 +1,11 @@
 import { Link } from 'wouter';
-import { Database } from 'lucide-react';
+import { AfuCloudLogo } from '@/components/afucloud-logo';
 
 export function AuthHeader() {
   return (
     <div className="flex items-center justify-between gap-4">
       <Link href="/" className="flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded bg-primary">
-          <Database className="h-4 w-4 text-primary-foreground" strokeWidth={2.5} />
-        </div>
+        <AfuCloudLogo className="h-8 w-8 rounded bg-primary" iconClassName="h-4 w-4 text-primary-foreground" />
         <span className="text-sm font-semibold tracking-tight">AfuCloud</span>
       </Link>
       <nav className="flex items-center gap-3 text-xs text-muted-foreground" aria-label="Account navigation">

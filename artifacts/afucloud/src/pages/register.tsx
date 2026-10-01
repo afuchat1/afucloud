@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Database, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+import { AfuCloudLogo } from '@/components/afucloud-logo';
 import { AuthHeader } from '@/components/auth-header';
 import { dashboardSessionRequest } from '@/lib/auth-session';
 
@@ -55,9 +56,7 @@ export default function RegisterPage() {
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-primary p-12 flex-col justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded bg-primary-foreground/10">
-            <Database className="h-5 w-5 text-primary-foreground" strokeWidth={2.5} />
-          </div>
+          <AfuCloudLogo className="h-10 w-10 rounded bg-primary-foreground/10" iconClassName="h-5 w-5 text-primary-foreground" />
           <span className="text-xl font-semibold text-primary-foreground">AfuCloud</span>
         </div>
         <div className="space-y-4 max-w-md">

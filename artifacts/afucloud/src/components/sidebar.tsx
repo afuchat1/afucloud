@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clearAuthTokens, dashboardSessionRequest, type DashboardUser } from '@/lib/auth-session';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { AfuCloudLogo } from '@/components/afucloud-logo';
 import {
   LayoutDashboard,
   FolderOpen,
@@ -12,7 +13,6 @@ import {
   Key,
   Settings,
   BookOpen,
-  Cloud,
   X,
   Map,
   Image as ImageIcon,
@@ -128,9 +128,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-6">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Cloud className="h-4 w-4 text-primary-foreground" strokeWidth={2.5} />
-          </div>
+          <AfuCloudLogo className="h-8 w-8 rounded-lg bg-primary" iconClassName="h-4 w-4 text-primary-foreground" />
           <span className="text-[15px] font-semibold tracking-tight text-sidebar-foreground">
             AfuCloud
           </span>

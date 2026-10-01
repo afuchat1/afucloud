@@ -1,5 +1,5 @@
 import { Link } from 'wouter';
-import { Cloud } from 'lucide-react';
+import { AfuCloudLogo } from '@/components/afucloud-logo';
 import { Button } from '@/components/ui/button';
 import { useDashboardSessionVisibility } from '@/hooks/use-dashboard-session-visibility';
 
@@ -10,9 +10,7 @@ export function PublicHeader() {
     <header className="sticky top-0 z-40 border-b border-border/50 bg-background/90 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <Link href="/" className="flex shrink-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Cloud className="h-4 w-4 text-primary-foreground" strokeWidth={2.5} />
-          </div>
+          <AfuCloudLogo className="h-8 w-8 rounded-lg bg-primary" iconClassName="h-4 w-4 text-primary-foreground" />
           <span className="text-[15px] font-semibold tracking-tight">AfuCloud</span>
         </Link>
 
