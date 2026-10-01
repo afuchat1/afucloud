@@ -57,7 +57,8 @@ async function cloudflareRequest(env: Env, path: string, method: "GET" | "POST",
   };
   if (!response.ok || payload.success === false) {
     const providerMessage = payload.errors?.map(error => error.message).filter(Boolean).join("; ");
-    throw new ProviderError(providerMessage || "Cloudflare could not complete the domain request.");
+    const status = response.status >= 400 && response.status < 500 ? response.status : 502;
+    throw new ProviderError(providerMessage || "Cloudflare could not complete the domain request.", status);
   }
   return { result: payload.result, status: response.status };
 }
@@ -76,7 +77,7 @@ async function checkDomain(env: Env, hostname: string) {
   const percent = markupPercent(env);
 
   return {
-    domainName: String(item.domain_name ?? hostname),
+    domainName: String(item.domain_name ?? item.name ?? hostname),
     registrable,
     tier,
     reason: item.reason ? String(item.reason) : null,
@@ -167,6 +168,66 @@ async function refreshOrderPayment(env: Env, db: ReturnType<typeof createDbClien
   }) ?? { ...order, status: "paid", whop_payment_id: payment.id ?? null };
 }
 
+async function refreshRegistrationStatus(env: Env, db: ReturnType<typeof createDbClient>, order: any, userId: string) {
+  if (order.status !== "processing") return order;
+
+  const { result } = await cloudflareRequest(
+    env,
+    `/registrations/${encodeURIComponent(order.hostname)}/registration-status`,
+    "GET",
+  );
+  const registration = result?.context?.registration ?? result?.registration ?? {};
+  const state = String(result?.state ?? result?.status ?? "").toLowerCase();
+  const registrationStatus = registration.status ?? state ?? order.cloudflare_registration_status;
+  const expiresAt = registration.expires_at ?? result?.expires_at ?? result?.expiration_date ?? null;
+
+  if (state === "succeeded" || String(registration.status ?? "").toLowerCase() === "active") {
+    return await db.updateDomainRegistrationOrder(order.id, userId, {
+      status: "registered",
+      cloudflare_registration_status: registrationStatus ?? "active",
+      registration_expires_at: expiresAt,
+      error_message: null,
+    }, "processing") ?? await db.getDomainRegistrationOrder(order.id, userId) ?? order;
+  }
+
+  if (state === "failed") {
+    const claimed = await db.updateDomainRegistrationOrder(order.id, userId, {
+      status: "manual_review",
+      cloudflare_registration_status: registrationStatus ?? "failed",
+      error_message: "Cloudflare reported that registration failed. AfuCloud is checking the payment refund.",
+    }, "processing");
+    if (!claimed) return await db.getDomainRegistrationOrder(order.id, userId) ?? order;
+
+    const paymentId = order.whop_payment_id;
+    const refunded = paymentId ? await refundWhopPayment(env, paymentId) : false;
+    const status = refunded ? "refunded" : "manual_review";
+    const errorMessage = refunded
+      ? "Cloudflare could not complete the registration. Whop confirmed a refund."
+      : "Cloudflare could not complete the registration and AfuCloud could not confirm a refund. Support review is required.";
+    return await db.updateDomainRegistrationOrder(order.id, userId, {
+      status,
+      cloudflare_registration_status: registrationStatus ?? "failed",
+      error_message: errorMessage,
+    }, "manual_review") ?? await db.getDomainRegistrationOrder(order.id, userId) ?? claimed;
+  }
+
+  if (state === "action_required" || state === "blocked") {
+    const detail = typeof result?.error?.message === "string" ? ` ${result.error.message}` : "";
+    const errorMessage = `Cloudflare requires additional action before registration can finish.${detail}`;
+    return await db.updateDomainRegistrationOrder(order.id, userId, {
+      status: "manual_review",
+      cloudflare_registration_status: registrationStatus ?? state,
+      error_message: errorMessage,
+    }, "processing") ?? await db.getDomainRegistrationOrder(order.id, userId) ?? order;
+  }
+
+  if (registrationStatus === order.cloudflare_registration_status && !expiresAt) return order;
+  return await db.updateDomainRegistrationOrder(order.id, userId, {
+    cloudflare_registration_status: registrationStatus ?? "processing",
+    registration_expires_at: expiresAt,
+  }, "processing") ?? await db.getDomainRegistrationOrder(order.id, userId) ?? order;
+}
+
 function validRegistrant(raw: any) {
   if (!raw || typeof raw !== "object") return null;
   const text = (value: unknown, max: number) => typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -208,11 +269,11 @@ registrations.get("/search", async (c) => {
       `/domain-search?q=${encodeURIComponent(query)}`,
       "GET",
     );
-    const results = Array.isArray(result) ? result : result?.matches ?? result?.results ?? [];
+    const results = Array.isArray(result) ? result : result?.domains ?? result?.matches ?? result?.results ?? [];
     return c.json({
       results: results.map((item: any) => ({
-        domainName: String(item.domain_name ?? item.domain ?? ""),
-        available: item.available === true,
+        domainName: String(item.domain_name ?? item.name ?? item.domain ?? ""),
+        available: item.available === true || item.registrable === true,
         registrable: item.registrable === true,
         tier: item.tier ?? "standard",
         reason: item.reason ?? null,
@@ -326,7 +387,8 @@ registrations.get("/orders/:orderId", async (c) => {
   try {
     const order = await db.getDomainRegistrationOrder(c.req.param("orderId"), c.get("userId"));
     if (!order) return c.json({ error: "Domain order not found." }, 404);
-    const current = await refreshOrderPayment(c.env, db, order, c.get("userId"));
+    let current = await refreshOrderPayment(c.env, db, order, c.get("userId"));
+    current = await refreshRegistrationStatus(c.env, db, current, c.get("userId"));
     return c.json(apiOrder(current));
   } catch (error) {
     const status = error instanceof ProviderError ? error.status : 502;
@@ -418,13 +480,41 @@ registrations.post("/orders/:orderId/register", async (c) => {
     }
 
     const result = registration.result ?? {};
-    const nextStatus = registration.status === 202 ? "processing" : "registered";
+    const registrationInfo = result?.context?.registration ?? result?.registration ?? {};
+    const state = String(result?.state ?? result?.status ?? "").toLowerCase();
+    const registrarStatus = registrationInfo.status ?? state ?? null;
+    const expiresAt = registrationInfo.expires_at ?? result.expires_at ?? result.expiration_date ?? null;
+
+    if (state === "failed") {
+      const paymentId = order.whop_payment_id;
+      const refunded = paymentId ? await refundWhopPayment(c.env, paymentId) : false;
+      const status = refunded ? "refunded" : "manual_review";
+      const errorMessage = refunded
+        ? "Cloudflare could not complete the registration. Whop confirmed a refund."
+        : "Cloudflare could not complete the registration and AfuCloud could not confirm a refund. Support review is required.";
+      const failed = await db.updateDomainRegistrationOrder(order.id, c.get("userId"), {
+        status,
+        cloudflare_registration_status: registrarStatus ?? "failed",
+        error_message: errorMessage,
+      });
+      return c.json(apiOrder(failed ?? { ...order, status, error_message: errorMessage }), 409);
+    }
+
+    const nextStatus = state === "succeeded" || String(registrationInfo.status ?? "").toLowerCase() === "active"
+      ? "registered"
+      : state === "action_required" || state === "blocked"
+        ? "manual_review"
+        : registration.status === 202 || state === "in_progress"
+          ? "processing"
+          : "manual_review";
     const updated = await db.updateDomainRegistrationOrder(order.id, c.get("userId"), {
       status: nextStatus,
       cloudflare_registration_id: result.id ?? result.domain_name ?? order.hostname,
-      cloudflare_registration_status: result.status ?? nextStatus,
-      registration_expires_at: result.expires_at ?? result.expiration_date ?? null,
-      error_message: null,
+      cloudflare_registration_status: registrarStatus ?? nextStatus,
+      registration_expires_at: expiresAt,
+      error_message: nextStatus === "manual_review"
+        ? "Cloudflare requires additional action or returned an unrecognized registration state. AfuCloud will review this order."
+        : null,
     });
     return c.json(apiOrder(updated ?? { ...order, status: nextStatus }), registration.status === 202 ? 202 : 200);
   } catch (error) {

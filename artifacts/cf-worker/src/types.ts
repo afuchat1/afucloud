@@ -16,6 +16,8 @@ export interface Env {
   CLOUDFLARE_OAUTH_CLIENT_ID?: string;
   CLOUDFLARE_OAUTH_REDIRECT_URI?: string;
   DOMAIN_REGISTRATION_MARKUP_PERCENT?: string;
+  WHOP_COMPANY_ID?: string;
+  WHOP_PRODUCT_ID?: string;
 
   // Secrets
   SUPABASE_SERVICE_KEY: string;
@@ -26,8 +28,6 @@ export interface Env {
   CLOUDFLARE_TOKEN_ENCRYPTION_KEY?: string;
   CLOUDFLARE_REGISTRAR_API_TOKEN?: string;
   WHOP_API_KEY?: string;
-  WHOP_COMPANY_ID?: string;
-  WHOP_PRODUCT_ID?: string;
 
   // Bindings
   IMAGES_BUCKET: R2Bucket;

@@ -360,7 +360,14 @@ export function DomainRegistrationPanel() {
             </form>
           )}
 
-          {order.status === 'processing' && <p className="mt-3 text-sm text-muted-foreground">Cloudflare is processing the registration. Refresh this page later to check the order.</p>}
+          {order.status === 'processing' && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <p className="text-sm text-muted-foreground">Cloudflare is processing the registration.</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void loadOrder(order.id)} disabled={busy === 'order'}>
+                {busy === 'order' ? 'Checking…' : 'Check registration status'}
+              </Button>
+            </div>
+          )}
           {order.status === 'manual_review' && <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">Do not place another order for this domain. AfuCloud needs to review the payment or registration result.</p>}
           {order.error && <p className="mt-3 text-sm text-muted-foreground">{order.error}</p>}
         </div>

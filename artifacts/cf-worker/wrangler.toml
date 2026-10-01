@@ -32,6 +32,8 @@ CLOUDFLARE_OAUTH_REDIRECT_URI = "https://api.afuchat.com/v1/cloudflare/callback"
 NODE_ENV = "production"
 # Comma-separated exact dashboard origins outside the default *.afuchat.com allowlist.
 DASHBOARD_ALLOWED_ORIGINS = ""
+# Set these as Cloudflare Worker variables for the existing Whop account:
+# WHOP_COMPANY_ID, WHOP_PRODUCT_ID
 
 # ── Secrets (set via: wrangler secret put SECRET_NAME) ────────────────────────
 # SUPABASE_SERVICE_KEY      — Supabase service role key
@@ -41,6 +43,8 @@ DASHBOARD_ALLOWED_ORIGINS = ""
 # CLOUDFLARE_OAUTH_CLIENT_SECRET — OAuth client secret
 # CLOUDFLARE_OAUTH_STATE_SECRET — HMAC key for one-time OAuth state
 # CLOUDFLARE_TOKEN_ENCRYPTION_KEY — 32-byte base64url key for stored OAuth tokens
+# CLOUDFLARE_REGISTRAR_API_TOKEN — account API token with Registrar Write permission
+# WHOP_API_KEY — server-side API key for the existing Whop account
 
 # ── Dev environment overrides ─────────────────────────────────────────────────
 [env.dev]

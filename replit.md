@@ -132,6 +132,19 @@ npx wrangler secret put SUPABASE_SERVICE_KEY   # service_role key from Supabase 
 npx wrangler secret put CLOUDFLARE_R2_SECRET_ACCESS_KEY
 ```
 
+### Domain registration and Whop checkout
+
+Paid domain registration runs entirely through the production Worker. Before enabling it:
+
+- Configure a Cloudflare billing profile, default payment method, default registrant contact, and accept the domain registration agreement in the Cloudflare dashboard.
+- Set `CLOUDFLARE_REGISTRAR_API_TOKEN` as a Worker secret using an account-scoped token with **Registrar Write** permission.
+- Set `WHOP_API_KEY` as a Worker secret using a server API key from the existing Whop account.
+- The Whop key must allow creating plans and checkout configurations, reading payments, and issuing refunds.
+- Set `WHOP_COMPANY_ID` and `WHOP_PRODUCT_ID` as non-secret Worker variables for that same Whop account.
+- Optionally set `DOMAIN_REGISTRATION_MARKUP_PERCENT`; it defaults to `20`.
+
+The Replit Whop connector is broker-managed and does not OAuth into an existing Whop account. It cannot be called from the production Cloudflare Worker, so do not use its credentials for this flow. The Worker creates a one-time hosted Whop checkout, verifies payment server-side, rechecks domain availability, and only then submits registration to Cloudflare.
+
 ### Deploy:
 
 ```bash
