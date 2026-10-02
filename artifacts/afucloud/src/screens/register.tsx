@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { AlertCircle } from 'lucide-react';
 import { AuthHeader } from '@/components/auth-header';
-import { dashboardSessionRequest } from '@/lib/auth-session';
+import { consumeAuthReturnTo, dashboardSessionRequest } from '@/lib/auth-session';
 
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
@@ -40,7 +40,7 @@ export default function RegisterPage() {
       });
       queryClient.clear();
       toast({ title: 'Account created', description: 'Welcome to AfuCloud' });
-      setLocation('/dashboard');
+      setLocation(consumeAuthReturnTo());
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Please try again';
       setRegisterError(message);

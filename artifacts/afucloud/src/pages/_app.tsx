@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AppProps } from 'next/app';
+import { useRouter } from 'next/router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/toaster';
 import { setBaseUrl } from '@workspace/api-client-react';
-import { clearLegacyAuthTokens } from '@/lib/auth-session';
+import { clearLegacyAuthTokens, rememberAuthReturnTo } from '@/lib/auth-session';
 import { SeoHead } from '@/components/seo-head';
 import '@/index.css';
 
@@ -15,6 +16,7 @@ setBaseUrl(process.env.NODE_ENV === 'production' ? configuredApiBase : null);
 if (typeof window !== 'undefined') clearLegacyAuthTokens();
 
 export default function AfuCloudApp({ Component, pageProps }: AppProps) {
+  const router = useRouter();
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
@@ -23,6 +25,10 @@ export default function AfuCloudApp({ Component, pageProps }: AppProps) {
       },
     },
   }));
+
+  useEffect(() => {
+    if (router.isReady) rememberAuthReturnTo(router.asPath);
+  }, [router.asPath, router.isReady]);
 
   return (
     <QueryClientProvider client={queryClient}>

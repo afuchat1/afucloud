@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "@/lib/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { clearAuthTokens, clearLegacyAuthTokens, dashboardSessionRequest, type DashboardUser } from "@/lib/auth-session";
+import {
+  clearAuthTokens,
+  clearLegacyAuthTokens,
+  dashboardSessionRequest,
+  rememberAuthReturnTo,
+  type DashboardUser,
+} from "@/lib/auth-session";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -69,7 +75,10 @@ export function AuthGuard({ children }: AuthGuardProps) {
   }, [queryClient]);
 
   useEffect(() => {
-    if (state === "unauthenticated") setLocation("/login");
+    if (state === "unauthenticated") {
+      rememberAuthReturnTo(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+      setLocation("/login");
+    }
   }, [state, setLocation]);
 
   if (state === "checking" || state === "unauthenticated") {

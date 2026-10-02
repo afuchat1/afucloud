@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { AlertCircle } from 'lucide-react';
 import { AuthHeader } from '@/components/auth-header';
-import { dashboardSessionRequest } from '@/lib/auth-session';
+import { consumeAuthReturnTo, dashboardSessionRequest } from '@/lib/auth-session';
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -30,7 +30,7 @@ export default function LoginPage() {
       });
       queryClient.clear();
       toast({ title: 'Welcome back', description: 'Successfully logged in' });
-      setLocation('/dashboard');
+      setLocation(consumeAuthReturnTo());
     } catch (error) {
       setLoginError(true);
       toast({
