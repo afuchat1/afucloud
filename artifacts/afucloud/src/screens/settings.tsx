@@ -272,17 +272,12 @@ export default function SettingsPage() {
                       rel="noreferrer"
                       className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
                     >
-                      Manage subscription on Whop <ExternalLink className="h-3 w-3" />
+                      Manage or cancel on Whop <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
                   {billingQuery.data.currentTier !== 'free' && (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      To switch plans, manage your current membership on Whop first.
-                    </p>
-                  )}
-                  {billingQuery.data.currentTier !== 'free' && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      If you start to cancel, Whop will offer 25% off for 3 billing periods. You can continue cancellation without accepting.
+                      This is a monthly plan; cancel anytime in Whop. If you start to cancel, Whop will offer 25% off for 3 billing periods, but accepting is optional.
                     </p>
                   )}
                 </div>
@@ -511,7 +506,7 @@ export default function SettingsPage() {
           {selectedOfferPlan && (
             <div className="space-y-5">
               <p className="text-sm text-muted-foreground">
-                Today is $0. After the trial, the plan is ${selectedOfferPlan.monthlyPriceUsd}/month. Cancel anytime before the trial ends to avoid the first charge.
+                Today is $0. After the 7-day trial, the plan is ${selectedOfferPlan.monthlyPriceUsd}/month. Cancel anytime in Whop; cancel before the trial ends to avoid the first charge.
               </p>
               <div className="rounded-lg border border-border bg-muted/30 p-4">
                 <p className="text-sm font-semibold text-foreground">Or save 25% on your first 3 paid months</p>
@@ -527,6 +522,9 @@ export default function SettingsPage() {
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">Enter the code in the Whop checkout. Whop confirms eligibility.</p>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Using the offer does not lock you in. You can cancel the monthly plan anytime from your Whop membership settings.
+              </p>
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <Button
                   type="button"

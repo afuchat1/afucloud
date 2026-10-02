@@ -225,7 +225,7 @@ export default function LandingPage() {
           ))}
         </div>
         <p className="mx-auto mt-5 max-w-2xl text-center text-xs leading-5 text-muted-foreground">
-          Eligible new customers can use afucloud25 for 25% off their first 3 paid monthly charges. Regular plan prices resume afterward.
+          Pro and Business are monthly subscriptions; cancel anytime through Whop. Eligible new customers can use afucloud25 for 25% off their first 3 paid monthly charges. Regular plan prices resume afterward.
         </p>
       </section>
 
