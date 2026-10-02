@@ -8,22 +8,45 @@ import { DOCS_SECTIONS, type DocsSectionId, docsPathForSection } from '@/lib/doc
 
 function CodeBlock({ code, language = 'bash' }: { code: string; language?: string }) {
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = code;
+        textArea.setAttribute('readonly', '');
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (!successful) throw new Error('Clipboard copy was rejected');
+      }
+      setCopyFailed(false);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopyFailed(true);
+      setTimeout(() => setCopyFailed(false), 2500);
+    }
   };
   return (
     <div className="relative min-w-0 max-w-full overflow-hidden rounded-lg border border-border">
       <div className="flex items-center justify-between gap-3 bg-[#1C1C1C] px-3 py-2 sm:px-4 border-b border-white/10">
         <span className="text-[11px] font-mono text-white/40">{language}</span>
-        <button
+        <Button
+          type="button"
           onClick={handleCopy}
-          className="flex shrink-0 items-center gap-1.5 text-[11px] text-white/40 hover:text-white/70 transition-colors"
+          aria-label={copyFailed ? 'Could not copy code' : copied ? 'Code copied' : 'Copy code to clipboard'}
+          data-testid="button-copy-code"
+          className="no-default-hover-elevate no-default-active-elevate h-7 min-h-7 shrink-0 rounded-md border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md hover:border-white/20 hover:bg-white/10 hover:text-white"
         >
           {copied ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
-          {copied ? 'Copied' : 'Copy'}
-        </button>
+          <span aria-live="polite">{copied ? 'Copied' : copyFailed ? 'Copy failed' : 'Copy'}</span>
+        </Button>
       </div>
       <pre className="max-w-full overflow-x-auto bg-[#1C1C1C] px-3 py-3 text-[11px] leading-relaxed font-mono text-green-300/90 whitespace-pre sm:px-4 sm:text-[12px]">
         <code>{code}</code>
@@ -69,13 +92,13 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
   const currentSection = DOCS_SECTIONS.find((section) => section.id === sectionId);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-[100dvh] bg-[radial-gradient(ellipse_at_4%_0%,rgba(15,145,91,0.055),transparent_34rem)]">
       <PublicHeader />
-      <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-5 sm:px-6 lg:pt-8">
-        <div className="min-w-0 lg:grid lg:grid-cols-[250px_minmax(0,1fr)] lg:gap-10">
-          <aside className="mb-6 min-w-0 lg:mb-0">
-            <div className="lg:sticky lg:top-20">
-              <label className="relative mb-3 block">
+      <main className="mx-auto max-w-[1440px] px-4 pb-20 pt-5 sm:px-6 lg:px-8 lg:pt-8">
+        <div className="min-w-0 lg:grid lg:grid-cols-[258px_minmax(0,1fr)] lg:gap-12">
+          <aside className="mb-5 min-w-0 lg:mb-0">
+            <div className="lg:sticky lg:top-24">
+              <label className={cn('relative mb-3 block', !sectionId && 'hidden')}>
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
                   type="search"
@@ -83,7 +106,8 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Search documentation"
                   aria-label="Search documentation"
-                  className="h-10 w-full rounded-xl border border-border/80 bg-background/75 pl-9 pr-3 text-sm text-foreground shadow-sm backdrop-blur-md placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  data-testid="input-docs-search"
+                  className="h-10 w-full rounded-xl border border-border/80 bg-card/80 pl-9 pr-3 text-sm text-foreground shadow-[0_5px_18px_rgba(35,47,38,0.05)] backdrop-blur-xl placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </label>
 
@@ -94,6 +118,7 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
                 className="mb-3 flex w-full items-center justify-between lg:hidden"
                 aria-expanded={mobileNavOpen}
                 aria-controls="docs-sections"
+                data-testid="button-docs-mobile-nav"
                 onClick={() => setMobileNavOpen((open) => !open)}
               >
                 <span className="flex items-center gap-2">
@@ -107,7 +132,7 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
                 id="docs-sections"
                 aria-label="Documentation sections"
                 className={cn(
-                  'space-y-6 lg:block',
+                  'max-h-[min(65vh,620px)] overflow-y-auto rounded-2xl border border-border/70 bg-card/70 p-3 shadow-[0_14px_38px_rgba(35,47,38,0.06)] backdrop-blur-xl lg:max-h-[calc(100dvh-10rem)] lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none',
                   mobileNavOpen ? 'block' : 'hidden lg:block',
                 )}
               >
@@ -115,8 +140,9 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
                   href="/docs"
                   onClick={() => setMobileNavOpen(false)}
                   aria-current={!sectionId ? 'page' : undefined}
+                  data-testid="link-docs-overview"
                   className={cn(
-                    'flex min-h-9 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    'flex min-h-10 items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-colors',
                     !sectionId
                       ? 'bg-primary/10 text-primary'
                       : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
@@ -127,7 +153,7 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
                 </Link>
                 {categories.map((category) => (
                   <div key={category} className="space-y-1">
-                    <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80">
+                    <p className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">
                       {category}
                     </p>
                     {filteredSections
@@ -140,8 +166,9 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
                             href={docsPathForSection(section.id)}
                             onClick={() => setMobileNavOpen(false)}
                             aria-current={activeSection === section.id ? 'page' : undefined}
+                            data-testid={`link-docs-section-${section.id}`}
                             className={cn(
-                              'flex min-h-9 items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
+                              'flex min-h-9 items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] transition-colors',
                               activeSection === section.id
                                 ? 'bg-primary/10 font-medium text-primary'
                                 : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
@@ -155,7 +182,7 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
                   </div>
                 ))}
                 {filteredSections.length === 0 && (
-                  <p className="px-3 py-2 text-sm text-muted-foreground">No guides match that search.</p>
+                  <p data-testid="text-docs-search-empty" className="px-3 py-2 text-sm text-muted-foreground">No guides match that search.</p>
                 )}
               </nav>
             </div>
@@ -163,11 +190,13 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
 
           <div className="min-w-0">
             {!sectionId ? (
-              <section className="mx-auto max-w-5xl space-y-9">
-                <div className="rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-md sm:p-9">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">AfuCloud docs</p>
-                  <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Documentation</h1>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+              <section className="mx-auto max-w-5xl space-y-10">
+                <div className="relative overflow-hidden rounded-[1.75rem] border border-border/80 bg-card/80 p-6 shadow-[0_20px_60px_rgba(35,47,38,0.07)] backdrop-blur-xl sm:p-10">
+                  <div className="pointer-events-none absolute -right-10 -top-24 h-64 w-64 rounded-full border border-primary/10 bg-primary/[0.035] sm:right-6 sm:top-[-8rem]" />
+                  <div className="relative">
+                  <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.17em] text-primary"><span className="h-1.5 w-1.5 rounded-full bg-primary" /> AfuCloud developer guide</p>
+                  <h1 className="mt-4 text-4xl font-semibold tracking-[-0.045em] sm:text-5xl">Documentation</h1>
+                  <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
                     Find setup guides, product documentation, and API references for building with AfuCloud.
                   </p>
                   <label className="relative mt-6 block max-w-2xl">
@@ -178,14 +207,19 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
                       onChange={(event) => setSearchQuery(event.target.value)}
                       placeholder="Search guides and API topics"
                       aria-label="Search guides and API topics"
-                      className="h-12 w-full rounded-xl border border-border/80 bg-background/85 pl-11 pr-4 text-sm shadow-sm backdrop-blur-md placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      data-testid="input-docs-overview-search"
+                      className="h-12 w-full rounded-xl border border-border/80 bg-background/90 pl-11 pr-4 text-sm shadow-[0_5px_18px_rgba(35,47,38,0.06)] backdrop-blur-xl placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   </label>
+                  </div>
                 </div>
 
                 {categories.map((category) => (
-                  <section key={category} className="space-y-3">
-                    <h2 className="text-lg font-semibold">{category}</h2>
+                  <section key={category} className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{category}</h2>
+                      <span className="h-px flex-1 bg-border/70" />
+                    </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {filteredSections
                         .filter((section) => section.category === category)
@@ -195,16 +229,17 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
                             <Link
                               key={section.id}
                               href={docsPathForSection(section.id)}
-                              className="group rounded-xl border border-border/80 bg-card/70 p-4 shadow-sm backdrop-blur-md transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:bg-card"
+                              className="group rounded-2xl border border-border/75 bg-card/75 p-5 shadow-[0_6px_20px_rgba(35,47,38,0.035)] backdrop-blur-xl transition-[transform,border-color,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-card hover:shadow-[0_14px_30px_rgba(35,47,38,0.08)]"
+                              data-testid={`docs-guide-${section.id}`}
                             >
                               <div className="flex items-center justify-between">
-                                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 text-primary">
+                                <span className="flex h-10 w-10 items-center justify-center rounded-[14px] border border-primary/15 bg-primary/10 text-primary">
                                   <Icon className="h-4 w-4" />
                                 </span>
                                 <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                               </div>
-                              <h3 className="mt-4 text-sm font-semibold">{section.title}</h3>
-                              <p className="mt-1.5 text-sm leading-5 text-muted-foreground">{section.summary}</p>
+                              <h3 className="mt-5 text-[15px] font-semibold">{section.title}</h3>
+                              <p className="mt-2 text-sm leading-6 text-muted-foreground">{section.summary}</p>
                             </Link>
                           );
                         })}
@@ -213,15 +248,17 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
                 ))}
 
                 {filteredSections.length === 0 && (
-                  <p className="rounded-xl border border-border/80 bg-card/70 p-5 text-sm text-muted-foreground">
-                    No guides match that search. Try a product name or API topic.
-                  </p>
+                  <div className="rounded-2xl border border-border/80 bg-card/70 p-8 text-center">
+                    <Search className="mx-auto h-5 w-5 text-muted-foreground" />
+                    <p className="mt-3 text-sm font-semibold">No guides found</p>
+                    <p data-testid="text-docs-overview-empty" className="mt-1 text-sm text-muted-foreground">Try a product name or API topic.</p>
+                  </div>
                 )}
               </section>
             ) : (
               <>
-                <nav aria-label="Breadcrumb" className="mb-5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <Link href="/docs" className="transition-colors hover:text-foreground">Documentation</Link>
+                <nav aria-label="Breadcrumb" className="mb-7 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Link href="/docs" data-testid="link-docs-breadcrumb-overview" className="transition-colors hover:text-foreground">Documentation</Link>
                   <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>{currentSection?.category}</span>
                   <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -229,6 +266,11 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
                 </nav>
 
                 <div className="min-w-0 max-w-5xl space-y-8">
+                  <header className="rounded-[1.6rem] border border-border/80 bg-card/75 px-5 py-6 shadow-[0_12px_35px_rgba(35,47,38,0.045)] backdrop-blur-xl sm:px-8 sm:py-8">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.17em] text-primary">{currentSection?.category}</p>
+                    <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] sm:text-[2.5rem]">{currentSection?.title}</h1>
+                    <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">{currentSection?.summary}</p>
+                  </header>
 
           {/* Quick Start */}
           <article
@@ -644,7 +686,24 @@ curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
                 </table>
               </div>
           </article>
-        </div>
+                <nav aria-label="Documentation page navigation" className="mt-10 grid gap-3 border-t border-border/70 pt-6 sm:grid-cols-2">
+                  {previousSection ? (
+                    <Link href={docsPathForSection(previousSection.id)} data-testid="link-docs-previous" className="group rounded-2xl border border-border/80 bg-card/65 p-4 transition-colors hover:border-primary/30 hover:bg-card">
+                      <span className="block text-[10px] font-bold uppercase tracking-[0.13em] text-muted-foreground">Previous</span>
+                      <span className="mt-1 flex items-center gap-2 text-sm font-semibold text-foreground"><ChevronRight className="h-4 w-4 rotate-180 text-primary transition-transform group-hover:-translate-x-0.5" />{previousSection.title}</span>
+                    </Link>
+                  ) : <span />}
+                  {nextSection && (
+                    <Link href={docsPathForSection(nextSection.id)} data-testid="link-docs-next" className="group rounded-2xl border border-border/80 bg-card/65 p-4 text-right transition-colors hover:border-primary/30 hover:bg-card">
+                      <span className="block text-[10px] font-bold uppercase tracking-[0.13em] text-muted-foreground">Next</span>
+                      <span className="mt-1 flex items-center justify-end gap-2 text-sm font-semibold text-foreground">{nextSection.title}<ChevronRight className="h-4 w-4 text-primary transition-transform group-hover:translate-x-0.5" /></span>
+                    </Link>
+                  )}
+                </nav>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </main>
     </div>
