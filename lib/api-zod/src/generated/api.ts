@@ -630,7 +630,7 @@ export const GetCloudflareConnectionResponse = zod.object({
 
 
 /**
- * @summary Revoke and remove the current user's Cloudflare connection
+ * @summary Remove the current user's Cloudflare connection and attempt token revocation
  */
 export const DisconnectCloudflareResponse = zod.object({
   "message": zod.string()
@@ -843,6 +843,156 @@ export const AutoConfigureCdnHostnamesResponse = zod.object({
   "message": zod.string(),
   "recordId": zod.string().nullish()
 }))
+})
+
+
+/**
+ * @summary Search domain names available through Cloudflare Registrar
+ */
+export const SearchDomainRegistrationsQueryParams = zod.object({
+  "q": zod.coerce.string()
+})
+
+export const SearchDomainRegistrationsResponse = zod.object({
+  "results": zod.array(zod.object({
+  "domainName": zod.string(),
+  "available": zod.boolean(),
+  "registrable": zod.boolean(),
+  "tier": zod.string(),
+  "reason": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Check live registration availability and retail pricing
+ */
+export const QuoteDomainRegistrationBody = zod.object({
+  "domainName": zod.string()
+})
+
+export const QuoteDomainRegistrationResponse = zod.object({
+  "domainName": zod.string(),
+  "registrable": zod.boolean(),
+  "tier": zod.string(),
+  "reason": zod.string().nullish(),
+  "currency": zod.string(),
+  "markupPercent": zod.number(),
+  "registrarCost": zod.number().nullable(),
+  "renewalRegistrarCost": zod.number().nullable(),
+  "retailPrice": zod.number().nullable(),
+  "renewalRetailPrice": zod.number().nullable()
+})
+
+
+/**
+ * @summary Create a one-time Whop checkout for a live domain quote
+ */
+export const CreateDomainRegistrationCheckoutBody = zod.object({
+  "domainName": zod.string()
+})
+
+export const CreateDomainRegistrationCheckoutResponse = zod.object({
+  "order": zod.object({
+  "id": zod.string(),
+  "domainName": zod.string(),
+  "status": zod.enum(['creating_checkout', 'pending_payment', 'paid', 'registering', 'processing', 'registered', 'registration_failed', 'checkout_failed', 'refunded', 'manual_review']),
+  "currency": zod.string(),
+  "registrarCost": zod.number(),
+  "renewalRegistrarCost": zod.number(),
+  "retailPrice": zod.number(),
+  "renewalRetailPrice": zod.number(),
+  "registrationStatus": zod.string().nullable(),
+  "expiresAt": zod.string().nullable(),
+  "error": zod.string().nullable(),
+  "createdAt": zod.string()
+}),
+  "purchaseUrl": zod.string()
+})
+
+
+/**
+ * @summary List the authenticated user's domain registration orders
+ */
+export const ListDomainRegistrationOrdersResponseItem = zod.object({
+  "id": zod.string(),
+  "domainName": zod.string(),
+  "status": zod.enum(['creating_checkout', 'pending_payment', 'paid', 'registering', 'processing', 'registered', 'registration_failed', 'checkout_failed', 'refunded', 'manual_review']),
+  "currency": zod.string(),
+  "registrarCost": zod.number(),
+  "renewalRegistrarCost": zod.number(),
+  "retailPrice": zod.number(),
+  "renewalRetailPrice": zod.number(),
+  "registrationStatus": zod.string().nullable(),
+  "expiresAt": zod.string().nullable(),
+  "error": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+export const ListDomainRegistrationOrdersResponse = zod.array(ListDomainRegistrationOrdersResponseItem)
+
+
+/**
+ * @summary Retrieve an order and refresh its Whop payment status
+ */
+export const GetDomainRegistrationOrderParams = zod.object({
+  "orderId": zod.coerce.string()
+})
+
+export const GetDomainRegistrationOrderResponse = zod.object({
+  "id": zod.string(),
+  "domainName": zod.string(),
+  "status": zod.enum(['creating_checkout', 'pending_payment', 'paid', 'registering', 'processing', 'registered', 'registration_failed', 'checkout_failed', 'refunded', 'manual_review']),
+  "currency": zod.string(),
+  "registrarCost": zod.number(),
+  "renewalRegistrarCost": zod.number(),
+  "retailPrice": zod.number(),
+  "renewalRetailPrice": zod.number(),
+  "registrationStatus": zod.string().nullable(),
+  "expiresAt": zod.string().nullable(),
+  "error": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Register the paid domain using the buyer's legal registrant details
+ */
+export const SubmitDomainRegistrationParams = zod.object({
+  "orderId": zod.coerce.string()
+})
+
+export const submitDomainRegistrationBodyRegistrantCountryCodeMin = 2;
+export const submitDomainRegistrationBodyRegistrantCountryCodeMax = 2;
+
+
+
+export const SubmitDomainRegistrationBody = zod.object({
+  "registrant": zod.object({
+  "email": zod.string(),
+  "phone": zod.string().describe('Cloudflare phone format, for example +256.700000000.'),
+  "name": zod.string(),
+  "organization": zod.string().optional(),
+  "street": zod.string(),
+  "city": zod.string(),
+  "state": zod.string().optional(),
+  "postalCode": zod.string(),
+  "countryCode": zod.string().min(submitDomainRegistrationBodyRegistrantCountryCodeMin).max(submitDomainRegistrationBodyRegistrantCountryCodeMax)
+})
+})
+
+export const SubmitDomainRegistrationResponse = zod.object({
+  "id": zod.string(),
+  "domainName": zod.string(),
+  "status": zod.enum(['creating_checkout', 'pending_payment', 'paid', 'registering', 'processing', 'registered', 'registration_failed', 'checkout_failed', 'refunded', 'manual_review']),
+  "currency": zod.string(),
+  "registrarCost": zod.number(),
+  "renewalRegistrarCost": zod.number(),
+  "retailPrice": zod.number(),
+  "renewalRetailPrice": zod.number(),
+  "registrationStatus": zod.string().nullable(),
+  "expiresAt": zod.string().nullable(),
+  "error": zod.string().nullable(),
+  "createdAt": zod.string()
 })
 
 

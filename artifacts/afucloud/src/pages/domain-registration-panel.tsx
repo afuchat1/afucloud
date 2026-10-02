@@ -95,7 +95,7 @@ export function DomainRegistrationPanel() {
 
   const ordersQuery = useQuery<DomainOrder[]>({
     queryKey: ['domain-registration-orders'],
-    queryFn: () => jsonFetch('/v1/domains/registrations/orders'),
+    queryFn: () => jsonFetch<DomainOrder[]>('/v1/domains/registrations/orders'),
   });
 
   const syncOrder = (next: DomainOrder) => {
@@ -200,7 +200,6 @@ export function DomainRegistrationPanel() {
   };
 
   const canRegister = order?.status === 'paid';
-  const activeStatus = order && ['paid', 'registering', 'processing', 'registered', 'refunded', 'manual_review', 'registration_failed'].includes(order.status);
 
   return (
     <section className="overflow-hidden rounded-xl border border-card-border bg-card" data-testid="domain-registration">

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { PageHeader } from '@/components/page-header';
-import { BookOpen, Code, Zap, Upload, Image, Webhook, Key, ArrowRight, Copy, Check, Menu, X } from 'lucide-react';
+import { BookOpen, Code, Zap, Upload, Image, Webhook, Key, Globe2, ArrowRight, Copy, Check, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { PublicHeader } from '@/components/public-header';
@@ -37,6 +37,7 @@ const sections = [
   { id: 'images', icon: Image, title: 'Managing Images' },
   { id: 'apikeys', icon: Key, title: 'API Keys' },
   { id: 'webhooks', icon: Webhook, title: 'Webhooks' },
+  { id: 'domains', icon: Globe2, title: 'Domain Registration' },
   { id: 'reference', icon: Code, title: 'API Reference' },
 ];
 
@@ -341,6 +342,58 @@ const isValid = crypto.timingSafeEqual(
 );`} />
           </article>
 
+          {/* Domain registration */}
+          <article
+            id="docs-domains"
+            className={cn('scroll-mt-4 space-y-6', activeSection === 'domains' ? 'block' : 'block lg:hidden')}
+          >
+            <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
+              <h2 className="text-base font-semibold">Domain Registration</h2>
+              <p className="text-sm text-muted-foreground">
+                Search for a domain, confirm its live availability and price, then pay AfuCloud through a one-time Whop checkout.
+                A completed payment is verified server-side before AfuCloud submits the registration to Cloudflare.
+              </p>
+              <ul className="list-inside list-disc space-y-2 text-sm text-muted-foreground">
+                <li>The buyer is the legal registrant. Registrant contact details are sent to Cloudflare and are not stored in AfuCloud’s order table.</li>
+                <li>Retail pricing adds a 20% AfuCloud service markup to Cloudflare’s live registration and renewal prices. The final quote is shown before checkout.</li>
+                <li>Registration is for one year with automatic renewal disabled. Renewal checkout is not yet available in the dashboard; contact AfuCloud before expiry.</li>
+                <li>Cloudflare does not refund completed domain registrations. If a domain becomes unavailable before registration, AfuCloud requests a Whop refund; unclear outcomes are sent for manual review.</li>
+                <li>Premium domains and non-USD quotes are not available through this checkout. DNS management and transfer-out requests are handled separately from these registration orders.</li>
+              </ul>
+            </div>
+            <div className="space-y-4 rounded-lg border border-card-border bg-card p-4 sm:p-6">
+              <h3 className="text-sm font-semibold">API flow</h3>
+              <p className="text-sm text-muted-foreground">
+                All endpoints require an AfuCloud bearer token. Search and quote first; create checkout only after showing the current price and renewal rate to the buyer.
+              </p>
+              <CodeBlock language="bash" code={`# Search names or a full domain
+curl -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
+  "${BASE}/v1/domains/registrations/search?q=example.com"
+
+# Get current availability and retail price
+curl -X POST "${BASE}/v1/domains/registrations/quote" \\
+  -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"domainName":"example.com"}'
+
+# Create a one-time hosted checkout, then redirect to purchaseUrl
+curl -X POST "${BASE}/v1/domains/registrations/checkout" \\
+  -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"domainName":"example.com"}'
+
+# Refresh payment status after Whop returns the buyer
+curl -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
+  "${BASE}/v1/domains/registrations/orders/ORDER_ID"
+
+# Submit the buyer's legal registrant details after payment is confirmed
+curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
+  -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"registrant":{"email":"buyer@example.com","phone":"+256.700000000","name":"Jane Doe","street":"1 Main Street","city":"Kampala","state":"Central","postalCode":"00000","countryCode":"UG"}}'`} />
+            </div>
+          </article>
+
           {/* API Reference */}
           <article
             id="docs-reference"
@@ -394,6 +447,12 @@ const isValid = crypto.timingSafeEqual(
                       ['POST', '/v1/tokens', '✓', 'Create personal token'],
                       ['DELETE', '/v1/tokens/:id', '✓', 'Revoke personal token'],
                       ['GET', '/v1/activity', '✓', 'Activity log'],
+                      ['GET', '/v1/domains/registrations/search', '✓', 'Search registrar domains'],
+                      ['POST', '/v1/domains/registrations/quote', '✓', 'Get live availability and price'],
+                      ['POST', '/v1/domains/registrations/checkout', '✓', 'Create one-time Whop checkout'],
+                      ['GET', '/v1/domains/registrations/orders', '✓', 'List registration orders'],
+                      ['GET', '/v1/domains/registrations/orders/:orderId', '✓', 'Refresh payment and order status'],
+                      ['POST', '/v1/domains/registrations/orders/:orderId/register', '✓', 'Submit legal registrant details'],
                     ].map(([method, path, auth, desc]) => (
                       <tr key={path + method} className="hover:bg-muted/20">
                         <td className="px-4 py-2">

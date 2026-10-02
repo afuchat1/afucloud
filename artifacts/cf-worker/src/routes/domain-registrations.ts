@@ -153,7 +153,9 @@ async function findPaidPayment(env: Env, order: any) {
     throw new ProviderError("The payment does not match this domain order.", 409);
   }
   const status = String(payment.status ?? payment.state ?? "").toLowerCase();
-  if (!["paid", "succeeded", "complete", "completed"].includes(status)) return null;
+  const substatus = String(payment.substatus ?? "").toLowerCase();
+  if (!["paid", "succeeded", "complete", "completed"].includes(status) &&
+    substatus !== "succeeded" && !payment.paid_at) return null;
   return payment;
 }
 
@@ -260,21 +262,22 @@ async function refundWhopPayment(env: Env, paymentId: string): Promise<boolean> 
 
 registrations.get("/search", async (c) => {
   const query = (c.req.query("q") ?? "").trim().toLowerCase();
-  if (!query || query.length > 63 || !/^[a-z0-9-]+$/.test(query)) {
+  const domainQuery = query.includes(".") ? normalizeDomain(query) : query;
+  if (!domainQuery || domainQuery.length > 253 || !/^[a-z0-9.-]+$/.test(domainQuery)) {
     return c.json({ error: "Enter a name using letters, numbers, or hyphens." }, 400);
   }
   try {
     const { result } = await cloudflareRequest(
       c.env,
-      `/domain-search?q=${encodeURIComponent(query)}`,
+      `/domain-search?q=${encodeURIComponent(domainQuery)}`,
       "GET",
     );
     const results = Array.isArray(result) ? result : result?.domains ?? result?.matches ?? result?.results ?? [];
     return c.json({
       results: results.map((item: any) => ({
         domainName: String(item.domain_name ?? item.name ?? item.domain ?? ""),
-        available: item.available === true || item.registrable === true,
-        registrable: item.registrable === true,
+        available: item.available === true || item.available_to_register === true || item.registrable === true,
+        registrable: item.registrable === true || item.available_to_register === true || item.available === true,
         tier: item.tier ?? "standard",
         reason: item.reason ?? null,
       })).filter((item: any) => item.domainName),
@@ -327,12 +330,13 @@ registrations.post("/checkout", async (c) => {
 
     try {
       const plan = await whopRequest(c.env, "/plans", "POST", {
-        company_id: c.env.WHOP_COMPANY_ID,
+        account_id: c.env.WHOP_COMPANY_ID,
         product_id: c.env.WHOP_PRODUCT_ID,
         initial_price: quote.retailPrice,
         currency: quote.currency.toLowerCase(),
-        billing_period: null,
         plan_type: "one_time",
+        title: `Domain registration: ${hostname}`,
+        description: `One-time purchase for registering ${hostname} through AfuCloud.`,
       });
       const planId = plan?.id;
       if (!planId) throw new ProviderError("Whop did not return a payment plan.");

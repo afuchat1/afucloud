@@ -35,6 +35,12 @@ import type {
   CloudflareHostnameDnsAutoConfiguration,
   CloudflareZone,
   ConfirmUploadInput,
+  DomainRegistrantRequest,
+  DomainRegistrationCheckoutResponse,
+  DomainRegistrationOrder,
+  DomainRegistrationQuote,
+  DomainRegistrationQuoteRequest,
+  DomainRegistrationSearchResponse,
   GetProjectAnalyticsParams,
   HealthStatus,
   Image,
@@ -49,6 +55,7 @@ import type {
   ProjectInput,
   ProjectStats,
   ProjectUpdate,
+  SearchDomainRegistrationsParams,
   Token,
   TokenInput,
   TokenWithSecret,
@@ -2289,7 +2296,7 @@ export const getDisconnectCloudflareUrl = () => {
 }
 
 /**
- * @summary Revoke and remove the current user's Cloudflare connection
+ * @summary Remove the current user's Cloudflare connection and attempt token revocation
  */
 export const disconnectCloudflare = async ( options?: Parameters<typeof customFetch>[1]): Promise<MessageResponse> => {
 
@@ -2338,7 +2345,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DisconnectCloudflareMutationError = ErrorType<unknown>
 
     /**
- * @summary Revoke and remove the current user's Cloudflare connection
+ * @summary Remove the current user's Cloudflare connection and attempt token revocation
  */
 export const useDisconnectCloudflare = <TError = ErrorType<unknown>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectCloudflare>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -3020,5 +3027,457 @@ export const useAutoConfigureCdnHostnames = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAutoConfigureCdnHostnamesMutationOptions(options));
+    }
+
+export const getSearchDomainRegistrationsUrl = (params: SearchDomainRegistrationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/domains/registrations/search?${stringifiedParams}` : `/api/v1/domains/registrations/search`
+}
+
+/**
+ * @summary Search domain names available through Cloudflare Registrar
+ */
+export const searchDomainRegistrations = async (params: SearchDomainRegistrationsParams, options?: Parameters<typeof customFetch>[1]): Promise<DomainRegistrationSearchResponse> => {
+
+  return customFetch<DomainRegistrationSearchResponse>(getSearchDomainRegistrationsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchDomainRegistrationsQueryKey = (params?: SearchDomainRegistrationsParams,) => {
+    return [
+    `/api/v1/domains/registrations/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchDomainRegistrationsQueryOptions = <TData = Awaited<ReturnType<typeof searchDomainRegistrations>>, TError = ErrorType<unknown>>(params: SearchDomainRegistrationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchDomainRegistrations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchDomainRegistrationsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchDomainRegistrations>>> = ({ signal }) => searchDomainRegistrations(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchDomainRegistrations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchDomainRegistrationsQueryResult = NonNullable<Awaited<ReturnType<typeof searchDomainRegistrations>>>
+export type SearchDomainRegistrationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Search domain names available through Cloudflare Registrar
+ */
+
+export function useSearchDomainRegistrations<TData = Awaited<ReturnType<typeof searchDomainRegistrations>>, TError = ErrorType<unknown>>(
+ params: SearchDomainRegistrationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchDomainRegistrations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchDomainRegistrationsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getQuoteDomainRegistrationUrl = () => {
+
+
+
+
+  return `/api/v1/domains/registrations/quote`
+}
+
+/**
+ * @summary Check live registration availability and retail pricing
+ */
+export const quoteDomainRegistration = async (domainRegistrationQuoteRequest: DomainRegistrationQuoteRequest, options?: Parameters<typeof customFetch>[1]): Promise<DomainRegistrationQuote> => {
+
+  return customFetch<DomainRegistrationQuote>(getQuoteDomainRegistrationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(domainRegistrationQuoteRequest)
+  }
+);}
+
+
+
+
+
+export const getQuoteDomainRegistrationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof quoteDomainRegistration>>, TError,{data: BodyType<DomainRegistrationQuoteRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof quoteDomainRegistration>>, TError,{data: BodyType<DomainRegistrationQuoteRequest>}, TContext> => {
+
+const mutationKey = ['quoteDomainRegistration'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof quoteDomainRegistration>>, {data: BodyType<DomainRegistrationQuoteRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  quoteDomainRegistration(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type QuoteDomainRegistrationMutationResult = NonNullable<Awaited<ReturnType<typeof quoteDomainRegistration>>>
+    export type QuoteDomainRegistrationMutationBody = BodyType<DomainRegistrationQuoteRequest>
+    export type QuoteDomainRegistrationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Check live registration availability and retail pricing
+ */
+export const useQuoteDomainRegistration = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof quoteDomainRegistration>>, TError,{data: BodyType<DomainRegistrationQuoteRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof quoteDomainRegistration>>,
+        TError,
+        {data: BodyType<DomainRegistrationQuoteRequest>},
+        TContext
+      > => {
+      return useMutation(getQuoteDomainRegistrationMutationOptions(options));
+    }
+
+export const getCreateDomainRegistrationCheckoutUrl = () => {
+
+
+
+
+  return `/api/v1/domains/registrations/checkout`
+}
+
+/**
+ * @summary Create a one-time Whop checkout for a live domain quote
+ */
+export const createDomainRegistrationCheckout = async (domainRegistrationQuoteRequest: DomainRegistrationQuoteRequest, options?: Parameters<typeof customFetch>[1]): Promise<DomainRegistrationCheckoutResponse> => {
+
+  return customFetch<DomainRegistrationCheckoutResponse>(getCreateDomainRegistrationCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(domainRegistrationQuoteRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateDomainRegistrationCheckoutMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>, TError,{data: BodyType<DomainRegistrationQuoteRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>, TError,{data: BodyType<DomainRegistrationQuoteRequest>}, TContext> => {
+
+const mutationKey = ['createDomainRegistrationCheckout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>, {data: BodyType<DomainRegistrationQuoteRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createDomainRegistrationCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDomainRegistrationCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>>
+    export type CreateDomainRegistrationCheckoutMutationBody = BodyType<DomainRegistrationQuoteRequest>
+    export type CreateDomainRegistrationCheckoutMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a one-time Whop checkout for a live domain quote
+ */
+export const useCreateDomainRegistrationCheckout = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>, TError,{data: BodyType<DomainRegistrationQuoteRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDomainRegistrationCheckout>>,
+        TError,
+        {data: BodyType<DomainRegistrationQuoteRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateDomainRegistrationCheckoutMutationOptions(options));
+    }
+
+export const getListDomainRegistrationOrdersUrl = () => {
+
+
+
+
+  return `/api/v1/domains/registrations/orders`
+}
+
+/**
+ * @summary List the authenticated user's domain registration orders
+ */
+export const listDomainRegistrationOrders = async ( options?: Parameters<typeof customFetch>[1]): Promise<DomainRegistrationOrder[]> => {
+
+  return customFetch<DomainRegistrationOrder[]>(getListDomainRegistrationOrdersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDomainRegistrationOrdersQueryKey = () => {
+    return [
+    `/api/v1/domains/registrations/orders`
+    ] as const;
+    }
+
+
+export const getListDomainRegistrationOrdersQueryOptions = <TData = Awaited<ReturnType<typeof listDomainRegistrationOrders>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDomainRegistrationOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDomainRegistrationOrdersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDomainRegistrationOrders>>> = ({ signal }) => listDomainRegistrationOrders({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDomainRegistrationOrders>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDomainRegistrationOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof listDomainRegistrationOrders>>>
+export type ListDomainRegistrationOrdersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the authenticated user's domain registration orders
+ */
+
+export function useListDomainRegistrationOrders<TData = Awaited<ReturnType<typeof listDomainRegistrationOrders>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDomainRegistrationOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDomainRegistrationOrdersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDomainRegistrationOrderUrl = (orderId: string,) => {
+
+
+
+
+  return `/api/v1/domains/registrations/orders/${orderId}`
+}
+
+/**
+ * @summary Retrieve an order and refresh its Whop payment status
+ */
+export const getDomainRegistrationOrder = async (orderId: string, options?: Parameters<typeof customFetch>[1]): Promise<DomainRegistrationOrder> => {
+
+  return customFetch<DomainRegistrationOrder>(getGetDomainRegistrationOrderUrl(orderId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDomainRegistrationOrderQueryKey = (orderId: string,) => {
+    return [
+    `/api/v1/domains/registrations/orders/${orderId}`
+    ] as const;
+    }
+
+
+export const getGetDomainRegistrationOrderQueryOptions = <TData = Awaited<ReturnType<typeof getDomainRegistrationOrder>>, TError = ErrorType<unknown>>(orderId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDomainRegistrationOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDomainRegistrationOrderQueryKey(orderId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDomainRegistrationOrder>>> = ({ signal }) => getDomainRegistrationOrder(orderId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: orderId !== null && orderId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDomainRegistrationOrder>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDomainRegistrationOrderQueryResult = NonNullable<Awaited<ReturnType<typeof getDomainRegistrationOrder>>>
+export type GetDomainRegistrationOrderQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Retrieve an order and refresh its Whop payment status
+ */
+
+export function useGetDomainRegistrationOrder<TData = Awaited<ReturnType<typeof getDomainRegistrationOrder>>, TError = ErrorType<unknown>>(
+ orderId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDomainRegistrationOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDomainRegistrationOrderQueryOptions(orderId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitDomainRegistrationUrl = (orderId: string,) => {
+
+
+
+
+  return `/api/v1/domains/registrations/orders/${orderId}/register`
+}
+
+/**
+ * @summary Register the paid domain using the buyer's legal registrant details
+ */
+export const submitDomainRegistration = async (orderId: string,
+    domainRegistrantRequest: DomainRegistrantRequest, options?: Parameters<typeof customFetch>[1]): Promise<DomainRegistrationOrder> => {
+
+  return customFetch<DomainRegistrationOrder>(getSubmitDomainRegistrationUrl(orderId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(domainRegistrantRequest)
+  }
+);}
+
+
+
+
+
+export const getSubmitDomainRegistrationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitDomainRegistration>>, TError,{orderId: string;data: BodyType<DomainRegistrantRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitDomainRegistration>>, TError,{orderId: string;data: BodyType<DomainRegistrantRequest>}, TContext> => {
+
+const mutationKey = ['submitDomainRegistration'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitDomainRegistration>>, {orderId: string;data: BodyType<DomainRegistrantRequest>}> = (props) => {
+          const {orderId,data} = props ?? {};
+
+          return  submitDomainRegistration(orderId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitDomainRegistrationMutationResult = NonNullable<Awaited<ReturnType<typeof submitDomainRegistration>>>
+    export type SubmitDomainRegistrationMutationBody = BodyType<DomainRegistrantRequest>
+    export type SubmitDomainRegistrationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Register the paid domain using the buyer's legal registrant details
+ */
+export const useSubmitDomainRegistration = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitDomainRegistration>>, TError,{orderId: string;data: BodyType<DomainRegistrantRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitDomainRegistration>>,
+        TError,
+        {orderId: string;data: BodyType<DomainRegistrantRequest>},
+        TContext
+      > => {
+      return useMutation(getSubmitDomainRegistrationMutationOptions(options));
     }
 

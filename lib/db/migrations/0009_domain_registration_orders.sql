@@ -1,5 +1,14 @@
 -- Paid domain registration orders for AfuCloud.
 -- Registrant contact data is submitted directly to Cloudflare and is not stored here.
+CREATE SCHEMA IF NOT EXISTS afucloud;
+
+DO $$
+BEGIN
+  IF to_regclass('public.domain_registration_orders') IS NOT NULL THEN
+    RAISE EXCEPTION 'AfuCloud table public.domain_registration_orders is outside the afucloud schema; migrate it before starting AfuCloud';
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS afucloud.domain_registration_orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,

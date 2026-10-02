@@ -327,6 +327,101 @@ export interface ActivityLog {
   createdAt: string;
 }
 
+export type DomainRegistrationSearchResponseResultsItem = {
+  domainName: string;
+  available: boolean;
+  registrable: boolean;
+  tier: string;
+  /** @nullable */
+  reason?: string | null;
+};
+
+export interface DomainRegistrationSearchResponse {
+  results: DomainRegistrationSearchResponseResultsItem[];
+}
+
+export interface DomainRegistrationQuoteRequest {
+  domainName: string;
+}
+
+export interface DomainRegistrationQuote {
+  domainName: string;
+  registrable: boolean;
+  tier: string;
+  /** @nullable */
+  reason?: string | null;
+  currency: string;
+  markupPercent: number;
+  /** @nullable */
+  registrarCost: number | null;
+  /** @nullable */
+  renewalRegistrarCost: number | null;
+  /** @nullable */
+  retailPrice: number | null;
+  /** @nullable */
+  renewalRetailPrice: number | null;
+}
+
+export type DomainRegistrationOrderStatus = typeof DomainRegistrationOrderStatus[keyof typeof DomainRegistrationOrderStatus];
+
+
+export const DomainRegistrationOrderStatus = {
+  creating_checkout: 'creating_checkout',
+  pending_payment: 'pending_payment',
+  paid: 'paid',
+  registering: 'registering',
+  processing: 'processing',
+  registered: 'registered',
+  registration_failed: 'registration_failed',
+  checkout_failed: 'checkout_failed',
+  refunded: 'refunded',
+  manual_review: 'manual_review',
+} as const;
+
+export interface DomainRegistrationOrder {
+  id: string;
+  domainName: string;
+  status: DomainRegistrationOrderStatus;
+  currency: string;
+  registrarCost: number;
+  renewalRegistrarCost: number;
+  retailPrice: number;
+  renewalRetailPrice: number;
+  /** @nullable */
+  registrationStatus: string | null;
+  /** @nullable */
+  expiresAt: string | null;
+  /** @nullable */
+  error: string | null;
+  createdAt: string;
+}
+
+export interface DomainRegistrationCheckoutResponse {
+  order: DomainRegistrationOrder;
+  purchaseUrl: string;
+}
+
+export type DomainRegistrantRequestRegistrant = {
+  email: string;
+  /** Cloudflare phone format, for example +256.700000000. */
+  phone: string;
+  name: string;
+  organization?: string;
+  street: string;
+  city: string;
+  state?: string;
+  postalCode: string;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     */
+  countryCode: string;
+};
+
+export interface DomainRegistrantRequest {
+  registrant: DomainRegistrantRequestRegistrant;
+}
+
 export type ListImagesParams = {
 search?: string;
 tag?: string;
@@ -358,5 +453,9 @@ export const GetProjectAnalyticsPeriod = {
 export type ListDomainDnsRecordsParams = {
 search?: string;
 type?: string;
+};
+
+export type SearchDomainRegistrationsParams = {
+q: string;
 };
 
