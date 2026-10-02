@@ -32,6 +32,7 @@ const plans = [
     name: 'Free',
     price: '$0',
     period: 'forever',
+    trial: null,
     description: 'For trying AfuCloud and small projects.',
     features: ['2 projects', '2 storage containers', '3 API keys', '10 MB max file size'],
     cta: 'Get started',
@@ -40,6 +41,7 @@ const plans = [
     name: 'Pro',
     price: '$12',
     period: '/month',
+    trial: '7-day free trial',
     description: 'For individual developers running production projects.',
     features: ['10 projects', '25 storage containers', '50 API keys', '100 MB max file size'],
     cta: 'Get started',
@@ -49,6 +51,7 @@ const plans = [
     name: 'Business',
     price: '$39',
     period: '/month',
+    trial: '7-day free trial',
     description: 'For teams managing multiple production projects.',
     features: ['50 projects', '100 storage containers', '250 API keys', '250 MB max file size'],
     cta: 'Get started',
@@ -197,6 +200,7 @@ export default function LandingPage() {
                   {plan.price}
                   <span className="ml-1 text-sm font-normal text-muted-foreground">{plan.period}</span>
                 </p>
+                {plan.trial && <p className="mt-1 text-xs font-medium text-primary">{plan.trial}</p>}
               </div>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 {plan.features.map((feature) => (
@@ -220,6 +224,9 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
+        <p className="mx-auto mt-5 max-w-2xl text-center text-xs leading-5 text-muted-foreground">
+          Eligible new customers can use afucloud25 for 25% off their first 3 paid monthly charges. Regular plan prices resume afterward.
+        </p>
       </section>
 
       {/* CTA */}

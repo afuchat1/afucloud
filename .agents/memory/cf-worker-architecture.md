@@ -66,6 +66,14 @@ wrangler secret put CLOUDFLARE_R2_SECRET_ACCESS_KEY
 
 **How to apply:** Keep payment verification and refund calls in the Worker. Do not route production checkout through the Replit connector or store the Whop API key in frontend code or Replit environment variables. Confirm the account and product if either is changed.
 
+## AfuCloud subscription offers
+- The existing Pro and Business plans use a 7-day trial and Whop's native 25%-off cancellation offer for 3 billing periods. New eligible customers can use `afucloud25` for 25% off their first 3 paid periods.
+- Promo-code creation requires `base_currency: "usd"`. The live API normalizes `amount_off: 25` to `0.25` with `promo_type: "percentage"`; Whop's current schema describes percentage values as decimal fractions, despite older endpoint examples using whole percentages.
+
+**Why:** The live response differed from legacy examples, so verify the returned promo type, discount, duration, and eligibility before displaying offer terms.
+
+**How to apply:** Keep new codes scoped to the intended paid plans and eligibility rules. Read the saved promo back from Whop before publishing its terms in AfuCloud.
+
 - Whop `GET /payments` filters depend on the API version: `2026-09-02-1` and later use `account_id` but remove `checkout_configuration_ids`; `2026-08-31` supports `company_id` and `checkout_configuration_ids`.
 
 **Why:** The live integration needs checkout-specific payment lookup, which the native payment API version no longer supports.

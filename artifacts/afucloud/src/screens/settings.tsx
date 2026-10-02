@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { CreditCard, ExternalLink, RefreshCw, User, Shield, LogOut } from 'lucide-react';
+import { CreditCard, Copy, ExternalLink, RefreshCw, User, Shield, LogOut } from 'lucide-react';
 import { clearAuthTokens, dashboardSessionRequest, type DashboardUser } from '@/lib/auth-session';
 import { customFetch } from '@workspace/api-client-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+const RETENTION_PROMO_CODE = 'afucloud25';
 
 type BillingPlan = {
   key: 'free' | 'pro' | 'business';
@@ -66,6 +69,8 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const [offerPlanKey, setOfferPlanKey] = useState<Exclude<BillingPlan['key'], 'free'> | null>(null);
+  const [offerCodeCopied, setOfferCodeCopied] = useState(false);
   const { data: user, isLoading } = useQuery({
     queryKey: ['dashboard-session', 'me'],
     queryFn: () => dashboardSessionRequest<DashboardUser>('me'),
@@ -76,6 +81,7 @@ export default function SettingsPage() {
     retry: false,
     refetchOnMount: 'always',
   });
+  const selectedOfferPlan = billingQuery.data?.plans.find(plan => plan.key === offerPlanKey);
   const checkoutMutation = useMutation({
     mutationFn: (planKey: Exclude<BillingPlan['key'], 'free'>) =>
       customFetch<{ purchaseUrl: string }>('/api/v1/billing/checkout', {
@@ -103,6 +109,20 @@ export default function SettingsPage() {
       variant: 'destructive',
     }),
   });
+  const copyRetentionCode = async () => {
+    try {
+      await navigator.clipboard.writeText(RETENTION_PROMO_CODE);
+      setOfferCodeCopied(true);
+      toast({ title: 'Offer code copied', description: 'Paste it into the Whop checkout promo-code field.' });
+    } catch {
+      toast({ title: 'Offer code', description: `Enter ${RETENTION_PROMO_CODE} at Whop checkout.` });
+    }
+  };
+  const startWithRetentionOffer = async () => {
+    if (!offerPlanKey) return;
+    await copyRetentionCode();
+    checkoutMutation.mutate(offerPlanKey);
+  };
   const updateMutation = useMutation({
     mutationFn: (data: { name: string }) => dashboardSessionRequest<DashboardUser>('me/update', {
       method: 'PATCH',
@@ -260,6 +280,11 @@ export default function SettingsPage() {
                       To switch plans, manage your current membership on Whop first.
                     </p>
                   )}
+                  {billingQuery.data.currentTier !== 'free' && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      If you start to cancel, Whop will offer 25% off for 3 billing periods. You can continue cancellation without accepting.
+                    </p>
+                  )}
                 </div>
 
                 {!billingQuery.data.checkoutConfigured && (
@@ -290,6 +315,9 @@ export default function SettingsPage() {
                             {plan.monthlyPriceUsd === 0 ? 'Free' : `$${plan.monthlyPriceUsd}`}
                             {plan.monthlyPriceUsd > 0 && <span className="text-xs font-normal text-muted-foreground"> / month</span>}
                           </p>
+                          {plan.key !== 'free' && (
+                            <p className="mt-1 text-xs font-medium text-primary">Includes a 7-day free trial</p>
+                          )}
                           <p className="mt-1 min-h-10 text-xs leading-5 text-muted-foreground">{plan.description}</p>
                           <ul className="my-4 flex-1 space-y-2 text-xs text-muted-foreground">
                             {billingLimitLabel(plan).map(limit => (
@@ -309,7 +337,10 @@ export default function SettingsPage() {
                               variant={plan.key === 'pro' ? 'default' : 'outline'}
                               className="w-full"
                               disabled={!canStartCheckout}
-                              onClick={() => checkoutMutation.mutate(plan.key as 'pro' | 'business')}
+                              onClick={() => {
+                                setOfferCodeCopied(false);
+                                setOfferPlanKey(plan.key as 'pro' | 'business');
+                              }}
                             >
                               {checkoutMutation.isPending && checkoutMutation.variables === plan.key
                                 ? 'Opening checkout…'
@@ -462,6 +493,73 @@ export default function SettingsPage() {
           </div>
         </aside>
       </div>
+      <Dialog
+        open={!!offerPlanKey}
+        onOpenChange={open => {
+          if (!open && !checkoutMutation.isPending) {
+            setOfferPlanKey(null);
+            setOfferCodeCopied(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedOfferPlan ? `Try ${selectedOfferPlan.name} free for 7 days` : 'Choose a plan'}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedOfferPlan && (
+            <div className="space-y-5">
+              <p className="text-sm text-muted-foreground">
+                Today is $0. After the trial, the plan is ${selectedOfferPlan.monthlyPriceUsd}/month. Cancel anytime before the trial ends to avoid the first charge.
+              </p>
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <p className="text-sm font-semibold text-foreground">Or save 25% on your first 3 paid months</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Eligible new customers can use this one-time code. After the three discounted billing periods, the regular monthly price resumes.
+                </p>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <code className="rounded bg-background px-2 py-1 text-sm font-semibold">{RETENTION_PROMO_CODE}</code>
+                  <Button type="button" variant="outline" size="sm" onClick={() => void copyRetentionCode()}>
+                    <Copy className="mr-2 h-3.5 w-3.5" />
+                    {offerCodeCopied ? 'Copied' : 'Copy code'}
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">Enter the code in the Whop checkout. Whop confirms eligibility.</p>
+              </div>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOfferPlanKey(null)}
+                  disabled={checkoutMutation.isPending}
+                >
+                  Not now
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void startWithRetentionOffer()}
+                  disabled={checkoutMutation.isPending}
+                >
+                  {checkoutMutation.isPending && checkoutMutation.variables === offerPlanKey
+                    ? 'Opening checkout…'
+                    : 'Continue with 25% offer'}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => offerPlanKey && checkoutMutation.mutate(offerPlanKey)}
+                  disabled={checkoutMutation.isPending}
+                >
+                  {checkoutMutation.isPending && checkoutMutation.variables === offerPlanKey
+                    ? 'Opening checkout…'
+                    : 'Start 7-day trial'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -25,10 +25,19 @@ function safeReturnTo(value: string | null | undefined): string | null {
 
   try {
     const url = new URL(value, window.location.origin);
+    let normalizedPath = url.pathname;
+    try {
+      normalizedPath = decodeURIComponent(normalizedPath);
+    } catch {
+      return null;
+    }
+    normalizedPath = normalizedPath.replace(/\/+$/, '').toLowerCase() || '/';
     if (
       url.origin !== window.location.origin ||
-      url.pathname === "/login" ||
-      url.pathname === "/register"
+      normalizedPath === '/login' ||
+      normalizedPath.startsWith('/login/') ||
+      normalizedPath === '/register' ||
+      normalizedPath.startsWith('/register/')
     ) {
       return null;
     }
