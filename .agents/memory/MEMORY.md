@@ -12,3 +12,4 @@
 - [AfuCloud subscription tiers](afucloud-subscription-tiers.md) — keep the selected monthly prices and enforceable resource caps consistent across billing and UI
 - [AfuCloud footer standard](afucloud-footer-standard.md) — use a substantial production-site company footer, with Vercel as a visual benchmark; avoid compact link-card layouts
 - [AfuCloud brand identity](afucloud-brand-identity.md) — #07965B is the platform green; use the provided green cloud/upload SVG as the canonical brand mark
+- [AfuCloud Cloudflare runtime](afucloud-cloudflare-runtime.md) — keep Next.js SSR on an OpenNext Worker; deploy the API Worker separately

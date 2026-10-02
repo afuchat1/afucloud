@@ -1,6 +1,8 @@
 name = "afucloud"
-compatibility_date = "2026-09-25"
+main = ".open-next/worker.js"
+compatibility_date = "2026-10-02"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
 
 [assets]
 directory = ".open-next/assets"

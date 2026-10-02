@@ -62,6 +62,9 @@ artifacts/cf-worker/.dev.vars
 artifacts/afucloud/.next/
 **/.next/cache/
 
+# OpenNext Cloudflare build output
+artifacts/afucloud/.open-next/
+
 # Generated Next.js files
 artifacts/afucloud/.next/
 **/.next/cache/
