@@ -1,6 +1,7 @@
 import { Link } from 'wouter';
 import { Cloud, CheckCircle2, Circle, Clock, ArrowRight, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { CompanyFooter } from '@/components/company-footer';
 import { cn } from '@/lib/utils';
 import { useDashboardSessionVisibility } from '@/hooks/use-dashboard-session-visibility';
 
@@ -402,28 +403,7 @@ export default function RoadmapPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-background">
-        <div className="max-w-5xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center">
-              <Cloud className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={2.5} />
-            </div>
-            <span className="font-medium text-foreground">AfuCloud</span>
-          </div>
-          <div className="flex items-center gap-6">
-            <Link href="/docs" className="hover:text-foreground transition-colors">Documentation</Link>
-            <Link href="/roadmap" className="hover:text-foreground transition-colors">Roadmap</Link>
-            {session === 'unauthenticated' && (
-              <Link href="/register" className="hover:text-foreground transition-colors">Sign up</Link>
-            )}
-            {isSignedIn && (
-              <Link href="/dashboard" className="hover:text-foreground transition-colors">Dashboard</Link>
-            )}
-          </div>
-          <p>© 2026 AfuCloud. All rights reserved.</p>
-        </div>
-      </footer>
+      <CompanyFooter isSignedIn={isSignedIn} canShowAccountActions={canShowAccountActions} />
     </div>
   );
 }
