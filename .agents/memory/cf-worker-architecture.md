@@ -60,7 +60,8 @@ wrangler secret put CLOUDFLARE_R2_SECRET_ACCESS_KEY
 ## Whop payment credentials
 - Production domain-registration checkout runs in the Cloudflare Worker and uses the user's existing Whop account API key as a Worker secret. Company and product IDs are non-secret Worker variables.
 - The Replit Whop connector is broker-managed, does not OAuth into the user's existing Whop account, and is not callable from the production Cloudflare runtime.
+- AfuCloud subscriptions use the user's existing AfuChat Whop business and its AfuChat product; do not switch accounts or create another product without approval.
 
 **Why:** The user chose their existing Whop account while keeping the canonical Cloudflare Worker as the production API; the Replit connector's generated account would be a different merchant account.
 
-**How to apply:** Keep payment verification and refund calls in the Worker. Do not route production checkout through the Replit connector or store the Whop API key in frontend code or Replit environment variables.
+**How to apply:** Keep payment verification and refund calls in the Worker. Do not route production checkout through the Replit connector or store the Whop API key in frontend code or Replit environment variables. Confirm the account and product if either is changed.

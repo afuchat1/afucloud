@@ -32,8 +32,8 @@ CLOUDFLARE_OAUTH_REDIRECT_URI = "https://api.afuchat.com/v1/cloudflare/callback"
 NODE_ENV = "production"
 # Comma-separated exact dashboard origins outside the default *.afuchat.com allowlist.
 DASHBOARD_ALLOWED_ORIGINS = ""
-# Set these as Cloudflare Worker variables for the existing Whop account:
-# WHOP_COMPANY_ID, WHOP_PRODUCT_ID
+WHOP_COMPANY_ID = "biz_7FEyvmraYbNtnS"
+WHOP_PRODUCT_ID = "prod_OCTeUVfYRo4E8"
 
 # ── Secrets (set via: wrangler secret put SECRET_NAME) ────────────────────────
 # SUPABASE_SERVICE_KEY      — Supabase service role key
