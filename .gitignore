@@ -55,6 +55,9 @@ artifacts/afucloud/.next/cache/
 .dev.vars
 artifacts/cf-worker/.dev.vars
 
+# Wrangler local state
+**/.wrangler/
+
 # API development object storage
 .dev-storage/
 
