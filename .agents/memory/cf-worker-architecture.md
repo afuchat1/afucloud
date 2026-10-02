@@ -66,8 +66,8 @@ wrangler secret put CLOUDFLARE_R2_SECRET_ACCESS_KEY
 
 **How to apply:** Keep payment verification and refund calls in the Worker. Do not route production checkout through the Replit connector or store the Whop API key in frontend code or Replit environment variables. Confirm the account and product if either is changed.
 
-- Whop payment-list filters require `account_id`; the live API rejects `company_id` with HTTP 400. Keep the existing `WHOP_COMPANY_ID` env name if useful, but send its value as `account_id` in GET query parameters.
+- Whop `GET /payments` filters depend on the API version: `2026-09-02-1` and later use `account_id` but remove `checkout_configuration_ids`; `2026-08-31` supports `company_id` and `checkout_configuration_ids`.
 
-**Why:** AfuCloud's production billing lookup failed because Whop explicitly rejected `company_id` and directed the caller to `account_id`.
+**Why:** The live integration needs checkout-specific payment lookup, which the native payment API version no longer supports.
 
-**How to apply:** Use `account_id` for payment-list query filters. Do not globally rename request-body fields; verify each endpoint's expected payload separately.
+**How to apply:** Pin only payment-list requests to `2026-08-31` and use its `company_id` plus `checkout_configuration_ids[]` filters. Keep unrelated Whop calls on the API key's configured version, and verify request fields per endpoint.

@@ -45,6 +45,8 @@ export const BILLING_TIERS = {
 
 const PAID_ACCESS_STATUSES = new Set(["active", "trialing", "past_due", "canceling"]);
 const WHOP_API = "https://api.whop.com/api/v1";
+// This is the last API version that supports filtering payments by checkout configuration.
+const WHOP_PAYMENT_LIST_API_VERSION = "2026-08-31";
 
 export class BillingError extends Error {
   constructor(message: string, readonly status = 502) {
@@ -75,7 +77,13 @@ function whopConfigured(env: Env): boolean {
   );
 }
 
-async function whopRequest(env: Env, path: string, method: "GET" | "POST", body?: unknown): Promise<any> {
+async function whopRequest(
+  env: Env,
+  path: string,
+  method: "GET" | "POST",
+  body?: unknown,
+  apiVersionDate?: string,
+): Promise<any> {
   if (!whopConfigured(env)) {
     throw new BillingError("AfuCloud billing is not configured yet.", 503);
   }
@@ -85,6 +93,7 @@ async function whopRequest(env: Env, path: string, method: "GET" | "POST", body?
     headers: {
       Authorization: `Bearer ${env.WHOP_API_KEY}`,
       "Content-Type": "application/json",
+      ...(apiVersionDate ? { "Api-Version-Date": apiVersionDate } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -109,10 +118,16 @@ async function findPaidPayment(env: Env, subscription: any): Promise<any | null>
   if (!subscription.whop_checkout_configuration_id || !subscription.whop_plan_id) return null;
 
   const query = new URLSearchParams({
-    account_id: env.WHOP_COMPANY_ID!,
+    company_id: env.WHOP_COMPANY_ID!,
     "checkout_configuration_ids[]": subscription.whop_checkout_configuration_id,
   });
-  const payload = await whopRequest(env, `/payments?${query.toString()}`, "GET");
+  const payload = await whopRequest(
+    env,
+    `/payments?${query.toString()}`,
+    "GET",
+    undefined,
+    WHOP_PAYMENT_LIST_API_VERSION,
+  );
   const payments = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
   const payment = payments.find((item: any) =>
     item.checkout_configuration_id === subscription.whop_checkout_configuration_id ||
@@ -120,7 +135,12 @@ async function findPaidPayment(env: Env, subscription: any): Promise<any | null>
   );
   if (!payment) return null;
 
-  if (payment.company_id && payment.company_id !== env.WHOP_COMPANY_ID) {
+  const paymentAccountId =
+    payment.company?.id ??
+    payment.account?.id ??
+    payment.account_id ??
+    payment.company_id;
+  if (paymentAccountId && paymentAccountId !== env.WHOP_COMPANY_ID) {
     throw new BillingError("The Whop payment belongs to a different account.", 409);
   }
   if (paymentPlanId(payment) !== subscription.whop_plan_id) {

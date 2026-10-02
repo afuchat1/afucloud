@@ -6,6 +6,8 @@ import { requireAccountAuth, requireAuth } from "../middleware/auth";
 const registrations = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 const WHOP_API = "https://api.whop.com/api/v1";
+// The native payments API removed checkout-configuration filters in 2026-09-02-1.
+const WHOP_PAYMENT_LIST_API_VERSION = "2026-08-31";
 const DEFAULT_MARKUP_PERCENT = 20;
 const CHECKOUT_RETURN_URL = "https://cloud.afuchat.com/domains";
 
@@ -94,7 +96,13 @@ function providerData(payload: any): any {
   return payload?.data ?? payload?.result ?? payload;
 }
 
-async function whopRequest(env: Env, path: string, method: "GET" | "POST", body?: unknown) {
+async function whopRequest(
+  env: Env,
+  path: string,
+  method: "GET" | "POST",
+  body?: unknown,
+  apiVersionDate?: string,
+) {
   if (!env.WHOP_API_KEY || !env.WHOP_COMPANY_ID || !env.WHOP_PRODUCT_ID) {
     throw new ProviderError("AfuCloud checkout is not configured yet.", 503);
   }
@@ -103,6 +111,7 @@ async function whopRequest(env: Env, path: string, method: "GET" | "POST", body?
     headers: {
       Authorization: `Bearer ${env.WHOP_API_KEY}`,
       "Content-Type": "application/json",
+      ...(apiVersionDate ? { "Api-Version-Date": apiVersionDate } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -137,10 +146,16 @@ async function findPaidPayment(env: Env, order: any) {
     throw new ProviderError("This order is missing checkout details.", 409);
   }
   const query = new URLSearchParams({
-    account_id: env.WHOP_COMPANY_ID!,
+    company_id: env.WHOP_COMPANY_ID!,
     "checkout_configuration_ids[]": order.whop_checkout_configuration_id,
   });
-  const payload = await whopRequest(env, `/payments?${query.toString()}`, "GET");
+  const payload = await whopRequest(
+    env,
+    `/payments?${query.toString()}`,
+    "GET",
+    undefined,
+    WHOP_PAYMENT_LIST_API_VERSION,
+  );
   const payments = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
   const payment = payments.find((item: any) =>
     item.checkout_configuration_id === order.whop_checkout_configuration_id ||
