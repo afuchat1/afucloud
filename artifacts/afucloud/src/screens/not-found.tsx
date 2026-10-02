@@ -2,11 +2,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/lib/navigation';
 import { AlertCircle, ArrowLeft, BookOpen, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PublicHeader } from '@/components/public-header';
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background text-foreground">
-      <Card className="w-full max-w-md mx-4">
+    <div className="min-h-screen bg-background text-foreground">
+      <PublicHeader />
+      <main className="flex min-h-[calc(100dvh-4rem)] items-center justify-center px-4 py-8">
+      <Card className="w-full max-w-md">
         <CardContent className="pt-6">
           <div className="flex mb-4 gap-2">
             <AlertCircle className="h-8 w-8 text-destructive" />
@@ -38,6 +41,7 @@ export default function NotFound() {
           </div>
         </CardContent>
       </Card>
+      </main>
     </div>
   );
 }

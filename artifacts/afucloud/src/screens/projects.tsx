@@ -54,7 +54,8 @@ export default function ProjectsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Projects"
-        description="Manage your cloud storage projects"
+        description="Organize image libraries and project access."
+        docsSection="images"
         actions={
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>

@@ -65,7 +65,8 @@ export default function ProjectAnalyticsPage() {
 
       <PageHeader
         title="Analytics"
-        description={`Usage metrics for ${project?.name || 'this project'}. Refreshes every 10 seconds.`}
+        description="Track uploads and storage for this project."
+        docsSection="analytics"
         actions={
           <div className="flex items-center gap-1 rounded-lg border border-card-border bg-card p-1">
             {PERIODS.map(p => (

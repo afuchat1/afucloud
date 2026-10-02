@@ -1,6 +1,5 @@
 import { ArrowUpRight } from 'lucide-react';
 import { Link } from '@/lib/navigation';
-import { AfuCloudLogo } from '@/components/afucloud-logo';
 
 type CompanyFooterProps = {
   isSignedIn: boolean;
@@ -98,17 +97,8 @@ export function CompanyFooter({ isSignedIn, canShowAccountActions }: CompanyFoot
       <div className="mx-auto max-w-7xl px-6 py-14 sm:px-8 sm:py-16">
         <div className="grid gap-14 lg:grid-cols-[minmax(14rem,0.9fr)_minmax(0,2.1fr)] lg:gap-16">
           <div className="max-w-sm">
-            <Link
-              href="/"
-              aria-label="AfuCloud home"
-              className="inline-flex items-center gap-3 rounded-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-neutral-950"
-            >
-              <AfuCloudLogo className="size-10" />
-              <span className="text-xl font-semibold tracking-tight">AfuCloud</span>
-            </Link>
-
-            <p className="mt-6 text-base leading-7 text-white/65">
-              Image storage and CDN delivery for the products you build.
+            <p className="text-base leading-7 text-white/65">
+              Image storage and CDN delivery.
             </p>
             <p className="mt-3 text-sm leading-6 text-white/45">
               A product of AfuChat Technologies Limited. Built in Uganda.

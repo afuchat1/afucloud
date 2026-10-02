@@ -220,13 +220,14 @@ export default function StoragePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="CDN / Storage"
-        description="Manage R2-backed storage containers and delivery settings"
+        title="Object storage"
+        description="Store and deliver files from containers."
+        docsSection="storage"
         actions={<Button className="gap-2" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" />New container</Button>}
       />
 
       {isLoading ? <div className="grid gap-4 md:grid-cols-3">{[1, 2, 3].map(item => <div key={item} className="h-40 animate-pulse rounded-lg border border-card-border bg-card" />)}</div> : containers.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-card px-6 py-16 text-center"><HardDrive className="mx-auto h-10 w-10 text-muted-foreground/40" /><h2 className="mt-4 font-semibold">No storage containers yet</h2><p className="mt-1 text-sm text-muted-foreground">Create a container to organize files and connect a verified CDN hostname.</p><Button className="mt-5 gap-2" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" />Create container</Button></div>
+        <div className="rounded-lg border border-dashed border-border bg-card px-6 py-16 text-center"><HardDrive className="mx-auto h-10 w-10 text-muted-foreground/40" /><h2 className="mt-4 font-semibold">No storage containers yet</h2><p className="mt-1 text-sm text-muted-foreground">Create a container to store and deliver files.</p><Button className="mt-5 gap-2" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" />Create container</Button></div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
           <aside className="space-y-3">

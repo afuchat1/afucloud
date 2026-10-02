@@ -49,7 +49,8 @@ export default function TokensPage() {
     <div className="space-y-6">
       <PageHeader
         title="Personal Access Tokens"
-        description="Tokens for authenticating API requests"
+        description="Create bearer tokens for API access."
+        docsSection="tokens"
         actions={
           <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setNewToken(null); }}>
             <DialogTrigger asChild>

@@ -139,7 +139,8 @@ export default function ProjectWebhooksPage() {
 
       <PageHeader
         title="Webhooks"
-        description={`Receive real-time event notifications for ${project?.name || 'this project'}`}
+        description="Send selected project events to your endpoint."
+        docsSection="webhooks"
         actions={
           <Button onClick={openCreate} className="gap-2">
             <Plus className="h-4 w-4" />
@@ -151,11 +152,7 @@ export default function ProjectWebhooksPage() {
       {/* Info */}
       <div className="rounded-lg border border-card-border bg-card p-4 flex items-start gap-3">
         <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" strokeWidth={1.5} />
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Webhooks send signed POST requests to your endpoint when events occur.
-          Each payload includes a <code className="rounded bg-muted px-1 font-mono">X-AfuCloud-Signature</code> header for verification.
-          Failed deliveries are retried up to 3 times with exponential backoff.
-        </p>
+        <p className="text-xs text-muted-foreground leading-relaxed">Requests are signed so your endpoint can verify each event.</p>
       </div>
 
       {/* Webhooks list */}

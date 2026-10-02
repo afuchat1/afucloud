@@ -1,7 +1,8 @@
 import { Link } from '@/lib/navigation';
-import { Cloud, CheckCircle2, Circle, Clock, ArrowRight, Zap } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, ArrowRight, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CompanyFooter } from '@/components/company-footer';
+import { AfuCloudLogo } from '@/components/afucloud-logo';
 import { cn } from '@/lib/utils';
 import { useDashboardSessionVisibility } from '@/hooks/use-dashboard-session-visibility';
 
@@ -238,9 +239,7 @@ export default function RoadmapPage() {
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/">
             <div className="flex items-center gap-2.5 cursor-pointer">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Cloud className="h-4 w-4 text-primary-foreground" strokeWidth={2.5} />
-              </div>
+              <AfuCloudLogo className="h-8 w-8" />
               <span className="text-[15px] font-semibold tracking-tight">AfuCloud</span>
             </div>
           </Link>

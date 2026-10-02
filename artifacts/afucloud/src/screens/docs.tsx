@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/page-header';
-import { BookOpen, Code, Zap, Upload, Image, Webhook, Key, Globe2, ArrowRight, Copy, Check, Menu, X } from 'lucide-react';
+import { BookOpen, Code, Zap, Upload, Image, Webhook, Key, KeyRound, Globe2, HardDrive, BarChart3, ArrowRight, Copy, Check, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { PublicHeader } from '@/components/public-header';
@@ -35,9 +35,13 @@ const sections = [
   { id: 'quickstart', icon: Zap, title: 'Quick Start', badge: 'Start here' },
   { id: 'upload', icon: Upload, title: 'Uploading Images' },
   { id: 'images', icon: Image, title: 'Managing Images' },
+  { id: 'storage', icon: HardDrive, title: 'Object Storage' },
   { id: 'apikeys', icon: Key, title: 'API Keys' },
+  { id: 'tokens', icon: KeyRound, title: 'Personal Access Tokens' },
   { id: 'webhooks', icon: Webhook, title: 'Webhooks' },
-  { id: 'domains', icon: Globe2, title: 'Domain Registration' },
+  { id: 'analytics', icon: BarChart3, title: 'Analytics' },
+  { id: 'domains', icon: Globe2, title: 'Custom Domains' },
+  { id: 'registration', icon: Globe2, title: 'Domain Registration' },
   { id: 'reference', icon: Code, title: 'API Reference' },
 ];
 
@@ -46,6 +50,23 @@ const BASE = 'https://api.afuchat.com';
 export default function DocsPage() {
   const [activeSection, setActiveSection] = useState('quickstart');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    const sectionId = window.location.hash.replace(/^#docs-/, '');
+    if (sections.some((section) => section.id === sectionId)) {
+      setActiveSection(sectionId);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (window.location.hash !== `#docs-${activeSection}`) return;
+    requestAnimationFrame(() => {
+      document.getElementById(`docs-${activeSection}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  }, [activeSection]);
 
   const handleSectionSelect = (sectionId: string) => {
     setActiveSection(sectionId);
@@ -65,7 +86,7 @@ export default function DocsPage() {
       <main className="mx-auto max-w-6xl space-y-5 px-4 py-6 sm:space-y-6 sm:px-6 lg:py-8">
         <PageHeader
           title="Developer Documentation"
-          description="Everything you need to integrate AfuCloud into your applications"
+          description="Guides for images, storage, APIs, analytics, and domains."
           className="[&_h1]:text-xl sm:[&_h1]:text-2xl [&_p]:max-w-xl"
         />
 
@@ -123,7 +144,7 @@ export default function DocsPage() {
           {/* Quick Start */}
           <article
             id="docs-quickstart"
-            className={cn('scroll-mt-4 space-y-6', activeSection === 'quickstart' ? 'block' : 'block lg:hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'quickstart' ? 'block' : 'block lg:hidden')}
           >
               <div className="space-y-4 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Quick Start</h2>
@@ -150,7 +171,7 @@ curl -X POST ${BASE}/v1/projects \\
           {/* Upload */}
           <article
             id="docs-upload"
-            className={cn('scroll-mt-4 space-y-6', activeSection === 'upload' ? 'block' : 'block lg:hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'upload' ? 'block' : 'block lg:hidden')}
           >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Uploading Images</h2>
@@ -203,7 +224,7 @@ console.log(image.url); // https://img.afuchat.com/...`} />
           {/* Images */}
           <article
             id="docs-images"
-            className={cn('scroll-mt-4 space-y-6', activeSection === 'images' ? 'block' : 'block lg:hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'images' ? 'block' : 'block lg:hidden')}
           >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Managing Images</h2>
@@ -255,10 +276,24 @@ PATCH ${BASE}/v1/projects/{projectId}/images/{imageId}
 PATCH ${BASE}/v1/projects/{projectId}/images/{imageId}/favorite`} />
           </article>
 
+          {/* Object Storage */}
+          <article
+            id="docs-storage"
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'storage' ? 'block' : 'block lg:hidden')}
+          >
+            <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
+              <h2 className="text-base font-semibold">Object Storage</h2>
+              <p className="text-sm text-muted-foreground">
+                Create a container, upload files, and organize folders from Containers &amp; files.
+                Use each file’s URL for delivery or connect a domain for a custom hostname.
+              </p>
+            </div>
+          </article>
+
           {/* API Keys */}
           <article
             id="docs-apikeys"
-            className={cn('scroll-mt-4 space-y-6', activeSection === 'apikeys' ? 'block' : 'block lg:hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'apikeys' ? 'block' : 'block lg:hidden')}
           >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">API Keys</h2>
@@ -297,10 +332,25 @@ DELETE ${BASE}/v1/projects/{projectId}/api-keys/{keyId}
 Authorization: Bearer afu_prod_abc123...`} />
           </article>
 
+          {/* Personal Access Tokens */}
+          <article
+            id="docs-tokens"
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'tokens' ? 'block' : 'block lg:hidden')}
+          >
+            <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
+              <h2 className="text-base font-semibold">Personal Access Tokens</h2>
+              <p className="text-sm text-muted-foreground">
+                Create a token in the dashboard and send it as a bearer token with API requests.
+                Copy it when created; it is shown only once.
+              </p>
+              <CodeBlock language="http" code={`Authorization: Bearer <personal-access-token>`} />
+            </div>
+          </article>
+
           {/* Webhooks */}
           <article
             id="docs-webhooks"
-            className={cn('scroll-mt-4 space-y-6', activeSection === 'webhooks' ? 'block' : 'block lg:hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'webhooks' ? 'block' : 'block lg:hidden')}
           >
               <div className="rounded-lg border border-card-border bg-card p-6 space-y-3">
                 <h2 className="text-base font-semibold">Webhooks</h2>
@@ -342,10 +392,42 @@ const isValid = crypto.timingSafeEqual(
 );`} />
           </article>
 
-          {/* Domain registration */}
+          {/* Analytics */}
+          <article
+            id="docs-analytics"
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'analytics' ? 'block' : 'block lg:hidden')}
+          >
+            <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
+              <h2 className="text-base font-semibold">Analytics</h2>
+              <p className="text-sm text-muted-foreground">
+                Review image totals, storage use, and upload activity by project or across your account.
+                API request metrics appear when tracking is enabled.
+              </p>
+            </div>
+          </article>
+
+          {/* Custom Domains */}
           <article
             id="docs-domains"
-            className={cn('scroll-mt-4 space-y-6', activeSection === 'domains' ? 'block' : 'block lg:hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'domains' ? 'block' : 'block lg:hidden')}
+          >
+            <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
+              <h2 className="text-base font-semibold">Custom Domains</h2>
+              <p className="text-sm text-muted-foreground">
+                Connect Cloudflare, verify a domain you control, and manage its DNS records from the domain page.
+              </p>
+              <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
+                <li>Connect your Cloudflare account.</li>
+                <li>Add a domain and complete ownership verification.</li>
+                <li>Manage records and check public DNS status.</li>
+              </ol>
+            </div>
+          </article>
+
+          {/* Domain registration */}
+          <article
+            id="docs-registration"
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'registration' ? 'block' : 'block lg:hidden')}
           >
             <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
               <h2 className="text-base font-semibold">Domain Registration</h2>
@@ -397,7 +479,7 @@ curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
           {/* API Reference */}
           <article
             id="docs-reference"
-            className={cn('scroll-mt-4 space-y-6', activeSection === 'reference' ? 'block' : 'block lg:hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'reference' ? 'block' : 'block lg:hidden')}
           >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">API Reference</h2>

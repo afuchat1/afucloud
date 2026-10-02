@@ -1,65 +1,30 @@
 import { Link } from '@/lib/navigation';
-import { Upload, Key, Zap, Shield, Code2, ArrowRight, Check, Github, Globe } from 'lucide-react';
+import { Image, Database, Globe2, Code2, ArrowRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AfuCloudLogo } from '@/components/afucloud-logo';
 import { CompanyFooter } from '@/components/company-footer';
 import { useDashboardSessionVisibility } from '@/hooks/use-dashboard-session-visibility';
 
-const features = [
+const products = [
   {
-    icon: Upload,
-    title: 'Image Management',
-    description: 'Upload, organize, tag, and deliver images at scale. PNG, JPEG, WebP, AVIF, GIF, SVG — every format supported.',
+    icon: Image,
+    title: 'Image delivery',
+    description: 'Upload, manage, and deliver images through one API.',
+    docs: 'images',
   },
   {
-    icon: Zap,
-    title: 'Instant CDN Delivery',
-    description: 'Every asset served through a global CDN. Permanent URLs, signed URLs, and temporary links out of the box.',
+    icon: Database,
+    title: 'Object storage',
+    description: 'Store and deliver files from organized containers.',
+    docs: 'storage',
   },
   {
-    icon: Key,
-    title: 'Developer-First API',
-    description: 'Clean REST API with OpenAPI spec, pre-signed upload URLs, and per-project API keys with fine-grained scopes.',
-  },
-  {
-    icon: Shield,
-    title: 'Secure by Default',
-    description: 'JWT authentication, permission-based authorization, MIME validation, and signed URLs for private assets.',
-  },
-  {
-    icon: Code2,
-    title: 'OpenAPI Spec',
-    description: 'Every endpoint documented. Generate SDKs, test in the playground, and integrate in minutes.',
-  },
-  {
-    icon: Globe,
-    title: 'Multi-Project',
-    description: 'Separate projects for each application. Independent API keys, storage buckets, analytics, and webhooks.',
+    icon: Globe2,
+    title: 'Custom domains',
+    description: 'Verify domains and manage DNS in one place.',
+    docs: 'domains',
   },
 ];
-
-const uploadExample = `// Upload an image via pre-signed URL
-const { uploadUrl, imageId, key } = await fetch(
-  'https://api.afuchat.com/v1/projects/{projectId}/images/upload-url',
-  {
-    method: 'POST',
-    headers: { Authorization: 'Bearer {token}', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename: 'photo.jpg', contentType: 'image/jpeg', name: 'My Photo' }),
-  }
-).then(r => r.json());
-
-// PUT directly to storage
-await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
-
-// Confirm the upload
-await fetch(
-  'https://api.afuchat.com/v1/projects/{projectId}/images/confirm-upload',
-  {
-    method: 'POST',
-    headers: { Authorization: 'Bearer {token}', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageId, key, size: file.size }),
-  }
-);`;
 
 const plans = [
   {
@@ -139,8 +104,7 @@ export default function LandingPage() {
           <span className="text-primary">for developers</span>
         </h1>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-          Store, upload, organize, and deliver images through one secure REST API.
-          Get project-level controls and CDN-backed URLs built for production teams.
+          Upload, manage, and deliver images through one API.
         </p>
         <div className="flex items-center justify-center gap-4">
           {canShowAccountActions && (
@@ -164,68 +128,44 @@ export default function LandingPage() {
       {/* Feature grid */}
       <section id="features" className="max-w-6xl mx-auto px-6 py-20">
         <div className="text-center mb-14">
-          <h2 className="text-3xl font-bold tracking-tight mb-3">Everything you need to ship</h2>
+          <h2 className="text-3xl font-bold tracking-tight mb-3">AfuCloud products</h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            A complete asset management platform designed for developers who care about quality.
+            Image delivery, object storage, and custom domains.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {features.map((f) => (
-            <div key={f.title} className="rounded-xl border border-border bg-card p-6 space-y-3">
+          {products.map((product) => (
+            <div key={product.title} className="rounded-xl border border-border bg-card p-6 space-y-3">
               <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                <f.icon className="h-4.5 w-4.5 text-primary" strokeWidth={2} />
+                <product.icon className="h-4.5 w-4.5 text-primary" strokeWidth={2} />
               </div>
-              <h3 className="font-semibold text-sm text-foreground">{f.title}</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">{f.description}</p>
+              <h3 className="font-semibold text-sm text-foreground">{product.title}</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">{product.description}</p>
+              <Link
+                href={`/docs#docs-${product.docs}`}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+              >
+                How it works
+                <ArrowRight className="h-3 w-3" aria-hidden="true" />
+              </Link>
             </div>
           ))}
         </div>
       </section>
 
-      {/* API code example */}
-      <section id="api" className="bg-card border-y border-border py-20">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary mb-3">API-First</p>
-              <h2 className="text-3xl font-bold tracking-tight mb-4">Upload in 3 steps</h2>
-              <p className="text-muted-foreground mb-8 leading-relaxed">
-                Request a pre-signed URL, upload directly from the browser or server, then confirm. 
-                No proxying through our servers — maximum speed, minimum latency.
-              </p>
-              <ul className="space-y-3">
-                {['Request a pre-signed upload URL', 'PUT the file directly to storage', 'Confirm the upload to register it'].map((step, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm">
-                    <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <Check className="h-3 w-3 text-primary" strokeWidth={2.5} />
-                    </div>
-                    {step}
-                  </li>
-                ))}
-              </ul>
-              {canShowAccountActions && (
-                <div className="mt-8">
-                  <Link href={isSignedIn ? '/dashboard' : '/register'}>
-                    <Button className="gap-2">
-                      {isSignedIn ? 'Open dashboard' : 'Try the API'}
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </div>
-            <div className="rounded-xl border border-border bg-[#1C1C1C] overflow-hidden">
-              <div className="flex items-center gap-1.5 px-4 py-3 border-b border-white/10">
-                <div className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
-                <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/70" />
-                <div className="h-2.5 w-2.5 rounded-full bg-green-500/70" />
-                <span className="ml-2 text-[11px] text-white/40 font-mono">upload.ts</span>
-              </div>
-              <pre className="p-4 text-[11px] leading-relaxed font-mono text-green-300/90 overflow-x-auto">
-                <code>{uploadExample}</code>
-              </pre>
-            </div>
-          </div>
+      {/* API docs entry point */}
+      <section id="api" className="border-y border-border bg-card py-16">
+        <div className="mx-auto max-w-3xl px-6 text-center">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-primary">API</p>
+          <h2 className="mb-3 text-3xl font-bold tracking-tight">Need implementation details?</h2>
+          <p className="mb-6 text-muted-foreground">Find upload steps, authentication, and endpoints in the docs.</p>
+          <Link href="/docs#docs-quickstart">
+            <Button variant="outline" className="gap-2">
+              <Code2 className="h-4 w-4" />
+              How it works
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
         </div>
       </section>
 
@@ -286,7 +226,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 py-16 text-center">
           <h2 className="text-3xl font-bold text-primary-foreground mb-4 tracking-tight">Ready to start building?</h2>
           <p className="text-primary-foreground/75 mb-8 max-w-md mx-auto">
-            Join developers who trust AfuCloud for storing and delivering their digital assets.
+            Create an account to start storing and delivering images.
           </p>
           <div className="flex items-center justify-center gap-4">
             {canShowAccountActions && (

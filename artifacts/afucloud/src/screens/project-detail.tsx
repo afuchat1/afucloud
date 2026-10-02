@@ -476,6 +476,7 @@ export default function ProjectDetailPage() {
       <PageHeader
         title={project.name}
         description={project.description || undefined}
+        docsSection="images"
         actions={
           <div className="flex max-w-full flex-wrap items-center gap-2">
             <Link href={`/projects/${projectId}/analytics`}>

@@ -99,7 +99,8 @@ export default function ProjectApiKeysPage() {
 
       <PageHeader
         title="API Keys"
-        description={`Manage API keys for ${project?.name || 'this project'}`}
+        description="Create and manage project credentials."
+        docsSection="apikeys"
         actions={
           <Button onClick={() => setShowCreate(true)} className="gap-2">
             <Plus className="h-4 w-4" />

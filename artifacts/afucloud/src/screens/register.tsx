@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { AlertCircle } from 'lucide-react';
-import { AfuCloudLogo } from '@/components/afucloud-logo';
 import { AuthHeader } from '@/components/auth-header';
 import { dashboardSessionRequest } from '@/lib/auth-session';
 
@@ -54,17 +53,13 @@ export default function RegisterPage() {
   return (
     <div className="min-h-[100dvh] flex flex-col lg:flex-row">
       {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-primary p-12 flex-col justify-between">
-        <div className="flex items-center gap-3">
-          <AfuCloudLogo className="h-10 w-10 rounded-lg bg-white p-1.5" />
-          <span className="text-xl font-semibold text-primary-foreground">AfuCloud</span>
-        </div>
+      <div className="hidden lg:flex lg:w-1/2 bg-primary p-12 flex-col justify-center">
         <div className="space-y-4 max-w-md">
           <h2 className="text-3xl font-semibold text-primary-foreground">
-            Start building in minutes
+            Start with image delivery
           </h2>
           <p className="text-base text-primary-foreground/80">
-            Join teams using AfuCloud to deliver high-performance digital experiences.
+            Create a project and ship your first upload.
           </p>
         </div>
       </div>

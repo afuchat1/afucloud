@@ -52,7 +52,7 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-function SidebarContent({ onClose }: { onClose?: () => void }) {
+function SidebarContent({ onClose, showLogo = true }: { onClose?: () => void; showLogo?: boolean }) {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -131,13 +131,15 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   return (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-6">
-        <div className="flex items-center gap-2.5">
-          <AfuCloudLogo className="h-8 w-8" />
-          <span className="text-[15px] font-semibold tracking-tight text-sidebar-foreground">
-            AfuCloud
-          </span>
-        </div>
+      <div className={cn('flex h-16 items-center border-b border-sidebar-border px-6', showLogo ? 'justify-between' : 'justify-end')}>
+        {showLogo && (
+          <div className="flex items-center gap-2.5">
+            <AfuCloudLogo className="h-8 w-8" />
+            <span className="text-[15px] font-semibold tracking-tight text-sidebar-foreground">
+              AfuCloud
+            </span>
+          </div>
+        )}
         {/* Close button — only visible on mobile */}
         {onClose && (
           <button
@@ -340,7 +342,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <SidebarContent onClose={onClose} />
+        <SidebarContent onClose={onClose} showLogo={false} />
       </aside>
     </>
   );

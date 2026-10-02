@@ -4,6 +4,7 @@ import { ArrowUpRight, CheckCircle2, CircleAlert, Globe2, LoaderCircle, Search }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { HowItWorksLink } from '@/components/how-it-works-link';
 import { useToast } from '@/hooks/use-toast';
 import { API_BASE } from '@/lib/api-base';
 import { customFetchResponse } from '@workspace/api-client-react';
@@ -210,7 +211,7 @@ export function DomainRegistrationPanel() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">AfuCloud service</p>
           <h2 className="mt-1 text-lg font-semibold">Register a domain</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Search availability, review the live price, and pay AfuCloud securely through Whop.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Search domains and review the live price.</p>
         </div>
       </div>
 
@@ -287,16 +288,9 @@ export function DomainRegistrationPanel() {
         </div>
 
         <aside className="space-y-3 rounded-lg bg-muted/30 p-4 text-sm">
-          <h3 className="font-semibold">How registration works</h3>
-          <ol className="list-inside list-decimal space-y-2 text-muted-foreground">
-            <li>Choose an available domain and review its live price.</li>
-            <li>Pay AfuCloud through a one-time Whop checkout.</li>
-            <li>Enter the buyer’s legal registrant contact details.</li>
-            <li>AfuCloud submits a one-year registration to Cloudflare with auto-renew off.</li>
-          </ol>
-          <p className="border-t border-border pt-3 text-xs leading-relaxed text-muted-foreground">
-            Domain orders are separate from connected domains below. Registration availability can change before checkout; if Cloudflare rejects a paid order, AfuCloud will attempt a refund or flag it for review.
-          </p>
+          <h3 className="font-semibold">Domain registration</h3>
+          <p className="text-sm text-muted-foreground">Choose a domain, pay, then submit registrant details.</p>
+          <HowItWorksLink section="registration" />
         </aside>
       </div>
 

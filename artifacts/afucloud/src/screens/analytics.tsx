@@ -28,7 +28,8 @@ export default function AnalyticsPage() {
     <div className="space-y-8">
       <PageHeader
         title="Analytics"
-        description="Platform-wide usage metrics across all your projects. Refreshes every 10 seconds."
+        description="Usage across your projects."
+        docsSection="analytics"
       />
 
       {/* KPI Cards */}

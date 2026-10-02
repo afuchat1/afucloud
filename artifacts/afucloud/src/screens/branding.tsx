@@ -1,6 +1,5 @@
 import { PublicHeader } from '@/components/public-header';
 import { CompanyFooter } from '@/components/company-footer';
-import { AfuCloudLogo } from '@/components/afucloud-logo';
 
 const brandColor = '#07965B';
 
@@ -18,19 +17,12 @@ export default function BrandingPage() {
             AfuCloud brand assets
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-            The official AfuCloud logo and brand color, identified here as assets owned by AfuCloud.
+            Official AfuCloud logo and brand color.
           </p>
         </header>
 
         <section aria-label="AfuCloud brand assets" className="mt-10 grid gap-5 md:grid-cols-2">
           <article className="overflow-hidden rounded-2xl border border-border bg-card">
-            <div
-              role="img"
-              aria-label="Official AfuCloud green cloud and upload logo"
-              className="flex min-h-56 items-center justify-center bg-muted/40 p-10"
-            >
-              <AfuCloudLogo className="h-32 w-32" />
-            </div>
             <div className="space-y-4 p-6">
               <div>
                 <h2 className="text-lg font-semibold">Official logo</h2>

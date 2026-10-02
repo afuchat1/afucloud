@@ -1,13 +1,15 @@
 import { cn } from '@/lib/utils';
+import { HowItWorksLink } from '@/components/how-it-works-link';
 
 interface PageHeaderProps {
   title: string;
   description?: string;
   actions?: React.ReactNode;
+  docsSection?: string;
   className?: string;
 }
 
-export function PageHeader({ title, description, actions, className }: PageHeaderProps) {
+export function PageHeader({ title, description, actions, docsSection, className }: PageHeaderProps) {
   return (
     <div className={cn('flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4', className)}>
       <div className="min-w-0 space-y-1">
@@ -16,8 +18,9 @@ export function PageHeader({ title, description, actions, className }: PageHeade
           <p className="break-words text-sm text-muted-foreground">{description}</p>
         )}
       </div>
-      {actions && (
+      {(actions || docsSection) && (
         <div className="flex max-w-full flex-wrap items-center gap-2 sm:justify-end [&>div]:max-w-full [&>div]:flex-wrap">
+          {docsSection && <HowItWorksLink section={docsSection} />}
           {actions}
         </div>
       )}

@@ -31,7 +31,8 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <PageHeader
         title="Dashboard"
-        description="Monitor your platform usage and recent activity. Refreshes every 10 seconds."
+        description="Overview of projects, usage, and activity."
+        docsSection="quickstart"
       />
 
       {/* Stats Grid */}

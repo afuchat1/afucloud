@@ -199,7 +199,8 @@ export default function DomainDnsPage() {
     </Link>
     <PageHeader
       title={domain?.hostname ?? (domains.isLoading ? 'Loading domain…' : 'Domain DNS')}
-      description="Manage authoritative records in the connected Cloudflare zone. Public DNS visibility is checked separately."
+      description="Manage DNS records for this domain."
+      docsSection="domains"
       actions={<Button onClick={openCreate} disabled={!connection.data?.connected || !matchedZone} data-testid="add-dns-record"><Plus className="mr-2 h-4 w-4" />Add record</Button>}
     />
 
