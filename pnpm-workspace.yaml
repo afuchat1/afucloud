@@ -2,6 +2,7 @@ packages:
   - artifacts/afucloud
   - artifacts/api-server
   - artifacts/cf-worker
+  - artifacts/mockup-sandbox
   - lib/*
   - lib/integrations/*
   - scripts

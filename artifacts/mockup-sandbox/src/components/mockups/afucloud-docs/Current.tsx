@@ -1,10 +1,9 @@
-import { useState } from 'react';
-import { BookOpen, Code, Zap, Upload, Image, Webhook, Key, KeyRound, Globe2, HardDrive, BarChart3, ArrowRight, Copy, Check, Menu, X, Search, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import './_group.css';
+import { useEffect, useState } from 'react';
+import { CurrentPageHeader as PageHeader } from './_shared/CurrentPageHeader';
+import { BookOpen, Code, Zap, Upload, Image, Webhook, Key, KeyRound, Globe2, HardDrive, BarChart3, ArrowRight, Copy, Check, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PublicHeader } from '@/components/public-header';
-import { Link } from '@/lib/navigation';
-import { DOCS_SECTIONS, type DocsSectionId, docsPathForSection } from '@/lib/docs-routes';
+import { CurrentPublicHeader as PublicHeader } from './_shared/CurrentPublicHeader';
 
 function CodeBlock({ code, language = 'bash' }: { code: string; language?: string }) {
   const [copied, setCopied] = useState(false);
@@ -32,208 +31,120 @@ function CodeBlock({ code, language = 'bash' }: { code: string; language?: strin
   );
 }
 
-const sectionIcons = {
-  quickstart: Zap,
-  upload: Upload,
-  images: Image,
-  storage: HardDrive,
-  apikeys: Key,
-  tokens: KeyRound,
-  webhooks: Webhook,
-  reference: Code,
-  analytics: BarChart3,
-  domains: Globe2,
-  registration: Globe2,
-} satisfies Record<DocsSectionId, typeof Zap>;
-
-const sections = DOCS_SECTIONS.map((section) => ({
-  ...section,
-  icon: sectionIcons[section.id],
-}));
+const sections = [
+  { id: 'quickstart', icon: Zap, title: 'Quick Start', badge: 'Start here' },
+  { id: 'upload', icon: Upload, title: 'Uploading Images' },
+  { id: 'images', icon: Image, title: 'Managing Images' },
+  { id: 'storage', icon: HardDrive, title: 'Object Storage' },
+  { id: 'apikeys', icon: Key, title: 'API Keys' },
+  { id: 'tokens', icon: KeyRound, title: 'Personal Access Tokens' },
+  { id: 'webhooks', icon: Webhook, title: 'Webhooks' },
+  { id: 'analytics', icon: BarChart3, title: 'Analytics' },
+  { id: 'domains', icon: Globe2, title: 'Custom Domains' },
+  { id: 'registration', icon: Globe2, title: 'Domain Registration' },
+  { id: 'reference', icon: Code, title: 'API Reference' },
+];
 
 const BASE = 'https://api.afuchat.com';
 
-export default function DocsPage({ sectionId = null }: { sectionId?: DocsSectionId | null }) {
+export function Current() {
+  const [activeSection, setActiveSection] = useState('quickstart');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const activeSection = sectionId;
-  const filteredSections = sections.filter((section) =>
-    `${section.title} ${section.category} ${section.summary}`.toLowerCase().includes(searchQuery.trim().toLowerCase()),
-  );
-  const categories = [...new Set(filteredSections.map((section) => section.category))];
-  const currentIndex = sectionId ? DOCS_SECTIONS.findIndex((section) => section.id === sectionId) : -1;
-  const previousSection = currentIndex > 0 ? DOCS_SECTIONS[currentIndex - 1] : null;
-  const nextSection = currentIndex >= 0 && currentIndex < DOCS_SECTIONS.length - 1
-    ? DOCS_SECTIONS[currentIndex + 1]
-    : null;
-  const currentSection = DOCS_SECTIONS.find((section) => section.id === sectionId);
+
+  useEffect(() => {
+    const sectionId = window.location.hash.replace(/^#docs-/, '');
+    if (sections.some((section) => section.id === sectionId)) {
+      setActiveSection(sectionId);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (window.location.hash !== `#docs-${activeSection}`) return;
+    requestAnimationFrame(() => {
+      document.getElementById(`docs-${activeSection}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  }, [activeSection]);
+
+  const handleSectionSelect = (sectionId: string) => {
+    setActiveSection(sectionId);
+    setMobileNavOpen(false);
+
+    if (window.innerWidth < 1024) {
+      document.getElementById(`docs-${sectionId}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen">
       <PublicHeader />
-      <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-5 sm:px-6 lg:pt-8">
-        <div className="min-w-0 lg:grid lg:grid-cols-[250px_minmax(0,1fr)] lg:gap-10">
-          <aside className="mb-6 min-w-0 lg:mb-0">
-            <div className="lg:sticky lg:top-20">
-              <label className="relative mb-3 block">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="search"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search documentation"
-                  aria-label="Search documentation"
-                  className="h-10 w-full rounded-xl border border-border/80 bg-background/75 pl-9 pr-3 text-sm text-foreground shadow-sm backdrop-blur-md placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </label>
+      <main className="mx-auto max-w-6xl space-y-5 px-4 py-6 sm:space-y-6 sm:px-6 lg:py-8">
+        <PageHeader
+          title="Developer Documentation"
+          description="Guides for images, storage, APIs, analytics, and domains."
+          className="[&_h1]:text-xl sm:[&_h1]:text-2xl [&_p]:max-w-xl"
+        />
 
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mb-3 flex w-full items-center justify-between lg:hidden"
-                aria-expanded={mobileNavOpen}
-                aria-controls="docs-sections"
-                onClick={() => setMobileNavOpen((open) => !open)}
-              >
-                <span className="flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-primary" />
-                  Browse documentation
-                </span>
-                {mobileNavOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-              </Button>
+        <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:gap-6">
+        {/* Documentation sidebar */}
+        <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-48 lg:self-start">
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen((open) => !open)}
+            aria-expanded={mobileNavOpen}
+            aria-controls="docs-sections"
+            className="flex w-full items-center justify-between rounded-md border border-border bg-card px-3 py-2.5 text-sm font-medium text-foreground lg:hidden"
+          >
+            <span className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" />
+              Documentation sections
+            </span>
+            {mobileNavOpen ? <X className="h-4 w-4 text-muted-foreground" /> : <Menu className="h-4 w-4 text-muted-foreground" />}
+          </button>
 
-              <nav
-                id="docs-sections"
-                aria-label="Documentation sections"
+          <nav
+            id="docs-sections"
+            aria-label="Documentation sections"
+            className={cn(
+              'mt-2 space-y-1 rounded-md border border-border bg-card p-2 lg:mt-0 lg:block lg:space-y-1 lg:border-0 lg:bg-transparent lg:p-0',
+              mobileNavOpen ? 'block' : 'hidden lg:block'
+            )}
+          >
+            {sections.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => handleSectionSelect(s.id)}
                 className={cn(
-                  'space-y-6 lg:block',
-                  mobileNavOpen ? 'block' : 'hidden lg:block',
+                  'flex min-h-9 w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors',
+                  activeSection === s.id
+                    ? 'bg-primary/8 text-primary'
+                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                 )}
               >
-                <Link
-                  href="/docs"
-                  onClick={() => setMobileNavOpen(false)}
-                  aria-current={!sectionId ? 'page' : undefined}
-                  className={cn(
-                    'flex min-h-9 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    !sectionId
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
-                  )}
-                >
-                  <BookOpen className="h-3.5 w-3.5 shrink-0" />
-                  Overview
-                </Link>
-                {categories.map((category) => (
-                  <div key={category} className="space-y-1">
-                    <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80">
-                      {category}
-                    </p>
-                    {filteredSections
-                      .filter((section) => section.category === category)
-                      .map((section) => {
-                        const Icon = section.icon;
-                        return (
-                          <Link
-                            key={section.id}
-                            href={docsPathForSection(section.id)}
-                            onClick={() => setMobileNavOpen(false)}
-                            aria-current={activeSection === section.id ? 'page' : undefined}
-                            className={cn(
-                              'flex min-h-9 items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
-                              activeSection === section.id
-                                ? 'bg-primary/10 font-medium text-primary'
-                                : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
-                            )}
-                          >
-                            <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-                            <span className="min-w-0 truncate">{section.title}</span>
-                          </Link>
-                        );
-                      })}
-                  </div>
-                ))}
-                {filteredSections.length === 0 && (
-                  <p className="px-3 py-2 text-sm text-muted-foreground">No guides match that search.</p>
+                <s.icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                {s.title}
+                {s.badge && (
+                  <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+                    {s.badge}
+                  </span>
                 )}
-              </nav>
-            </div>
-          </aside>
+              </button>
+            ))}
+          </nav>
+        </aside>
 
-          <div className="min-w-0">
-            {!sectionId ? (
-              <section className="mx-auto max-w-5xl space-y-9">
-                <div className="rounded-2xl border border-border/80 bg-card/75 p-6 shadow-sm backdrop-blur-md sm:p-9">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">AfuCloud docs</p>
-                  <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Documentation</h1>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-                    Find setup guides, product documentation, and API references for building with AfuCloud.
-                  </p>
-                  <label className="relative mt-6 block max-w-2xl">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      type="search"
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="Search guides and API topics"
-                      aria-label="Search guides and API topics"
-                      className="h-12 w-full rounded-xl border border-border/80 bg-background/85 pl-11 pr-4 text-sm shadow-sm backdrop-blur-md placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    />
-                  </label>
-                </div>
-
-                {categories.map((category) => (
-                  <section key={category} className="space-y-3">
-                    <h2 className="text-lg font-semibold">{category}</h2>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {filteredSections
-                        .filter((section) => section.category === category)
-                        .map((section) => {
-                          const Icon = section.icon;
-                          return (
-                            <Link
-                              key={section.id}
-                              href={docsPathForSection(section.id)}
-                              className="group rounded-xl border border-border/80 bg-card/70 p-4 shadow-sm backdrop-blur-md transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:bg-card"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 text-primary">
-                                  <Icon className="h-4 w-4" />
-                                </span>
-                                <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-                              </div>
-                              <h3 className="mt-4 text-sm font-semibold">{section.title}</h3>
-                              <p className="mt-1.5 text-sm leading-5 text-muted-foreground">{section.summary}</p>
-                            </Link>
-                          );
-                        })}
-                    </div>
-                  </section>
-                ))}
-
-                {filteredSections.length === 0 && (
-                  <p className="rounded-xl border border-border/80 bg-card/70 p-5 text-sm text-muted-foreground">
-                    No guides match that search. Try a product name or API topic.
-                  </p>
-                )}
-              </section>
-            ) : (
-              <>
-                <nav aria-label="Breadcrumb" className="mb-5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <Link href="/docs" className="transition-colors hover:text-foreground">Documentation</Link>
-                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>{currentSection?.category}</span>
-                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span aria-current="page" className="font-medium text-foreground">{currentSection?.title}</span>
-                </nav>
-
-                <div className="min-w-0 max-w-5xl space-y-8">
+        {/* Content */}
+        <div className="min-w-0 flex-1 space-y-6 sm:space-y-8">
 
           {/* Quick Start */}
           <article
             id="docs-quickstart"
-            className={cn('scroll-mt-20 space-y-6', activeSection === 'quickstart' ? 'block' : 'hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'quickstart' ? 'block' : 'block lg:hidden')}
           >
               <div className="space-y-4 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Quick Start</h2>
@@ -260,7 +171,7 @@ curl -X POST ${BASE}/v1/projects \\
           {/* Upload */}
           <article
             id="docs-upload"
-            className={cn('scroll-mt-20 space-y-6', activeSection === 'upload' ? 'block' : 'hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'upload' ? 'block' : 'block lg:hidden')}
           >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Uploading Images</h2>
@@ -313,7 +224,7 @@ console.log(image.url); // https://img.afuchat.com/...`} />
           {/* Images */}
           <article
             id="docs-images"
-            className={cn('scroll-mt-20 space-y-6', activeSection === 'images' ? 'block' : 'hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'images' ? 'block' : 'block lg:hidden')}
           >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Managing Images</h2>
@@ -368,7 +279,7 @@ PATCH ${BASE}/v1/projects/{projectId}/images/{imageId}/favorite`} />
           {/* Object Storage */}
           <article
             id="docs-storage"
-            className={cn('scroll-mt-20 space-y-6', activeSection === 'storage' ? 'block' : 'hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'storage' ? 'block' : 'block lg:hidden')}
           >
             <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
               <h2 className="text-base font-semibold">Object Storage</h2>
@@ -382,7 +293,7 @@ PATCH ${BASE}/v1/projects/{projectId}/images/{imageId}/favorite`} />
           {/* API Keys */}
           <article
             id="docs-apikeys"
-            className={cn('scroll-mt-20 space-y-6', activeSection === 'apikeys' ? 'block' : 'hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'apikeys' ? 'block' : 'block lg:hidden')}
           >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">API Keys</h2>
@@ -424,7 +335,7 @@ Authorization: Bearer afu_prod_abc123...`} />
           {/* Personal Access Tokens */}
           <article
             id="docs-tokens"
-            className={cn('scroll-mt-20 space-y-6', activeSection === 'tokens' ? 'block' : 'hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'tokens' ? 'block' : 'block lg:hidden')}
           >
             <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
               <h2 className="text-base font-semibold">Personal Access Tokens</h2>
@@ -439,7 +350,7 @@ Authorization: Bearer afu_prod_abc123...`} />
           {/* Webhooks */}
           <article
             id="docs-webhooks"
-            className={cn('scroll-mt-20 space-y-6', activeSection === 'webhooks' ? 'block' : 'hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'webhooks' ? 'block' : 'block lg:hidden')}
           >
               <div className="rounded-lg border border-card-border bg-card p-6 space-y-3">
                 <h2 className="text-base font-semibold">Webhooks</h2>
@@ -484,7 +395,7 @@ const isValid = crypto.timingSafeEqual(
           {/* Analytics */}
           <article
             id="docs-analytics"
-            className={cn('scroll-mt-20 space-y-6', activeSection === 'analytics' ? 'block' : 'hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'analytics' ? 'block' : 'block lg:hidden')}
           >
             <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
               <h2 className="text-base font-semibold">Analytics</h2>
@@ -498,7 +409,7 @@ const isValid = crypto.timingSafeEqual(
           {/* Custom Domains */}
           <article
             id="docs-domains"
-            className={cn('scroll-mt-20 space-y-6', activeSection === 'domains' ? 'block' : 'hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'domains' ? 'block' : 'block lg:hidden')}
           >
             <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
               <h2 className="text-base font-semibold">Custom Domains</h2>
@@ -516,7 +427,7 @@ const isValid = crypto.timingSafeEqual(
           {/* Domain registration */}
           <article
             id="docs-registration"
-            className={cn('scroll-mt-20 space-y-6', activeSection === 'registration' ? 'block' : 'hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'registration' ? 'block' : 'block lg:hidden')}
           >
             <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
               <h2 className="text-base font-semibold">Domain Registration</h2>
@@ -568,7 +479,7 @@ curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
           {/* API Reference */}
           <article
             id="docs-reference"
-            className={cn('scroll-mt-20 space-y-6', activeSection === 'reference' ? 'block' : 'hidden')}
+            className={cn('scroll-mt-20 space-y-6', activeSection === 'reference' ? 'block' : 'block lg:hidden')}
           >
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">API Reference</h2>

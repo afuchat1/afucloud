@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { AfuCloudLogo } from '@/components/afucloud-logo';
 import { CompanyFooter } from '@/components/company-footer';
 import { useDashboardSessionVisibility } from '@/hooks/use-dashboard-session-visibility';
+import { docsPathForSection } from '@/lib/docs-routes';
 
 const products = [
   {
@@ -142,7 +143,7 @@ export default function LandingPage() {
               <h3 className="font-semibold text-sm text-foreground">{product.title}</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">{product.description}</p>
               <Link
-                href={`/docs#docs-${product.docs}`}
+                href={docsPathForSection(product.docs)}
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
               >
                 How it works
@@ -159,7 +160,7 @@ export default function LandingPage() {
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-primary">API</p>
           <h2 className="mb-3 text-3xl font-bold tracking-tight">Need implementation details?</h2>
           <p className="mb-6 text-muted-foreground">Find upload steps, authentication, and endpoints in the docs.</p>
-          <Link href="/docs#docs-quickstart">
+          <Link href={docsPathForSection('quickstart')}>
             <Button variant="outline" className="gap-2">
               <Code2 className="h-4 w-4" />
               How it works
