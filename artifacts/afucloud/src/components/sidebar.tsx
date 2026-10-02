@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from '@/lib/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clearAuthTokens, dashboardSessionRequest, type DashboardUser } from '@/lib/auth-session';
@@ -11,6 +11,7 @@ import {
   BarChart3,
   Activity,
   Key,
+  Webhook,
   Settings,
   BookOpen,
   X,
@@ -18,18 +19,13 @@ import {
   Image as ImageIcon,
   Globe2,
   HardDrive,
+  Database,
   ChevronDown,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
 
 type NavigationItem = { name: string; href: string; icon: LucideIcon };
-
-const productNavigation = [
-  { name: 'Projects', href: '/projects', icon: FolderOpen },
-  { name: 'Storage', href: '/storage', icon: HardDrive },
-  { name: 'Domains', href: '/domains', icon: Globe2 },
-];
 
 const platformNavigation = [
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
@@ -60,14 +56,22 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const isProductRoute =
-    location === '/projects' ||
-    location.startsWith('/projects/') ||
-    location === '/storage' ||
-    location.startsWith('/storage/') ||
-    location === '/domains' ||
-    location.startsWith('/domains/');
-  const [imagesExpanded, setImagesExpanded] = useState(isProductRoute);
+  const projectMatch = location.match(/^\/projects\/([^/]+)(?:\/(api-keys|webhooks|analytics))?$/);
+  const projectId = projectMatch?.[1];
+  const [expandedProducts, setExpandedProducts] = useState({
+    images: location === '/projects' || location.startsWith('/projects/'),
+    storage: location === '/storage' || location.startsWith('/storage/'),
+    domains: location === '/domains' || location.startsWith('/domains/'),
+  });
+  useEffect(() => {
+    if (location === '/projects' || location.startsWith('/projects/')) {
+      setExpandedProducts((expanded) => ({ ...expanded, images: true }));
+    } else if (location === '/storage' || location.startsWith('/storage/')) {
+      setExpandedProducts((expanded) => ({ ...expanded, storage: true }));
+    } else if (location === '/domains' || location.startsWith('/domains/')) {
+      setExpandedProducts((expanded) => ({ ...expanded, domains: true }));
+    }
+  }, [location]);
   const { data: user } = useQuery({
     queryKey: ['dashboard-session', 'me'],
     queryFn: () => dashboardSessionRequest<DashboardUser>('me'),
@@ -95,11 +99,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     onClose?.();
   };
 
-  const isActive = (href: string) =>
-    location === href || location.startsWith(`${href}/`);
+  const isActive = (href: string) => location === href || location.startsWith(`${href}/`);
+  const isGroupActive = (href: string) => isActive(href);
 
-  const renderNavItem = (item: NavigationItem) => {
-    const active = isActive(item.href);
+  const renderNavItem = (item: NavigationItem, nested = false, exact = false) => {
+    const active = exact ? location === item.href : isActive(item.href);
     return (
       <Link
         key={item.name}
@@ -107,7 +111,8 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         onClick={handleNavClick}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'group flex min-h-9 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition-colors',
+          'group flex min-h-9 min-w-0 items-center gap-3 rounded-lg text-[13px] font-medium transition-colors',
+          nested ? 'rounded-md px-2.5' : 'rounded-lg px-3',
           active
             ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
             : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/55 hover:text-sidebar-foreground'
@@ -156,65 +161,126 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
         <section>
           <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
-            Products
+            AfuCloud products
           </p>
-          <button
-            type="button"
-            onClick={() => setImagesExpanded((expanded) => !expanded)}
-            aria-expanded={imagesExpanded}
-            aria-controls="images-product-navigation"
-            className={cn(
-              'flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-[13px] font-semibold transition-colors',
-              isProductRoute
-                ? 'bg-sidebar-accent/75 text-sidebar-accent-foreground'
-                : 'text-sidebar-foreground hover:bg-sidebar-accent/55'
-            )}
-          >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <ImageIcon className="h-4 w-4" strokeWidth={2} />
-            </span>
-            <span className="flex-1">Images</span>
-            <span className="rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
-              Live
-            </span>
-            <ChevronDown
-              className={cn('h-3.5 w-3.5 text-sidebar-foreground/45 transition-transform duration-200', imagesExpanded && 'rotate-180')}
-              aria-hidden="true"
-            />
-          </button>
-          {imagesExpanded && (
-            <div id="images-product-navigation" className="relative ml-[22px] mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
-              {productNavigation.map(renderNavItem)}
+          <div className="space-y-1">
+            <div>
+              <button
+                type="button"
+                onClick={() => setExpandedProducts((expanded) => ({ ...expanded, images: !expanded.images }))}
+                aria-expanded={expandedProducts.images}
+                aria-controls="image-product-navigation"
+                className={cn(
+                  'flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-[13px] font-semibold transition-colors',
+                  isGroupActive('/projects')
+                    ? 'bg-sidebar-accent/70 text-sidebar-accent-foreground'
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent/55'
+                )}
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <ImageIcon className="h-4 w-4" strokeWidth={2} />
+                </span>
+                <span className="min-w-0 flex-1 truncate">Image delivery</span>
+                <ChevronDown className={cn('h-3.5 w-3.5 text-sidebar-foreground/45 transition-transform duration-200', expandedProducts.images && 'rotate-180')} aria-hidden="true" />
+              </button>
+              {expandedProducts.images && (
+                <div id="image-product-navigation" className="ml-[22px] mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+                  {renderNavItem({ name: 'Projects', href: '/projects', icon: FolderOpen }, true, true)}
+                  {projectId && (
+                    <div className="ml-2 mt-1 border-l border-sidebar-border/70 pl-2">
+                      <p className="mb-1 px-2 pt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/40">Current project</p>
+                      <div className="space-y-0.5">
+                        {renderNavItem({ name: 'Image library', href: `/projects/${projectId}`, icon: ImageIcon }, true, true)}
+                        {renderNavItem({ name: 'API keys', href: `/projects/${projectId}/api-keys`, icon: Key }, true)}
+                        {renderNavItem({ name: 'Webhooks', href: `/projects/${projectId}/webhooks`, icon: Webhook }, true)}
+                        {renderNavItem({ name: 'Analytics', href: `/projects/${projectId}/analytics`, icon: BarChart3 }, true)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
+
+            <div>
+              <button
+                type="button"
+                onClick={() => setExpandedProducts((expanded) => ({ ...expanded, storage: !expanded.storage }))}
+                aria-expanded={expandedProducts.storage}
+                aria-controls="storage-product-navigation"
+                className={cn(
+                  'flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-[13px] font-semibold transition-colors',
+                  isGroupActive('/storage')
+                    ? 'bg-sidebar-accent/70 text-sidebar-accent-foreground'
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent/55'
+                )}
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <Database className="h-4 w-4" strokeWidth={2} />
+                </span>
+                <span className="min-w-0 flex-1 truncate">Object storage</span>
+                <ChevronDown className={cn('h-3.5 w-3.5 text-sidebar-foreground/45 transition-transform duration-200', expandedProducts.storage && 'rotate-180')} aria-hidden="true" />
+              </button>
+              {expandedProducts.storage && (
+                <div id="storage-product-navigation" className="ml-[22px] mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+                  {renderNavItem({ name: 'Containers & files', href: '/storage', icon: HardDrive }, true)}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={() => setExpandedProducts((expanded) => ({ ...expanded, domains: !expanded.domains }))}
+                aria-expanded={expandedProducts.domains}
+                aria-controls="domains-product-navigation"
+                className={cn(
+                  'flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-[13px] font-semibold transition-colors',
+                  isGroupActive('/domains')
+                    ? 'bg-sidebar-accent/70 text-sidebar-accent-foreground'
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent/55'
+                )}
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <Globe2 className="h-4 w-4" strokeWidth={2} />
+                </span>
+                <span className="min-w-0 flex-1 truncate">Custom domains</span>
+                <ChevronDown className={cn('h-3.5 w-3.5 text-sidebar-foreground/45 transition-transform duration-200', expandedProducts.domains && 'rotate-180')} aria-hidden="true" />
+              </button>
+              {expandedProducts.domains && (
+                <div id="domains-product-navigation" className="ml-[22px] mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+                  {renderNavItem({ name: 'Domain manager', href: '/domains', icon: Globe2 }, true)}
+                </div>
+              )}
+            </div>
+          </div>
         </section>
 
         <section>
           <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
             Platform
           </p>
-          <div className="space-y-0.5">{platformNavigation.map(renderNavItem)}</div>
+          <div className="space-y-0.5">{platformNavigation.map((item) => renderNavItem(item))}</div>
         </section>
 
         <section>
           <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
             Developer
           </p>
-          {developerNavigation.map(renderNavItem)}
+          {developerNavigation.map((item) => renderNavItem(item))}
         </section>
 
         <section>
           <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
             Resources
           </p>
-          <div className="space-y-0.5">{resourceNavigation.map(renderNavItem)}</div>
+          <div className="space-y-0.5">{resourceNavigation.map((item) => renderNavItem(item))}</div>
         </section>
 
         <section>
           <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/40">
             Account
           </p>
-          {accountNavigation.map(renderNavItem)}
+          {accountNavigation.map((item) => renderNavItem(item))}
         </section>
       </nav>
 
