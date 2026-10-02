@@ -10,3 +10,4 @@
 - [Live Supabase schema and staging](supabase-live-schema-staging.md) — the production catalog is much broader than local Drizzle, staging has no migration baseline, and AfuCloud RLS is disabled
 - [Cloudflare Pages custom domains](cloudflare-pages-domains.md) — associate the hostname with its Pages project before creating the DNS CNAME, or 522 can persist
 - [AfuCloud subscription tiers](afucloud-subscription-tiers.md) — keep the selected monthly prices and enforceable resource caps consistent across billing and UI
+- [AfuCloud footer standard](afucloud-footer-standard.md) — use a substantial production-site company footer, with Vercel as a visual benchmark; avoid compact link-card layouts
