@@ -109,7 +109,7 @@ async function findPaidPayment(env: Env, subscription: any): Promise<any | null>
   if (!subscription.whop_checkout_configuration_id || !subscription.whop_plan_id) return null;
 
   const query = new URLSearchParams({
-    company_id: env.WHOP_COMPANY_ID!,
+    account_id: env.WHOP_COMPANY_ID!,
     "checkout_configuration_ids[]": subscription.whop_checkout_configuration_id,
   });
   const payload = await whopRequest(env, `/payments?${query.toString()}`, "GET");

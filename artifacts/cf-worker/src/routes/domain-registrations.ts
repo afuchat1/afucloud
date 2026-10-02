@@ -137,7 +137,7 @@ async function findPaidPayment(env: Env, order: any) {
     throw new ProviderError("This order is missing checkout details.", 409);
   }
   const query = new URLSearchParams({
-    company_id: env.WHOP_COMPANY_ID!,
+    account_id: env.WHOP_COMPANY_ID!,
     "checkout_configuration_ids[]": order.whop_checkout_configuration_id,
   });
   const payload = await whopRequest(env, `/payments?${query.toString()}`, "GET");

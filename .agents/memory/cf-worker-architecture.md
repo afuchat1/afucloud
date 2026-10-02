@@ -65,3 +65,9 @@ wrangler secret put CLOUDFLARE_R2_SECRET_ACCESS_KEY
 **Why:** The user chose their existing Whop account while keeping the canonical Cloudflare Worker as the production API; the Replit connector's generated account would be a different merchant account.
 
 **How to apply:** Keep payment verification and refund calls in the Worker. Do not route production checkout through the Replit connector or store the Whop API key in frontend code or Replit environment variables. Confirm the account and product if either is changed.
+
+- Whop payment-list filters require `account_id`; the live API rejects `company_id` with HTTP 400. Keep the existing `WHOP_COMPANY_ID` env name if useful, but send its value as `account_id` in GET query parameters.
+
+**Why:** AfuCloud's production billing lookup failed because Whop explicitly rejected `company_id` and directed the caller to `account_id`.
+
+**How to apply:** Use `account_id` for payment-list query filters. Do not globally rename request-body fields; verify each endpoint's expected payload separately.
