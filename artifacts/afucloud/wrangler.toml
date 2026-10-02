@@ -3,6 +3,9 @@ main = ".open-next/worker.js"
 compatibility_date = "2026-10-02"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
+routes = [
+  { pattern = "cloud.afuchat.com/*", zone_name = "afuchat.com" }
+]
 
 [assets]
 directory = ".open-next/assets"
