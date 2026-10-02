@@ -227,13 +227,13 @@ export default function SettingsPage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      {billingQuery.data.subscription && (
+                      {billingQuery.data.subscription && !billingQuery.data.subscription.checkoutPending && (
                         <p className="text-xs font-medium text-muted-foreground">
                           {displayBillingStatus(billingQuery.data.subscription.status)}
                           {billingQuery.data.subscription.cancelAtPeriodEnd ? ' · cancels at period end' : ''}
                         </p>
                       )}
-                      {billingQuery.data.subscription?.currentPeriodEnd && (
+                      {billingQuery.data.subscription?.currentPeriodEnd && !billingQuery.data.subscription.checkoutPending && (
                         <p className="mt-1 text-xs text-muted-foreground">
                           Current period ends {new Date(billingQuery.data.subscription.currentPeriodEnd).toLocaleDateString()}
                         </p>
@@ -245,11 +245,6 @@ export default function SettingsPage() {
                     <span>{billingQuery.data.usage.storageContainers} storage containers</span>
                     <span>{billingQuery.data.usage.apiKeys} API keys</span>
                   </div>
-                  {billingQuery.data.subscription?.checkoutPending && (
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      Waiting for Whop to confirm payment. Use Refresh after completing checkout.
-                    </p>
-                  )}
                   {billingQuery.data.currentTier !== 'free' && (
                     <a
                       href={billingQuery.data.subscription?.manageUrl || 'https://whop.com/billing'}
@@ -273,67 +268,61 @@ export default function SettingsPage() {
                   </p>
                 )}
 
-                <div className="grid gap-3 md:grid-cols-3">
-                  {billingQuery.data.plans.map(plan => {
-                    const isCurrent = plan.key === billingQuery.data?.currentTier;
-                    const hasPaidPlan = billingQuery.data?.currentTier !== 'free';
-                    const canStartCheckout = plan.key !== 'free'
-                      && !hasPaidPlan
-                      && billingQuery.data?.checkoutConfigured
-                      && !checkoutMutation.isPending;
+                <div className="grid gap-3 md:grid-cols-2">
+                  {billingQuery.data.plans
+                    .filter(plan => plan.key !== billingQuery.data?.currentTier)
+                    .map(plan => {
+                      const hasPaidPlan = billingQuery.data?.currentTier !== 'free';
+                      const canStartCheckout = plan.key !== 'free'
+                        && !hasPaidPlan
+                        && billingQuery.data?.checkoutConfigured
+                        && !checkoutMutation.isPending;
 
-                    return (
-                      <div
-                        key={plan.key}
-                        className={`flex flex-col rounded-lg border p-4 ${isCurrent ? 'border-primary/50 bg-primary/[0.03]' : 'border-border'}`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="text-sm font-semibold text-foreground">{plan.name}</h3>
-                          {isCurrent && (
-                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                              Current
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                          {plan.monthlyPriceUsd === 0 ? 'Free' : `$${plan.monthlyPriceUsd}`}
-                          {plan.monthlyPriceUsd > 0 && <span className="text-xs font-normal text-muted-foreground"> / month</span>}
-                        </p>
-                        <p className="mt-1 min-h-10 text-xs leading-5 text-muted-foreground">{plan.description}</p>
-                        <ul className="my-4 flex-1 space-y-2 text-xs text-muted-foreground">
-                          {billingLimitLabel(plan).map(limit => (
-                            <li key={limit} className="flex items-center gap-2">
-                              <span className="h-1.5 w-1.5 rounded-full bg-primary/70" aria-hidden="true" />
-                              {limit}
-                            </li>
-                          ))}
-                        </ul>
-                        {plan.key === 'free' ? (
-                          <Button type="button" variant="outline" disabled className="w-full">
-                            {isCurrent ? 'Current plan' : 'Included'}
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant={plan.key === 'pro' ? 'default' : 'outline'}
-                            className="w-full"
-                            disabled={!canStartCheckout}
-                            onClick={() => checkoutMutation.mutate(plan.key as 'pro' | 'business')}
-                          >
-                            {checkoutMutation.isPending && checkoutMutation.variables === plan.key
-                              ? 'Opening checkout…'
-                              : isCurrent
-                                ? 'Current plan'
+                      return (
+                        <div
+                          key={plan.key}
+                          className="flex flex-col rounded-lg border border-border p-4"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="text-sm font-semibold text-foreground">{plan.name}</h3>
+                          </div>
+                          <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+                            {plan.monthlyPriceUsd === 0 ? 'Free' : `$${plan.monthlyPriceUsd}`}
+                            {plan.monthlyPriceUsd > 0 && <span className="text-xs font-normal text-muted-foreground"> / month</span>}
+                          </p>
+                          <p className="mt-1 min-h-10 text-xs leading-5 text-muted-foreground">{plan.description}</p>
+                          <ul className="my-4 flex-1 space-y-2 text-xs text-muted-foreground">
+                            {billingLimitLabel(plan).map(limit => (
+                              <li key={limit} className="flex items-center gap-2">
+                                <span className="h-1.5 w-1.5 rounded-full bg-primary/70" aria-hidden="true" />
+                                {limit}
+                              </li>
+                            ))}
+                          </ul>
+                          {plan.key === 'free' ? (
+                            <Button type="button" variant="outline" disabled className="w-full">
+                              Included
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant={plan.key === 'pro' ? 'default' : 'outline'}
+                              className="w-full"
+                              disabled={!canStartCheckout}
+                              onClick={() => checkoutMutation.mutate(plan.key as 'pro' | 'business')}
+                            >
+                              {checkoutMutation.isPending && checkoutMutation.variables === plan.key
+                                ? 'Opening checkout…'
                                 : hasPaidPlan
                                   ? 'Manage current plan first'
                                   : !billingQuery.data?.checkoutConfigured
                                     ? 'Checkout unavailable'
                                     : `Choose ${plan.name}`}
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               </>
             )}
