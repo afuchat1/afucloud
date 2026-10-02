@@ -64,32 +64,26 @@ const plans = [
     name: 'Free',
     price: '$0',
     period: 'forever',
-    description: 'For personal projects',
-    storage: '5 GB',
-    images: '10,000',
-    api: 'Dashboard only',
+    description: 'For trying AfuCloud and small projects.',
+    features: ['2 projects', '2 storage containers', '3 API keys', '10 MB max file size'],
     cta: 'Get started',
   },
   {
-    name: 'Developer',
-    price: '$1',
+    name: 'Pro',
+    price: '$12',
     period: '/month',
-    description: 'For devs building on AfuCloud',
-    storage: '10 GB',
-    images: 'Unlimited',
-    api: '500K API req/mo',
-    cta: 'Start building',
+    description: 'For individual developers running production projects.',
+    features: ['10 projects', '25 storage containers', '50 API keys', '100 MB max file size'],
+    cta: 'Get started',
     highlight: true,
   },
   {
-    name: 'Pro',
-    price: '$19',
+    name: 'Business',
+    price: '$39',
     period: '/month',
-    description: 'For production applications',
-    storage: '100 GB',
-    images: 'Unlimited',
-    api: '5M API req/mo',
-    cta: 'Start free trial',
+    description: 'For teams managing multiple production projects.',
+    features: ['50 projects', '100 storage containers', '250 API keys', '250 MB max file size'],
+    cta: 'Get started',
   },
 ];
 
@@ -164,7 +158,7 @@ export default function LandingPage() {
             </Button>
           </Link>
         </div>
-        <p className="mt-6 text-xs text-muted-foreground">No credit card required · 5 GB free forever</p>
+        <p className="mt-6 text-xs text-muted-foreground">Free plan available · 2 projects and 2 storage containers</p>
       </section>
 
       {/* Feature grid */}
@@ -239,7 +233,7 @@ export default function LandingPage() {
       <section id="pricing" className="max-w-6xl mx-auto px-6 py-20">
         <div className="text-center mb-14">
           <h2 className="text-3xl font-bold tracking-tight mb-3">Simple, transparent pricing</h2>
-          <p className="text-muted-foreground">Start free. Scale as you grow. No surprise bills.</p>
+          <p className="text-muted-foreground">Start free. Upgrade whenever you need more resources.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-4xl mx-auto">
           {plans.map((plan) => (
@@ -258,12 +252,18 @@ export default function LandingPage() {
               )}
               <div>
                 <p className="text-sm font-medium text-muted-foreground">{plan.name}</p>
-                <p className="text-3xl font-bold tracking-tight mt-1">{plan.price}</p>
+                <p className="text-3xl font-bold tracking-tight mt-1">
+                  {plan.price}
+                  <span className="ml-1 text-sm font-normal text-muted-foreground">{plan.period}</span>
+                </p>
               </div>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-primary shrink-0" />{plan.storage} storage</li>
-                <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-primary shrink-0" />{plan.images} images</li>
-                <li className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-primary shrink-0" />{plan.api} API requests</li>
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex items-center gap-2">
+                    <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+                    {feature}
+                  </li>
+                ))}
               </ul>
               {canShowAccountActions && (
                 <Link href={isSignedIn ? '/dashboard' : '/register'}>

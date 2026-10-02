@@ -15,4 +15,4 @@ These are implementation defaults, not separately user-approved prices.
 
 **Why:** The user delegated plan design and enforceable limits to the agent. Keeping the chosen values in one durable reference reduces accidental inconsistency between billing, quota enforcement, and user-facing copy.
 
-**How to apply:** When changing an AfuCloud plan, update the Worker entitlement catalog and the Settings UI together, then review the corresponding account limits before release.
+**How to apply:** When changing an AfuCloud plan, update the Worker entitlement catalog, Settings UI, and public landing-page pricing together, then review the enforced account limits before release.
