@@ -15,7 +15,7 @@ import { SiCloudflare } from 'react-icons/si';
 import { API_BASE } from '@/lib/api-base';
 import { customFetchResponse } from '@workspace/api-client-react';
 import { useAutoConfigureDomainVerification, useDisconnectCloudflare, useGetCloudflareConnection, useListCloudflareZones, useStartCloudflareAuthorization } from '@workspace/api-client-react';
-import { Link } from 'wouter';
+import { Link } from '@/lib/navigation';
 import { DomainRegistrationPanel } from './domain-registration-panel';
 const headers = () => ({
   'Content-Type': 'application/json',

@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { Link } from 'wouter';
+import { Link } from '@/lib/navigation';
 import { AlertCircle, ArrowLeft, BookOpen, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 

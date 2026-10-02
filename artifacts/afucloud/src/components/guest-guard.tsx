@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useLocation } from 'wouter';
+import { useLocation } from '@/lib/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { dashboardSessionQueryKey, useDashboardSessionVisibility } from '@/hooks/use-dashboard-session-visibility';
 

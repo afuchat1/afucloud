@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useParams, Link } from 'wouter';
+import { useParams, Link } from '@/lib/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   customFetchResponse,
@@ -999,7 +999,7 @@ export default function ProjectDetailPage() {
 
                 {/* URL */}
                 <div className="space-y-1.5">
-                  <p className="text-xs text-muted-foreground font-medium">{import.meta.env.DEV ? 'Preview URL' : 'Public URL'}</p>
+                  <p className="text-xs text-muted-foreground font-medium">{process.env.NODE_ENV !== 'production' ? 'Preview URL' : 'Public URL'}</p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono truncate text-foreground">
                       {resolveImageUrl(selectedImage.publicUrl || selectedImage.url)}

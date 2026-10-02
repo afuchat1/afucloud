@@ -1,6 +1,7 @@
-import { Link } from 'wouter';
-import { Cloud, Upload, Key, Zap, Shield, Code2, ArrowRight, Check, Github, Globe } from 'lucide-react';
+import { Link } from '@/lib/navigation';
+import { Upload, Key, Zap, Shield, Code2, ArrowRight, Check, Github, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AfuCloudLogo } from '@/components/afucloud-logo';
 import { CompanyFooter } from '@/components/company-footer';
 import { useDashboardSessionVisibility } from '@/hooks/use-dashboard-session-visibility';
 
@@ -99,9 +100,7 @@ export default function LandingPage() {
       <header className="border-b border-border/50 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Cloud className="h-4 w-4 text-primary-foreground" strokeWidth={2.5} />
-            </div>
+            <AfuCloudLogo className="h-8 w-8" />
             <span className="text-[15px] font-semibold tracking-tight">AfuCloud</span>
           </div>
           <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
@@ -136,12 +135,12 @@ export default function LandingPage() {
           Phase 1 — Images Platform
         </div>
         <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-foreground mb-6 leading-[1.1]">
-          Developer-first<br />
-          <span className="text-primary">cloud storage</span>
+          Image storage API<br />
+          <span className="text-primary">for developers</span>
         </h1>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-          Store, process, manage, and deliver digital assets through a professional REST API.
-          Built for teams who ship fast and demand reliability.
+          Store, upload, organize, and deliver images through one secure REST API.
+          Get project-level controls and CDN-backed URLs built for production teams.
         </p>
         <div className="flex items-center justify-center gap-4">
           {canShowAccountActions && (
@@ -247,7 +246,7 @@ export default function LandingPage() {
               }`}
             >
               {plan.highlight && (
-                <div className="inline-flex rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-semibold text-white uppercase tracking-wide">
+                <div className="inline-flex rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-semibold text-primary-foreground uppercase tracking-wide">
                   Most popular
                 </div>
               )}
@@ -285,8 +284,8 @@ export default function LandingPage() {
       {/* CTA */}
        <section className="bg-primary">
         <div className="max-w-6xl mx-auto px-6 py-16 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4 tracking-tight">Ready to start building?</h2>
-          <p className="text-white/70 mb-8 max-w-md mx-auto">
+          <h2 className="text-3xl font-bold text-primary-foreground mb-4 tracking-tight">Ready to start building?</h2>
+          <p className="text-primary-foreground/75 mb-8 max-w-md mx-auto">
             Join developers who trust AfuCloud for storing and delivering their digital assets.
           </p>
           <div className="flex items-center justify-center gap-4">
@@ -299,7 +298,7 @@ export default function LandingPage() {
               </Link>
             )}
             <Link href="/docs">
-              <Button size="lg" variant="outline" className="gap-2 h-11 px-6 border-white/30 text-white hover:bg-white/10 hover:text-white">
+              <Button size="lg" variant="outline" className="gap-2 h-11 px-6 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">
                 Read the docs
               </Button>
             </Link>

@@ -1,5 +1,6 @@
-import { ArrowUpRight, Cloud } from 'lucide-react';
-import { Link } from 'wouter';
+import { ArrowUpRight } from 'lucide-react';
+import { Link } from '@/lib/navigation';
+import { AfuCloudLogo } from '@/components/afucloud-logo';
 
 type CompanyFooterProps = {
   isSignedIn: boolean;
@@ -84,6 +85,7 @@ export function CompanyFooter({ isSignedIn, canShowAccountActions }: CompanyFoot
     { label: 'Overview', href: '/' },
     { label: 'Documentation', href: '/docs' },
     { label: 'Roadmap', href: '/roadmap' },
+    { label: 'Brand assets', href: '/branding' },
     ...(canShowAccountActions && !isSignedIn
       ? [{ label: 'Sign in', href: '/login' }]
       : isSignedIn
@@ -101,14 +103,12 @@ export function CompanyFooter({ isSignedIn, canShowAccountActions }: CompanyFoot
               aria-label="AfuCloud home"
               className="inline-flex items-center gap-3 rounded-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-neutral-950"
             >
-              <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                <Cloud className="size-5" strokeWidth={2.4} aria-hidden="true" />
-              </span>
+              <AfuCloudLogo className="size-10" />
               <span className="text-xl font-semibold tracking-tight">AfuCloud</span>
             </Link>
 
             <p className="mt-6 text-base leading-7 text-white/65">
-              Developer-first cloud storage and media delivery for the products you build.
+              Image storage and CDN delivery for the products you build.
             </p>
             <p className="mt-3 text-sm leading-6 text-white/45">
               A product of AfuChat Technologies Limited. Built in Uganda.

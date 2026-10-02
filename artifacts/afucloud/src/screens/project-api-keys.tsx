@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'wouter';
+import { useParams, Link } from '@/lib/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useGetProject,

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071A12"/>
+      <stop offset="1" stop-color="#103A27"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="matrix(0 510 -510 0 930 80)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07965B" stop-opacity=".38"/>
+      <stop offset="1" stop-color="#07965B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <path fill="url(#bg)" d="M0 0h1200v630H0z"/>
+  <path fill="url(#glow)" d="M0 0h1200v630H0z"/>
+  <rect x="78" y="78" width="88" height="88" rx="24" fill="#fff" fill-opacity=".08"/>
+  <g transform="translate(88 88) scale(.53)">
+    <path d="M32 100C17 100 8 89 8 75C8 62 18 52 31 50C34 31 49 19 66 19C83 19 96 30 100 46C113 49 121 59 121 73C121 89 110 100 94 100H32Z" fill="#07965B"/>
+    <g stroke="#fff" stroke-width="5" stroke-linecap="round"><path d="M45 72L64 54L83 72"/></g>
+    <g fill="#fff"><circle cx="45" cy="75" r="9"/><circle cx="64" cy="51" r="9"/><circle cx="83" cy="75" r="9"/></g>
+  </g>
+  <text x="190" y="135" fill="#F5FBF7" font-family="Arial, sans-serif" font-size="30" font-weight="700">AfuCloud</text>
+  <text x="80" y="330" fill="#F5FBF7" font-family="Arial, sans-serif" font-size="76" font-weight="700">Image storage API</text>
+  <text x="80" y="418" fill="#43D48F" font-family="Arial, sans-serif" font-size="76" font-weight="700">for developers</text>
+  <text x="84" y="500" fill="#C4D9CD" font-family="Arial, sans-serif" font-size="28">Secure uploads. Organized assets. Fast CDN delivery.</text>
+  <rect x="80" y="552" width="88" height="5" rx="2.5" fill="#07965B"/>
+</svg>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'wouter';
+import { Link, useParams } from '@/lib/navigation';
 import {
   useCreateDomainDnsRecord,
   useAutoConfigureCdnHostnames,

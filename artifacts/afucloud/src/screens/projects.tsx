@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'wouter';
+import { Link } from '@/lib/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useListProjects, useCreateProject, getListProjectsQueryKey } from '@workspace/api-client-react';
 import { PageHeader } from '@/components/page-header';

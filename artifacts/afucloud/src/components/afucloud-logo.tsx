@@ -1,15 +1,26 @@
-import { Cloud } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type AfuCloudLogoProps = {
   className: string;
-  iconClassName: string;
 };
 
-export function AfuCloudLogo({ className, iconClassName }: AfuCloudLogoProps) {
+export function AfuCloudLogo({ className }: AfuCloudLogoProps) {
   return (
-    <span aria-hidden="true" className={cn('flex shrink-0 items-center justify-center', className)}>
-      <Cloud className={iconClassName} strokeWidth={2.5} />
+    <span aria-hidden="true" className={cn('inline-flex shrink-0', className)}>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" className="h-full w-full">
+        <path
+          d="M32 100C17 100 8 89 8 75C8 62 18 52 31 50C34 31 49 19 66 19C83 19 96 30 100 46C113 49 121 59 121 73C121 89 110 100 94 100H32Z"
+          fill="#07965B"
+        />
+        <g stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round">
+          <path d="M45 72L64 54L83 72" />
+        </g>
+        <g fill="#FFFFFF">
+          <circle cx="45" cy="75" r="9" />
+          <circle cx="64" cy="51" r="9" />
+          <circle cx="83" cy="75" r="9" />
+        </g>
+      </svg>
     </span>
   );
 }

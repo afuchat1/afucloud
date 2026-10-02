@@ -1,9 +1,10 @@
-// Keep handwritten API calls on the same target as the generated API client.
-// Vite's dev server proxies /api to the local API server; production points at
-// the configured remote API.
-export const API_BASE = import.meta.env.DEV
+// In development, the shared Replit proxy routes /api to the Express API.
+// Production calls the Cloudflare Worker API directly.
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
+export const API_BASE = isDevelopment
   ? '/api'
-  : (import.meta.env.VITE_API_BASE_URL || 'https://api.afuchat.com');
+  : (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.VITE_API_BASE_URL || 'https://api.afuchat.com');
 
 const PUBLIC_IMAGE_BASE_URL = 'https://img.afuchat.com';
 
@@ -34,7 +35,7 @@ function publicUrlForStorageEndpoint(url: string): string | null {
 export function resolveImageUrl(url: string | null | undefined): string {
   if (!url) return '';
   const isAbsoluteUrl = /^(?:https?:)?\/\//i.test(url);
-  const publicStorageUrl = (!import.meta.env.DEV || isAbsoluteUrl)
+  const publicStorageUrl = (!isDevelopment || isAbsoluteUrl)
     ? publicUrlForStorageEndpoint(url)
     : null;
   if (publicStorageUrl) return publicStorageUrl;

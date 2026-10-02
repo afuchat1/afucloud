@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation, Link } from 'wouter';
+import { Link, useLocation } from '@/lib/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clearAuthTokens, dashboardSessionRequest, type DashboardUser } from '@/lib/auth-session';
 import { useToast } from '@/hooks/use-toast';
@@ -128,7 +128,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-6">
         <div className="flex items-center gap-2.5">
-          <AfuCloudLogo className="h-8 w-8 rounded-lg bg-primary" iconClassName="h-4 w-4 text-primary-foreground" />
+          <AfuCloudLogo className="h-8 w-8" />
           <span className="text-[15px] font-semibold tracking-tight text-sidebar-foreground">
             AfuCloud
           </span>

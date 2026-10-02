@@ -14,13 +14,22 @@ localPort = 21380
 run = "pnpm --filter @workspace/afucloud run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/afucloud", "run", "build" ]
-serve = "static"
-publicDir = "artifacts/afucloud/dist/public"
 
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
+[services.production.build]
+args = [ "pnpm", "--filter", "@workspace/afucloud", "run", "build" ]
+
+[services.production.build.env]
+NODE_ENV = "production"
+
+[services.production.run]
+args = [ "pnpm", "--filter", "@workspace/afucloud", "run", "start" ]
+
+[services.production.run.env]
+PORT = "21380"
+NODE_ENV = "production"
+
+[services.production.health.startup]
+path = "/"
 
 [services.env]
 PORT = "21380"

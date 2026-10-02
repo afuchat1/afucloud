@@ -48,9 +48,20 @@ Thumbs.db
 .cache/
 .local/
 
+# Next.js generated build cache
+artifacts/afucloud/.next/cache/
+
 # Cloudflare Worker local secrets
 .dev.vars
 artifacts/cf-worker/.dev.vars
 
 # API development object storage
 .dev-storage/
+
+# Generated Next.js files
+artifacts/afucloud/.next/
+**/.next/cache/
+
+# Generated Next.js files
+artifacts/afucloud/.next/
+**/.next/cache/

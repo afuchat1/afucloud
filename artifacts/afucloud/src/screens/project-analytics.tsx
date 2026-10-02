@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'wouter';
+import { useParams, Link } from '@/lib/navigation';
 import {
   getGetProjectAnalyticsQueryKey,
   useGetProject,
@@ -21,8 +21,8 @@ const PERIODS = [
 ];
 
 const chartConfig = {
-  uploads: { label: 'Uploads', color: 'hsl(173, 70%, 35%)' },
-  downloads: { label: 'Downloads', color: 'hsl(173, 70%, 55%)' },
+  uploads: { label: 'Uploads', color: 'hsl(155.245, 91.083%, 30.784%)' },
+  downloads: { label: 'Downloads', color: 'hsl(154, 68%, 48%)' },
 };
 
 function formatAxisDate(dateStr: string, period: string) {
@@ -134,8 +134,8 @@ export default function ProjectAnalyticsPage() {
             <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
               <defs>
                 <linearGradient id="uploadGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(173, 70%, 35%)" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="hsl(173, 70%, 35%)" stopOpacity={0} />
+                  <stop offset="5%" stopColor="hsl(155.245, 91.083%, 30.784%)" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="hsl(155.245, 91.083%, 30.784%)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
@@ -156,7 +156,7 @@ export default function ProjectAnalyticsPage() {
               <Area
                 type="monotone"
                 dataKey="uploads"
-                stroke="hsl(173, 70%, 35%)"
+                stroke="hsl(155.245, 91.083%, 30.784%)"
                 strokeWidth={2}
                 fill="url(#uploadGrad)"
                 dot={false}
