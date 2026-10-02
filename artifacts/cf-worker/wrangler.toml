@@ -34,6 +34,8 @@ NODE_ENV = "production"
 DASHBOARD_ALLOWED_ORIGINS = ""
 WHOP_COMPANY_ID = "biz_7FEyvmraYbNtnS"
 WHOP_PRODUCT_ID = "prod_OCTeUVfYRo4E8"
+WHOP_PRO_PLAN_ID = "plan_acE7UJbwvOiMM"
+WHOP_BUSINESS_PLAN_ID = "plan_rHNQbmHe5SLw1"
 
 # ── Secrets (set via: wrangler secret put SECRET_NAME) ────────────────────────
 # SUPABASE_SERVICE_KEY      — Supabase service role key

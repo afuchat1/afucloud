@@ -66,7 +66,13 @@ export function hasPaidAccess(status: unknown): boolean {
 }
 
 function whopConfigured(env: Env): boolean {
-  return Boolean(env.WHOP_API_KEY && env.WHOP_COMPANY_ID && env.WHOP_PRODUCT_ID);
+  return Boolean(
+    env.WHOP_API_KEY &&
+    env.WHOP_COMPANY_ID &&
+    env.WHOP_PRODUCT_ID &&
+    env.WHOP_PRO_PLAN_ID &&
+    env.WHOP_BUSINESS_PLAN_ID,
+  );
 }
 
 async function whopRequest(env: Env, path: string, method: "GET" | "POST", body?: unknown): Promise<any> {
@@ -248,7 +254,7 @@ export async function createSubscriptionCheckout(
     throw new BillingError("Manage or cancel your current Whop subscription before starting another plan.", 409);
   }
 
-  const tier = BILLING_TIERS[tierKey];
+  const planId = tierKey === "pro" ? env.WHOP_PRO_PLAN_ID! : env.WHOP_BUSINESS_PLAN_ID!;
   await db.upsertBillingSubscription({
     user_id: userId,
     tier_key: tierKey,
@@ -263,24 +269,7 @@ export async function createSubscriptionCheckout(
     updated_at: new Date().toISOString(),
   });
 
-  let planId: string | null = null;
   try {
-    const plan = await whopRequest(env, "/plans", "POST", {
-      account_id: env.WHOP_COMPANY_ID,
-      product_id: env.WHOP_PRODUCT_ID,
-      title: `AfuCloud ${tier.name} monthly`,
-      description: `${tier.name} subscription for AfuCloud.`,
-      initial_price: tier.monthlyPriceUsd,
-      renewal_price: tier.monthlyPriceUsd,
-      currency: "usd",
-      billing_period: 30,
-      plan_type: "renewal",
-      unlimited_stock: true,
-      visibility: "visible",
-    });
-    planId = typeof plan?.id === "string" ? plan.id : null;
-    if (!planId) throw new BillingError("Whop did not return a recurring plan.", 502);
-
     const redirect = new URL("https://cloud.afuchat.com/settings");
     redirect.searchParams.set("billing", "return");
     const checkout = await whopRequest(env, "/checkout_configurations", "POST", {

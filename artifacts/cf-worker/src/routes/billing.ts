@@ -26,7 +26,13 @@ async function billingSummary(env: Env, userId: string) {
   return {
     currentTier: entitlements.tierKey,
     subscription: publicSubscription(entitlements.subscription),
-    checkoutConfigured: Boolean(env.WHOP_API_KEY && env.WHOP_COMPANY_ID && env.WHOP_PRODUCT_ID),
+    checkoutConfigured: Boolean(
+      env.WHOP_API_KEY &&
+      env.WHOP_COMPANY_ID &&
+      env.WHOP_PRODUCT_ID &&
+      env.WHOP_PRO_PLAN_ID &&
+      env.WHOP_BUSINESS_PLAN_ID,
+    ),
     usage: {
       projects: projects.length,
       storageContainers: containers.length,

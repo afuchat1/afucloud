@@ -18,6 +18,8 @@ export interface Env {
   DOMAIN_REGISTRATION_MARKUP_PERCENT?: string;
   WHOP_COMPANY_ID?: string;
   WHOP_PRODUCT_ID?: string;
+  WHOP_PRO_PLAN_ID?: string;
+  WHOP_BUSINESS_PLAN_ID?: string;
 
   // Secrets
   SUPABASE_SERVICE_KEY: string;
