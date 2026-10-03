@@ -71,6 +71,12 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [offerPlanKey, setOfferPlanKey] = useState<Exclude<BillingPlan['key'], 'free'> | null>(null);
   const [offerCodeCopied, setOfferCodeCopied] = useState(false);
+  const [billingReturnStartedAt] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get('billing') === 'return'
+      ? Date.now()
+      : null;
+  });
   const { data: user, isLoading } = useQuery({
     queryKey: ['dashboard-session', 'me'],
     queryFn: () => dashboardSessionRequest<DashboardUser>('me'),
@@ -80,8 +86,22 @@ export default function SettingsPage() {
     queryFn: () => customFetch<BillingSummary>('/api/v1/billing'),
     retry: false,
     refetchOnMount: 'always',
+    refetchInterval: query => {
+      const withinReturnWindow = billingReturnStartedAt !== null
+        && Date.now() - billingReturnStartedAt < 90_000;
+      return withinReturnWindow && query.state.data?.subscription?.checkoutPending
+        ? 4_000
+        : false;
+    },
   });
-  const selectedOfferPlan = billingQuery.data?.plans.find(plan => plan.key === offerPlanKey);
+  const pendingSubscription = billingQuery.data?.subscription?.checkoutPending
+    ? billingQuery.data.subscription
+    : null;
+  const pendingPlan = pendingSubscription
+    ? billingQuery.data?.plans.find((plan: BillingPlan) => plan.key === pendingSubscription.tierKey)
+    : null;
+  const currentPlan = billingQuery.data?.plans.find((plan: BillingPlan) => plan.key === billingQuery.data?.currentTier);
+  const selectedOfferPlan = billingQuery.data?.plans.find((plan: BillingPlan) => plan.key === offerPlanKey);
   const checkoutMutation = useMutation({
     mutationFn: (planKey: Exclude<BillingPlan['key'], 'free'>) =>
       customFetch<{ purchaseUrl: string }>('/api/v1/billing/checkout', {
@@ -91,11 +111,14 @@ export default function SettingsPage() {
     onSuccess: ({ purchaseUrl }) => {
       window.location.assign(purchaseUrl);
     },
-    onError: (error: Error) => toast({
-      title: 'Could not start checkout',
-      description: error.message,
-      variant: 'destructive',
-    }),
+    onError: async (error: Error) => {
+      await queryClient.invalidateQueries({ queryKey: ['billing', 'subscription'] });
+      toast({
+        title: 'Could not start checkout',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
   });
   const syncBillingMutation = useMutation({
     mutationFn: () => customFetch<BillingSummary>('/api/v1/billing/sync', { method: 'POST' }),
@@ -241,19 +264,26 @@ export default function SettingsPage() {
                 <div className="rounded-md border border-border bg-muted/30 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs text-muted-foreground">Current plan</p>
+                      <p className="text-xs text-muted-foreground">
+                        {pendingSubscription ? 'Plan being verified' : 'Current plan'}
+                      </p>
                       <p className="mt-1 text-lg font-semibold text-foreground">
-                        {billingQuery.data.plans.find(plan => plan.key === billingQuery.data?.currentTier)?.name ?? 'Free'}
+                        {pendingSubscription
+                          ? pendingPlan?.name ?? 'Paid plan'
+                          : currentPlan?.name ?? 'Free'}
                       </p>
                     </div>
                     <div className="text-right">
-                      {billingQuery.data.subscription && !billingQuery.data.subscription.checkoutPending && (
+                      {pendingSubscription && (
+                        <p className="text-xs font-medium text-muted-foreground">Waiting for Whop confirmation</p>
+                      )}
+                      {billingQuery.data.subscription && !pendingSubscription && (
                         <p className="text-xs font-medium text-muted-foreground">
                           {displayBillingStatus(billingQuery.data.subscription.status)}
                           {billingQuery.data.subscription.cancelAtPeriodEnd ? ' · cancels at period end' : ''}
                         </p>
                       )}
-                      {billingQuery.data.subscription?.currentPeriodEnd && !billingQuery.data.subscription.checkoutPending && (
+                      {billingQuery.data.subscription?.currentPeriodEnd && !pendingSubscription && (
                         <p className="mt-1 text-xs text-muted-foreground">
                           Current period ends {new Date(billingQuery.data.subscription.currentPeriodEnd).toLocaleDateString()}
                         </p>
@@ -265,6 +295,11 @@ export default function SettingsPage() {
                     <span>{billingQuery.data.usage.storageContainers} storage containers</span>
                     <span>{billingQuery.data.usage.apiKeys} API keys</span>
                   </div>
+                  {!pendingSubscription && billingQuery.data.currentTier !== 'free' && currentPlan && (
+                    <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      {billingLimitLabel(currentPlan).map(limit => <li key={limit}>{limit}</li>)}
+                    </ul>
+                  )}
                   {billingQuery.data.currentTier !== 'free' && (
                     <a
                       href={billingQuery.data.subscription?.manageUrl || 'https://whop.com/billing'}
@@ -282,16 +317,35 @@ export default function SettingsPage() {
                   )}
                 </div>
 
-                {!billingQuery.data.checkoutConfigured && (
+                {pendingSubscription && (
+                  <div role="status" className="flex flex-col gap-3 rounded-md border border-primary/20 bg-primary/5 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-foreground">
+                      We’re verifying your {pendingPlan?.name ?? 'paid'} membership with Whop. This page will keep checking for up to 90 seconds.
+                    </p>
+                    {pendingSubscription.status === 'pending_payment' && billingQuery.data.checkoutConfigured && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={checkoutMutation.isPending}
+                        onClick={() => checkoutMutation.mutate(pendingSubscription.tierKey)}
+                      >
+                        {checkoutMutation.isPending ? 'Opening checkout…' : 'Continue checkout'}
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {!billingQuery.data.checkoutConfigured && !pendingSubscription && (
                   <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                     Whop checkout is not configured yet. Free plan limits remain available.
                   </p>
                 )}
 
-                <div className="grid gap-3 md:grid-cols-2">
+                {!pendingSubscription && <div className="grid gap-3 md:grid-cols-2">
                   {billingQuery.data.plans
-                    .filter(plan => plan.key !== billingQuery.data?.currentTier)
-                    .map(plan => {
+                    .filter((plan: BillingPlan) => plan.key !== billingQuery.data?.currentTier)
+                    .map((plan: BillingPlan) => {
                       const hasPaidPlan = billingQuery.data?.currentTier !== 'free';
                       const canStartCheckout = plan.key !== 'free'
                         && !hasPaidPlan
@@ -349,7 +403,7 @@ export default function SettingsPage() {
                         </div>
                       );
                     })}
-                </div>
+                </div>}
               </>
             )}
           </section>

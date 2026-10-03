@@ -83,6 +83,7 @@ async function whopRequest(
   method: "GET" | "POST",
   body?: unknown,
   apiVersionDate?: string,
+  keepEnvelope = false,
 ): Promise<any> {
   if (!whopConfigured(env)) {
     throw new BillingError("AfuCloud billing is not configured yet.", 503);
@@ -106,6 +107,7 @@ async function whopRequest(
       status,
     );
   }
+  if (keepEnvelope) return payload;
   return payload?.data ?? payload?.result ?? payload;
 }
 
@@ -129,26 +131,130 @@ async function findPaidPayment(env: Env, subscription: any): Promise<any | null>
     WHOP_PAYMENT_LIST_API_VERSION,
   );
   const payments = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
-  const payment = payments.find((item: any) =>
+  const matchingPayments = payments.filter((item: any) =>
     item.checkout_configuration_id === subscription.whop_checkout_configuration_id ||
     item.checkout_configuration?.id === subscription.whop_checkout_configuration_id,
   );
+  const payment = matchingPayments.find((item: any) =>
+    ["paid", "succeeded", "complete", "completed"].includes(
+      String(item.status ?? item.state ?? "").toLowerCase(),
+    ),
+  );
   if (!payment) return null;
 
-  const paymentAccountId =
-    payment.company?.id ??
-    payment.account?.id ??
-    payment.account_id ??
-    payment.company_id;
+  const paymentAccountId = payment.company?.id
+    ?? payment.account?.id
+    ?? payment.account_id
+    ?? payment.company_id;
   if (paymentAccountId && paymentAccountId !== env.WHOP_COMPANY_ID) {
     throw new BillingError("The Whop payment belongs to a different account.", 409);
   }
   if (paymentPlanId(payment) !== subscription.whop_plan_id) {
     throw new BillingError("The Whop payment does not match this AfuCloud subscription.", 409);
   }
-  const status = String(payment.status ?? payment.state ?? "").toLowerCase();
-  if (!["paid", "succeeded", "complete", "completed"].includes(status)) return null;
   return payment;
+}
+
+function membershipAccountId(membership: any): string | null {
+  const id = membership?.account?.id
+    ?? membership?.company?.id
+    ?? membership?.account_id
+    ?? membership?.company_id;
+  return typeof id === "string" ? id : null;
+}
+
+function membershipProductId(membership: any): string | null {
+  const id = membership?.product?.id ?? membership?.product_id;
+  return typeof id === "string" ? id : null;
+}
+
+/**
+ * Whop creates a trialing membership before it creates a paid payment record.
+ * Reconcile those memberships by account, product, plan, and server-authored
+ * AfuCloud user metadata; never infer ownership from the checkout redirect.
+ */
+async function findAccessMembership(
+  env: Env,
+  userId: string,
+): Promise<{ id: string; planId: string; tierKey: Exclude<TierKey, "free">; checkoutConfigurationId: string | null } | null> {
+  const plans = [
+    { tierKey: "business" as const, planId: env.WHOP_BUSINESS_PLAN_ID },
+    { tierKey: "pro" as const, planId: env.WHOP_PRO_PLAN_ID },
+  ].filter((plan): plan is { tierKey: Exclude<TierKey, "free">; planId: string } =>
+    typeof plan.planId === "string" && plan.planId.length > 0,
+  );
+
+  for (const plan of plans) {
+    let after: string | undefined;
+    let pageCount = 0;
+
+    while (pageCount < 25) {
+      const query = new URLSearchParams({
+        account_id: env.WHOP_COMPANY_ID!,
+        first: "100",
+        order: "created_at",
+        direction: "desc",
+      });
+      query.append("product_ids[]", env.WHOP_PRODUCT_ID!);
+      query.append("plan_ids[]", plan.planId);
+      for (const status of PAID_ACCESS_STATUSES) {
+        query.append("statuses[]", status);
+      }
+      if (after) query.set("after", after);
+
+      const payload = await whopRequest(
+        env,
+        `/memberships?${query.toString()}`,
+        "GET",
+        undefined,
+        undefined,
+        true,
+      );
+      const memberships = Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload)
+          ? payload
+          : [];
+      const membership = memberships.find((item: any) =>
+        typeof item.id === "string" &&
+        item.id.startsWith("mem_") &&
+        hasPaidAccess(item.status) &&
+        paymentPlanId(item) === plan.planId &&
+        membershipProductId(item) === env.WHOP_PRODUCT_ID &&
+        membershipAccountId(item) === env.WHOP_COMPANY_ID &&
+        item.metadata?.afucloud_user_id === userId,
+      );
+
+      if (membership) {
+        const checkoutId = membership.checkout_configuration_id
+          ?? membership.checkout_configuration?.id
+          ?? null;
+        return {
+          id: membership.id,
+          planId: plan.planId,
+          tierKey: plan.tierKey,
+          checkoutConfigurationId: typeof checkoutId === "string" ? checkoutId : null,
+        };
+      }
+
+      const pageInfo = payload?.page_info;
+      if (!pageInfo?.has_next_page) {
+        after = undefined;
+        break;
+      }
+      if (typeof pageInfo.end_cursor !== "string" || !pageInfo.end_cursor) {
+        throw new BillingError("Whop returned an incomplete membership page.", 502);
+      }
+      after = pageInfo.end_cursor;
+      pageCount += 1;
+    }
+
+    if (after) {
+      throw new BillingError("Could not finish checking Whop memberships. Refresh and try again.", 503);
+    }
+  }
+
+  return null;
 }
 
 async function verifyMembership(env: Env, membershipId: string, subscription: any): Promise<any> {
@@ -156,16 +262,22 @@ async function verifyMembership(env: Env, membershipId: string, subscription: an
     throw new BillingError("Whop returned an invalid membership reference.", 409);
   }
   const membership = await whopRequest(env, `/memberships/${encodeURIComponent(membershipId)}`, "GET");
-  const accountId = membership?.account?.id ?? membership?.company?.id;
+  const accountId = membershipAccountId(membership);
+  const productId = membershipProductId(membership);
+  const planId = paymentPlanId(membership);
 
   if (accountId && accountId !== env.WHOP_COMPANY_ID) {
     throw new BillingError("The membership belongs to a different Whop account.", 409);
   }
-  if (membership?.product_id && membership.product_id !== env.WHOP_PRODUCT_ID) {
+  if (productId && productId !== env.WHOP_PRODUCT_ID) {
     throw new BillingError("The membership does not belong to AfuCloud.", 409);
   }
-  if (membership?.plan_id && membership.plan_id !== subscription.whop_plan_id) {
+  if (planId && planId !== subscription.whop_plan_id) {
     throw new BillingError("The membership does not match the selected AfuCloud plan.", 409);
+  }
+  const linkedUserId = membership?.metadata?.afucloud_user_id;
+  if (typeof linkedUserId === "string" && linkedUserId !== subscription.user_id) {
+    throw new BillingError("The Whop membership is linked to a different AfuCloud account.", 409);
   }
   if (
     membership?.checkout_configuration_id &&
@@ -204,7 +316,7 @@ async function persistVerifiedMembership(
     whop_plan_id: subscription.whop_plan_id,
     whop_checkout_configuration_id: subscription.whop_checkout_configuration_id,
     whop_membership_id: membershipId,
-    whop_payment_id: paymentId ?? subscription.whop_payment_id ?? null,
+    whop_payment_id: paymentId === undefined ? subscription.whop_payment_id ?? null : paymentId,
     current_period_end: verified.current_period_end,
     cancel_at_period_end: verified.cancel_at_period_end,
     manage_url: verified.manage_url,
@@ -213,9 +325,9 @@ async function persistVerifiedMembership(
 }
 
 /**
- * Whop remains the access authority. Pending checkout records are linked only
- * after Whop reports a paid payment and its membership verifies against the
- * exact account, plan, product, and checkout saved for this AfuCloud user.
+ * Whop remains the access authority. Paid payments and active memberships
+ * verify against the exact account, plan, product, and authenticated AfuCloud
+ * user before they are linked to a local subscription.
  */
 export async function resolveSubscription(db: Db, env: Env, userId: string): Promise<any | null> {
   const subscription = await db.getBillingSubscription(userId);
@@ -234,11 +346,30 @@ export async function resolveSubscription(db: Db, env: Env, userId: string): Pro
   }
 
   const payment = await findPaidPayment(env, subscription);
-  if (!payment) return subscription;
+  if (payment) {
+    const membershipId = payment.membership_id ?? payment.membership?.id;
+    if (typeof membershipId === "string") {
+      return await persistVerifiedMembership(db, env, userId, subscription, membershipId, payment.id ?? null);
+    }
+  }
 
-  const membershipId = payment.membership_id ?? payment.membership?.id;
-  if (typeof membershipId !== "string") return subscription;
-  return await persistVerifiedMembership(db, env, userId, subscription, membershipId, payment.id ?? null);
+  const accessMembership = await findAccessMembership(env, userId);
+  if (!accessMembership) return subscription;
+
+  const membershipSubscription = {
+    ...subscription,
+    tier_key: accessMembership.tierKey,
+    whop_plan_id: accessMembership.planId,
+    whop_checkout_configuration_id: accessMembership.checkoutConfigurationId,
+  };
+  return await persistVerifiedMembership(
+    db,
+    env,
+    userId,
+    membershipSubscription,
+    accessMembership.id,
+    null,
+  );
 }
 
 export async function getEntitlements(db: Db, env: Env, userId: string) {
@@ -272,6 +403,33 @@ export async function createSubscriptionCheckout(
   const existing = await resolveSubscription(db, env, userId);
   if (hasPaidAccess(existing?.status)) {
     throw new BillingError("Manage or cancel your current Whop subscription before starting another plan.", 409);
+  }
+
+  if (existing?.status === "pending_payment" && existing.whop_checkout_configuration_id) {
+    if (existing.tier_key !== tierKey) {
+      throw new BillingError("Finish or refresh your pending checkout before choosing a different plan.", 409);
+    }
+    const checkout = await whopRequest(
+      env,
+      `/checkout_configurations/${encodeURIComponent(existing.whop_checkout_configuration_id)}`,
+      "GET",
+    );
+    const checkoutPlanId = checkout?.plan?.id ?? checkout?.plan_id;
+    if (
+      checkout?.id === existing.whop_checkout_configuration_id &&
+      checkoutPlanId === existing.whop_plan_id &&
+      typeof checkout?.purchase_url === "string"
+    ) {
+      return { purchaseUrl: checkout.purchase_url };
+    }
+    throw new BillingError("Your existing Whop checkout is still pending. Refresh your subscription before retrying.", 409);
+  }
+
+  if (existing?.status === "creating_checkout") {
+    const updatedAt = Date.parse(existing.updated_at ?? "");
+    if (!Number.isFinite(updatedAt) || Date.now() - updatedAt < 2 * 60 * 1000) {
+      throw new BillingError("Your checkout is still being prepared. Wait a moment, then refresh.", 409);
+    }
   }
 
   const planId = tierKey === "pro" ? env.WHOP_PRO_PLAN_ID! : env.WHOP_BUSINESS_PLAN_ID!;
