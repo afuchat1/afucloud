@@ -29,6 +29,7 @@ const products = [
 
 const plans = [
   {
+    key: 'free',
     name: 'Free',
     price: '$0',
     period: 'forever',
@@ -38,6 +39,7 @@ const plans = [
     cta: 'Get started',
   },
   {
+    key: 'pro',
     name: 'Pro',
     price: '$12',
     period: '/month',
@@ -48,6 +50,7 @@ const plans = [
     highlight: true,
   },
   {
+    key: 'business',
     name: 'Business',
     price: '$39',
     period: '/month',
@@ -211,13 +214,23 @@ export default function LandingPage() {
                 ))}
               </ul>
               {canShowAccountActions && (
-                <Link href={isSignedIn ? '/dashboard' : '/register'}>
+                <Link
+                  href={
+                    plan.key === 'free'
+                      ? isSignedIn ? '/dashboard' : '/login'
+                      : isSignedIn
+                        ? `/settings?plan=${plan.key}`
+                        : `/login?plan=${plan.key}`
+                  }
+                >
                   <Button
                     className="w-full"
                     variant={plan.highlight ? 'default' : 'outline'}
                     size="sm"
                   >
-                    {isSignedIn ? 'Open dashboard' : plan.cta}
+                    {isSignedIn
+                      ? plan.key === 'free' ? 'Open dashboard' : `Choose ${plan.name}`
+                      : plan.cta}
                   </Button>
                 </Link>
               )}

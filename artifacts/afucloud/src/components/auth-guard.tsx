@@ -5,7 +5,7 @@ import {
   clearAuthTokens,
   clearLegacyAuthTokens,
   dashboardSessionRequest,
-  rememberAuthReturnTo,
+  loginHrefForReturnTo,
   type DashboardUser,
 } from "@/lib/auth-session";
 
@@ -76,8 +76,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   useEffect(() => {
     if (state === "unauthenticated") {
-      rememberAuthReturnTo(`${window.location.pathname}${window.location.search}${window.location.hash}`);
-      setLocation("/login");
+      const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      setLocation(loginHrefForReturnTo(returnTo));
     }
   }, [state, setLocation]);
 

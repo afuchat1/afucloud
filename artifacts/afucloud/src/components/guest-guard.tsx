@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from '@/lib/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { dashboardSessionQueryKey, useDashboardSessionVisibility } from '@/hooks/use-dashboard-session-visibility';
-import { consumeAuthReturnTo } from '@/lib/auth-session';
+import { postAuthDestination } from '@/lib/auth-session';
 
 interface GuestGuardProps {
   children: React.ReactNode;
@@ -14,7 +14,7 @@ export function GuestGuard({ children }: GuestGuardProps) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (session === 'authenticated') setLocation(consumeAuthReturnTo());
+    if (session === 'authenticated') setLocation(postAuthDestination());
   }, [session, setLocation]);
 
   if (session === 'unauthenticated') return <>{children}</>;
@@ -45,7 +45,7 @@ export function GuestGuard({ children }: GuestGuardProps) {
         <>
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground">
-            {session === 'authenticated' ? 'Opening your dashboard…' : 'Checking your session…'}
+            {session === 'authenticated' ? 'Continuing to your account…' : 'Checking your session…'}
           </p>
         </>
       )}

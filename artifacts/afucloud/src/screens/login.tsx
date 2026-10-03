@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from '@/lib/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { AlertCircle } from 'lucide-react';
 import { AuthHeader } from '@/components/auth-header';
-import { consumeAuthReturnTo, dashboardSessionRequest } from '@/lib/auth-session';
+import { authHrefWithCurrentIntent, dashboardSessionRequest, postAuthDestination } from '@/lib/auth-session';
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -17,6 +17,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState(false);
+  const [registerHref, setRegisterHref] = useState('/register');
+
+  useEffect(() => {
+    setRegisterHref(authHrefWithCurrentIntent('/register'));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +35,7 @@ export default function LoginPage() {
       });
       queryClient.clear();
       toast({ title: 'Welcome back', description: 'Successfully logged in' });
-      setLocation(consumeAuthReturnTo());
+      setLocation(postAuthDestination());
     } catch (error) {
       setLoginError(true);
       toast({
@@ -116,7 +121,7 @@ export default function LoginPage() {
 
           <div className="text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>
-            <Link href="/register" className="font-medium text-primary hover:underline" data-testid="link-register">
+            <Link href={registerHref} className="font-medium text-primary hover:underline" data-testid="link-register">
               Sign up
             </Link>
           </div>

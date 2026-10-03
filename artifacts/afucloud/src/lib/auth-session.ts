@@ -9,7 +9,11 @@ export interface DashboardUser {
   createdAt: string;
 }
 
-const AUTH_RETURN_TO_KEY = "afucloud_auth_return_to";
+export type PaidPlanKey = "pro" | "business";
+
+export function paidPlanKey(value: string | null | undefined): PaidPlanKey | null {
+  return value === "pro" || value === "business" ? value : null;
+}
 
 function safeReturnTo(value: string | null | undefined): string | null {
   if (
@@ -33,7 +37,10 @@ function safeReturnTo(value: string | null | undefined): string | null {
     }
     normalizedPath = normalizedPath.replace(/\/+$/, '').toLowerCase() || '/';
     if (
+      normalizedPath.startsWith('//') ||
+      normalizedPath.includes('\\') ||
       url.origin !== window.location.origin ||
+      normalizedPath === '/' ||
       normalizedPath === '/login' ||
       normalizedPath.startsWith('/login/') ||
       normalizedPath === '/register' ||
@@ -47,26 +54,29 @@ function safeReturnTo(value: string | null | undefined): string | null {
   }
 }
 
-export function rememberAuthReturnTo(path: string): void {
-  if (typeof window === "undefined") return;
-  const returnTo = safeReturnTo(path);
-  if (!returnTo) return;
-  try {
-    window.sessionStorage.setItem(AUTH_RETURN_TO_KEY, returnTo);
-  } catch {
-    // Navigation still falls back to the dashboard if storage is unavailable.
-  }
+export function postAuthDestination(search?: string): string {
+  if (typeof window === "undefined") return "/dashboard";
+  const params = new URLSearchParams(search ?? window.location.search);
+  const plan = paidPlanKey(params.get("plan"));
+  if (plan) return `/settings?plan=${plan}`;
+  return safeReturnTo(params.get("returnTo")) ?? "/dashboard";
 }
 
-export function consumeAuthReturnTo(): string {
-  if (typeof window === "undefined") return "/dashboard";
-  try {
-    const returnTo = safeReturnTo(window.sessionStorage.getItem(AUTH_RETURN_TO_KEY));
-    window.sessionStorage.removeItem(AUTH_RETURN_TO_KEY);
-    return returnTo ?? "/dashboard";
-  } catch {
-    return "/dashboard";
-  }
+export function loginHrefForReturnTo(path: string): string {
+  const returnTo = safeReturnTo(path);
+  return returnTo ? `/login?returnTo=${encodeURIComponent(returnTo)}` : "/login";
+}
+
+export function authHrefWithCurrentIntent(path: "/login" | "/register"): string {
+  if (typeof window === "undefined") return path;
+  const current = new URLSearchParams(window.location.search);
+  const intent = new URLSearchParams();
+  const plan = paidPlanKey(current.get("plan"));
+  const returnTo = safeReturnTo(current.get("returnTo"));
+  if (plan) intent.set("plan", plan);
+  if (returnTo) intent.set("returnTo", returnTo);
+  const query = intent.toString();
+  return query ? `${path}?${query}` : path;
 }
 
 export function clearAuthTokens(): void {

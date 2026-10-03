@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from '@/lib/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/page-header';
@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { CreditCard, Copy, ExternalLink, RefreshCw, User, Shield, LogOut } from 'lucide-react';
-import { clearAuthTokens, dashboardSessionRequest, type DashboardUser } from '@/lib/auth-session';
+import { clearAuthTokens, dashboardSessionRequest, paidPlanKey, type DashboardUser } from '@/lib/auth-session';
 import { customFetch } from '@workspace/api-client-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -100,6 +100,29 @@ export default function SettingsPage() {
         : false;
     },
   });
+  useEffect(() => {
+    if (!billingQuery.isSuccess || billingQuery.isFetching) return;
+    const url = new URL(window.location.href);
+    const requestedPlan = paidPlanKey(url.searchParams.get('plan'));
+    if (!requestedPlan) return;
+
+    url.searchParams.delete('plan');
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+
+    const planIsAvailable = billingQuery.data.plans.some(plan => plan.key === requestedPlan);
+    if (
+      billingQuery.data.currentTier === 'free'
+      && !billingQuery.data.subscription?.checkoutPending
+      && billingQuery.data.checkoutConfigured
+      && planIsAvailable
+    ) {
+      setOfferPlanKey(requestedPlan);
+    }
+  }, [billingQuery.data, billingQuery.isFetching, billingQuery.isSuccess]);
   const waitingForCheckoutVerification = withinBillingReturnWindow
     && billingQuery.data?.subscription?.status !== 'checkout_failed'
     && (

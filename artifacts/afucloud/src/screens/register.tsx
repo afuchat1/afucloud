@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from '@/lib/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { AlertCircle } from 'lucide-react';
 import { AuthHeader } from '@/components/auth-header';
-import { consumeAuthReturnTo, dashboardSessionRequest } from '@/lib/auth-session';
+import { authHrefWithCurrentIntent, dashboardSessionRequest, postAuthDestination } from '@/lib/auth-session';
 
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
@@ -18,6 +18,11 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [loginHref, setLoginHref] = useState('/login');
+
+  useEffect(() => {
+    setLoginHref(authHrefWithCurrentIntent('/login'));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +45,7 @@ export default function RegisterPage() {
       });
       queryClient.clear();
       toast({ title: 'Account created', description: 'Welcome to AfuCloud' });
-      setLocation(consumeAuthReturnTo());
+      setLocation(postAuthDestination());
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Please try again';
       setRegisterError(message);
@@ -138,7 +143,7 @@ export default function RegisterPage() {
 
           <div className="text-center text-sm">
             <span className="text-muted-foreground">Already have an account? </span>
-            <Link href="/login" className="font-medium text-primary hover:underline" data-testid="link-login">
+            <Link href={loginHref} className="font-medium text-primary hover:underline" data-testid="link-login">
               Sign in
             </Link>
           </div>
