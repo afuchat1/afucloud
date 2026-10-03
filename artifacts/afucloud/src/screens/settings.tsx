@@ -55,6 +55,7 @@ function billingLimitLabel(plan: BillingPlan): string[] {
 }
 
 function displayBillingStatus(status: string): string {
+  if (status.toLowerCase() === 'trialing') return 'Free trial active';
   return status.replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
@@ -77,6 +78,8 @@ export default function SettingsPage() {
       ? Date.now()
       : null;
   });
+  const withinBillingReturnWindow = billingReturnStartedAt !== null
+    && Date.now() - billingReturnStartedAt < 5 * 60_000;
   const { data: user, isLoading } = useQuery({
     queryKey: ['dashboard-session', 'me'],
     queryFn: () => dashboardSessionRequest<DashboardUser>('me'),
@@ -87,13 +90,23 @@ export default function SettingsPage() {
     retry: false,
     refetchOnMount: 'always',
     refetchInterval: query => {
-      const withinReturnWindow = billingReturnStartedAt !== null
-        && Date.now() - billingReturnStartedAt < 90_000;
-      return withinReturnWindow && query.state.data?.subscription?.checkoutPending
-        ? 4_000
+      const summary = query.state.data;
+      const checkoutFailed = summary?.subscription?.status === 'checkout_failed';
+      return withinBillingReturnWindow
+        && !checkoutFailed
+        && summary?.currentTier !== 'pro'
+        && summary?.currentTier !== 'business'
+        ? 5_000
         : false;
     },
   });
+  const waitingForCheckoutVerification = withinBillingReturnWindow
+    && billingQuery.data?.subscription?.status !== 'checkout_failed'
+    && (
+      !billingQuery.data ||
+      billingQuery.data.currentTier === 'free' ||
+      billingQuery.data.subscription?.checkoutPending === true
+    );
   const pendingSubscription = billingQuery.data?.subscription?.checkoutPending
     ? billingQuery.data.subscription
     : null;
@@ -320,7 +333,7 @@ export default function SettingsPage() {
                 {pendingSubscription && (
                   <div role="status" className="flex flex-col gap-3 rounded-md border border-primary/20 bg-primary/5 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-sm text-foreground">
-                      We’re verifying your {pendingPlan?.name ?? 'paid'} membership with Whop. This page will keep checking for up to 90 seconds.
+                      We’re verifying your {pendingPlan?.name ?? 'paid'} membership with Whop. This page will keep checking for up to 5 minutes.
                     </p>
                     {pendingSubscription.status === 'pending_payment' && billingQuery.data.checkoutConfigured && (
                       <Button
@@ -335,6 +348,11 @@ export default function SettingsPage() {
                     )}
                   </div>
                 )}
+                {waitingForCheckoutVerification && !pendingSubscription && (
+                  <p role="status" className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground">
+                    We’re checking Whop for your completed purchase or free-trial membership. Paid features turn on as soon as Whop confirms access.
+                  </p>
+                )}
 
                 {!billingQuery.data.checkoutConfigured && !pendingSubscription && (
                   <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -342,7 +360,7 @@ export default function SettingsPage() {
                   </p>
                 )}
 
-                {!pendingSubscription && <div className="grid gap-3 md:grid-cols-2">
+                {!pendingSubscription && !waitingForCheckoutVerification && billingQuery.data.currentTier === 'free' && <div className="grid gap-3 md:grid-cols-2">
                   {billingQuery.data.plans
                     .filter((plan: BillingPlan) => plan.key !== billingQuery.data?.currentTier)
                     .map((plan: BillingPlan) => {

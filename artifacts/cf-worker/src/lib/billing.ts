@@ -176,6 +176,7 @@ function membershipProductId(membership: any): string | null {
 async function findAccessMembership(
   env: Env,
   userId: string,
+  subscription: any,
 ): Promise<{ id: string; planId: string; tierKey: Exclude<TierKey, "free">; checkoutConfigurationId: string | null } | null> {
   const plans = [
     { tierKey: "business" as const, planId: env.WHOP_BUSINESS_PLAN_ID },
@@ -216,13 +217,22 @@ async function findAccessMembership(
           ? payload
           : [];
       const membership = memberships.find((item: any) =>
+        (() => {
+          const metadataUserId = item.metadata?.afucloud_user_id;
+          const checkoutMatches = typeof subscription.whop_checkout_configuration_id === "string" &&
+            item.checkout_configuration_id === subscription.whop_checkout_configuration_id;
+          const metadataMatches = metadataUserId === userId;
+          // Whop normally carries checkout metadata onto the membership. The
+          // saved checkout ID is also a server-authored binding for this user,
+          // so it can safely recover memberships when that metadata is absent.
+          return metadataMatches || (metadataUserId == null && checkoutMatches);
+        })() &&
         typeof item.id === "string" &&
         item.id.startsWith("mem_") &&
         hasPaidAccess(item.status) &&
         paymentPlanId(item) === plan.planId &&
         membershipProductId(item) === env.WHOP_PRODUCT_ID &&
-        membershipAccountId(item) === env.WHOP_COMPANY_ID &&
-        item.metadata?.afucloud_user_id === userId,
+        membershipAccountId(item) === env.WHOP_COMPANY_ID,
       );
 
       if (membership) {
@@ -353,7 +363,7 @@ export async function resolveSubscription(db: Db, env: Env, userId: string): Pro
     }
   }
 
-  const accessMembership = await findAccessMembership(env, userId);
+  const accessMembership = await findAccessMembership(env, userId, subscription);
   if (!accessMembership) return subscription;
 
   const membershipSubscription = {
