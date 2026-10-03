@@ -11,7 +11,7 @@ export const DOCS_SECTIONS = [
     slug: 'image-delivery/uploading-images',
     title: 'Uploading Images',
     category: 'Image delivery',
-    summary: 'Upload files with a pre-signed URL and confirm them for delivery.',
+    summary: 'Upload an image and use its returned URL for delivery.',
   },
   {
     id: 'images',

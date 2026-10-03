@@ -285,7 +285,7 @@ export default function DocsPage({ sectionId = null }: { sectionId?: DocsSection
                 <ol className="space-y-4 text-sm text-muted-foreground">
                   <li className="flex gap-3"><span className="shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">1</span><span>Create an AfuCloud project from the dashboard.</span></li>
                   <li className="flex gap-3"><span className="shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">2</span><span>Create a project API key under <strong>Project → API Keys</strong>, or create an account access token for automation.</span></li>
-                  <li className="flex gap-3"><span className="shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">3</span><span>Use that credential on project-data requests. Login and account credential endpoints are not part of the developer API.</span></li>
+                  <li className="flex gap-3"><span className="shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">3</span><span>Use that credential on AfuCloud API requests.</span></li>
                 </ol>
               </div>
               <CodeBlock language="bash" code={`# Use a project API key created in the dashboard
@@ -307,12 +307,11 @@ curl -X POST ${BASE}/v1/projects \\
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">Uploading Images</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Uploads use a 2-step pre-signed URL flow: request an upload URL, PUT the file directly to storage,
-                  then confirm the upload to register the image in your project.
+                  Request a temporary upload URL, send the file to that URL, then confirm the upload. AfuCloud returns the image URL for delivery.
                 </p>
                 <p className="text-sm text-muted-foreground">Supported formats: PNG · JPEG · WebP · GIF · AVIF · SVG · HEIC</p>
               </div>
-              <CodeBlock language="typescript" code={`// Step 1: Get pre-signed upload URL
+              <CodeBlock language="typescript" code={`// Step 1: Request a temporary upload URL
 const { uploadUrl, imageId, key } = await fetch(
   '${BASE}/v1/projects/{projectId}/images/upload-url',
   {
@@ -329,7 +328,7 @@ const { uploadUrl, imageId, key } = await fetch(
   }
 ).then(r => r.json());
 
-// Step 2: PUT the file directly to the pre-signed URL
+// Step 2: Send the file to the returned URL
 await fetch(uploadUrl, {
   method: 'PUT',
   body: fileBlob,
@@ -532,7 +531,6 @@ const isValid = crypto.timingSafeEqual(
               <h2 className="text-base font-semibold">Analytics</h2>
               <p className="text-sm text-muted-foreground">
                 Review image totals, storage use, and upload activity by project or across your account.
-                API request metrics appear when tracking is enabled.
               </p>
             </div>
           </article>
@@ -563,21 +561,20 @@ const isValid = crypto.timingSafeEqual(
             <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
               <h2 className="text-base font-semibold">Domain Registration</h2>
               <p className="text-sm text-muted-foreground">
-                Search for a domain, confirm its live availability and price, then pay AfuCloud through a one-time Whop checkout.
-                A completed payment is verified server-side before AfuCloud submits the registration to Cloudflare.
+                Search for an available domain, review the current registration and renewal price, then complete the purchase through hosted checkout.
               </p>
               <ul className="list-inside list-disc space-y-2 text-sm text-muted-foreground">
-                <li>The buyer is the legal registrant. Registrant contact details are sent to Cloudflare and are not stored in AfuCloud’s order table.</li>
-                <li>Retail pricing adds a 20% AfuCloud service markup to Cloudflare’s live registration and renewal prices. The final quote is shown before checkout.</li>
+                <li>You are the legal registrant. Contact details you provide are shared with the registrar to complete registration.</li>
+                <li>The current registration and renewal prices are shown before checkout.</li>
                 <li>Registration is for one year with automatic renewal disabled. Renewal checkout is not yet available in the dashboard; contact AfuCloud before expiry.</li>
-                <li>Cloudflare does not refund completed domain registrations. If a domain becomes unavailable before registration, AfuCloud requests a Whop refund; unclear outcomes are sent for manual review.</li>
-                <li>Premium domains and non-USD quotes are not available through this checkout. DNS management and transfer-out requests are handled separately from these registration orders.</li>
+                <li>Completed registrations are non-refundable. If a registration cannot be completed after checkout, contact AfuCloud support.</li>
+                <li>Premium domains and non-USD quotes are not supported.</li>
               </ul>
             </div>
             <div className="space-y-4 rounded-lg border border-card-border bg-card p-4 sm:p-6">
               <h3 className="text-sm font-semibold">API flow</h3>
               <p className="text-sm text-muted-foreground">
-                All endpoints require an AfuCloud bearer token. Search and quote first; create checkout only after showing the current price and renewal rate to the buyer.
+                Use an AfuCloud bearer token to search, check current pricing, and create hosted checkout. After purchase, check the order and submit the required registrant details.
               </p>
               <CodeBlock language="bash" code={`# Search names or a full domain
 curl -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
@@ -589,21 +586,21 @@ curl -X POST "${BASE}/v1/domains/registrations/quote" \\
   -H "Content-Type: application/json" \\
   -d '{"domainName":"example.com"}'
 
-# Create a one-time hosted checkout, then redirect to purchaseUrl
+# Create hosted checkout, then redirect the buyer to purchaseUrl
 curl -X POST "${BASE}/v1/domains/registrations/checkout" \\
   -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{"domainName":"example.com"}'
 
-# Refresh payment status after Whop returns the buyer
+# Check registration status after checkout
 curl -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
   "${BASE}/v1/domains/registrations/orders/ORDER_ID"
 
-# Submit the buyer's legal registrant details after payment is confirmed
+# Submit the required registrant details to complete registration
 curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
   -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
   -H "Content-Type: application/json" \\
-  -d '{"registrant":{"email":"buyer@example.com","phone":"+256.700000000","name":"Jane Doe","street":"1 Main Street","city":"Kampala","state":"Central","postalCode":"00000","countryCode":"UG"}}'`} />
+  -d '{"registrant":{"email":"buyer@example.com","phone":"+1.202.555.0100","name":"Alex Example","street":"555 Example Street","city":"Example City","state":"CA","postalCode":"00000","countryCode":"US"}}'`} />
             </div>
           </article>
 
@@ -616,7 +613,7 @@ curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
                 <h2 className="text-base font-semibold">API Reference</h2>
                 <p className="text-sm text-muted-foreground">
                   All endpoints are versioned under <code className="rounded bg-muted px-1.5 font-mono text-xs">/v1/</code>.
-                  Every response includes standard fields.
+                  Use the documented paths and methods to access public AfuCloud features.
                 </p>
               </div>
               <div className="max-w-full overflow-x-auto rounded-lg border border-card-border bg-card">
@@ -634,7 +631,6 @@ curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
                   </thead>
                   <tbody className="divide-y divide-card-border">
                     {[
-                      ['GET', '/healthz', '—', 'Health check'],
                       ['GET', '/v1/projects', '✓', 'List projects'],
                       ['POST', '/v1/projects', '✓', 'Create project'],
                       ['GET', '/v1/projects/:id', '✓', 'Get project'],
@@ -642,7 +638,7 @@ curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
                       ['DELETE', '/v1/projects/:id', '✓', 'Delete project'],
                       ['GET', '/v1/projects/:id/stats', '✓', 'Project storage stats'],
                       ['GET', '/v1/projects/:id/images', '✓', 'List images'],
-                      ['POST', '/v1/projects/:id/images/upload-url', '✓', 'Get pre-signed upload URL'],
+                      ['POST', '/v1/projects/:id/images/upload-url', '✓', 'Request temporary upload URL'],
                       ['POST', '/v1/projects/:id/images/confirm-upload', '✓', 'Confirm upload'],
                       ['GET', '/v1/projects/:id/images/:imgId', '✓', 'Get image'],
                       ['PATCH', '/v1/projects/:id/images/:imgId', '✓', 'Update image'],
@@ -660,11 +656,11 @@ curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
                       ['POST', '/v1/tokens', '✓', 'Create personal token'],
                       ['DELETE', '/v1/tokens/:id', '✓', 'Revoke personal token'],
                       ['GET', '/v1/activity', '✓', 'Activity log'],
-                      ['GET', '/v1/domains/registrations/search', '✓', 'Search registrar domains'],
+                      ['GET', '/v1/domains/registrations/search', '✓', 'Search available domains'],
                       ['POST', '/v1/domains/registrations/quote', '✓', 'Get live availability and price'],
-                      ['POST', '/v1/domains/registrations/checkout', '✓', 'Create one-time Whop checkout'],
+                      ['POST', '/v1/domains/registrations/checkout', '✓', 'Create hosted checkout'],
                       ['GET', '/v1/domains/registrations/orders', '✓', 'List registration orders'],
-                      ['GET', '/v1/domains/registrations/orders/:orderId', '✓', 'Refresh payment and order status'],
+                      ['GET', '/v1/domains/registrations/orders/:orderId', '✓', 'Check registration status'],
                       ['POST', '/v1/domains/registrations/orders/:orderId/register', '✓', 'Submit legal registrant details'],
                     ].map(([method, path, auth, desc]) => (
                       <tr key={path + method} className="hover:bg-muted/20">

@@ -12,7 +12,7 @@
 - [AfuCloud subscription tiers](afucloud-subscription-tiers.md) — keep the selected monthly prices and enforceable resource caps consistent across billing and UI
 - [AfuCloud footer standard](afucloud-footer-standard.md) — use a substantial production-site company footer, with Vercel as a visual benchmark; avoid compact link-card layouts
 - [AfuCloud brand identity](afucloud-brand-identity.md) — #07965B is the platform green; use the provided green cloud/upload SVG as the canonical brand mark
-- [Focused AfuCloud pages](afucloud-focused-pages.md) — concise product copy, a docs path for deeper help, and one logo per page
+- [Focused AfuCloud pages](afucloud-focused-pages.md) — public copy stays brief; explain customer interfaces, not internal infrastructure or data flows
 - [AfuCloud Cloudflare runtime](afucloud-cloudflare-runtime.md) — keep Next.js SSR on an OpenNext Worker; deploy the API Worker separately
 - [Whop trial entitlements](whop-trial-entitlements.md) — trialing memberships can grant access before a payment record exists; bind them by exact server-authored AfuCloud user metadata
 - [AfuCloud auth redirect intent](auth-redirect-intent.md) — generic sign-in defaults to dashboard; only protected-page returns and explicit paid-plan intents override it

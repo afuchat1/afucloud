@@ -1,10 +1,10 @@
 ---
 name: Focused AfuCloud pages
-description: The user's content and logo-count rule for AfuCloud product pages.
+description: The user's public-content boundary and asset rule for AfuCloud pages.
 ---
 
-AfuCloud product pages should be focused and not over-explain features. Link each product to documentation for how it works. Use one logo per page and no other assets.
+AfuCloud public pages should be focused and explain only customer-facing features and the API details required to use them. Do not expose internal infrastructure or data flows between platform features. Link products to concise docs; use one logo per page and no other assets.
 
-**Why:** the user stated this direction for every AfuCloud product page.
+**Why:** the user said internal infrastructure and feature-to-feature data flows can expose the platform to attacks; public content should only explain what is meant for customers.
 
-**How to apply:** Keep product copy brief, link further explanation to the relevant docs section, and show only one brand logo on each page.
+**How to apply:** Keep product copy brief. Preserve public API contracts, customer policies, and setup steps users need; remove internal provider orchestration, storage details, rollout dates, and implementation sequencing.

@@ -1,4 +1,4 @@
-import RoadmapPage from '@/screens/roadmap';
+import RoadmapPage from '@/screens/public-roadmap';
 import type { GetServerSideProps } from 'next';
 import { getPublicSiteUrl } from '@/lib/server-site-url';
 
