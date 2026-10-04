@@ -1,7 +1,7 @@
 import { AwsClient } from "aws4fetch";
 import type { Env } from "../types";
 
-const PUBLIC_IMAGE_BASE_URL = "https://img.afuchat.com";
+const PUBLIC_IMAGE_BASE_URL = "https://cdn.afuchat.com/cloud/images";
 
 export function getStorageClient(env: Env): AwsClient {
   return new AwsClient({
@@ -35,8 +35,9 @@ export async function generateUploadUrl(key: string, contentType: string, env: E
 }
 
 /**
- * Images are served directly from the public R2 custom domain. Keep object
- * slashes as path separators while escaping individual key segments.
+ * New image URLs use AfuCloud's isolated CDN namespace. Keep object slashes as
+ * path separators while escaping individual key segments. The legacy
+ * img.afuchat.com R2 domain remains available for previously issued URLs.
  */
 export function getPublicUrl(key: string): string {
   const encodedKey = key.split("/").map(encodeURIComponent).join("/");

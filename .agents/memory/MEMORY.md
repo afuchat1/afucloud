@@ -1,7 +1,7 @@
 - [Supabase pooler SSL](supabase-pooler-ssl.md) — direct DB hostname may not resolve from Replit; use session pooler URL, strip sslmode from URL
 - [AfuCloud bootstrap](afucloud-bootstrap.md) — target Supabase project poijhidfekwfthyksatp, R2 bucket afucloud-images, pooler-backed API
-- [R2 CORS and image serving](r2-cors-image-serving.md) — published image links use img.afuchat.com; API redirects remain only for local storage previews and non-public routes
-- [CF Worker Architecture](cf-worker-architecture.md) — Hono + Supabase REST, Cloudflare deployment scopes, and direct Whop credentials for production billing
+- [R2 CORS and image serving](r2-cors-image-serving.md) — AfuCloud URLs use /cloud/images or /cloud/storage; preserve the legacy img host and shared CDN root
+- [CF Worker Architecture](cf-worker-architecture.md) — product API stays behind a route-owning gateway; preserve legacy paths and hand off Cloudflare routes explicitly
 - [Afu ecosystem isolation](afu-ecosystem-isolation.md) — AfuCloud changes stay product-scoped; shared routes, storage, and database changes need owner and compatibility checks
 - [Shared Afu authentication](shared-afu-auth.md) — auth.users is the only identity/credential source; accounts.profiles links by user_id and product tables reference auth.users directly
 - [AfuCloud dashboard session boundary](dashboard-session-boundary.md) — browser cookie sessions stay separate from developer bearer tokens; PATs are account-scoped and project keys stay project-scoped

@@ -13,8 +13,10 @@ R2 does not allow browser PUT by default. `configureBucketCors()` in `artifacts/
 **How to apply:** Call `configureBucketCors()` in `artifacts/api-server/src/index.ts` after the server starts listening (already done). Errors are logged as warnings, not fatal.
 
 ## Public image serving
-Published AfuCloud image responses and copied links use `https://img.afuchat.com/<object-key>`, preserving key slashes and URL-encoding individual path segments. The custom domain is connected to the `afucloud-images` R2 bucket. The frontend normalizes legacy `/v1/storage/:key` image URLs to this public URL in production.
+New AfuCloud image URLs use `https://cdn.afuchat.com/cloud/images/<object-key>`, preserving key slashes and URL-encoding individual path segments. The `afucloud-cdn` Worker serves this path from the `afucloud-images` bucket. Container objects use `/cloud/storage/<public-key>`; the Worker maps them back to `containers/<public-key>`.
 
-**Why:** Image API redirects are not the public object URL the user needs to preview or copy. The active R2 custom domain serves the same object key directly.
+The existing `cdn.afuchat.com` root remains attached to `afuchat-media`; only `/cloud/*` is routed to AfuCloud. The `img.afuchat.com` custom domain remains attached to `afucloud-images` so previously issued image links continue working. The frontend normalizes legacy `/v1/storage/:key` URLs to `/cloud/images` or `/cloud/storage` in production.
 
-**How to apply:** Keep image response serialization and the image-detail copy/display path on `img.afuchat.com`. The Express API may retain its API route only for credential-free local development files; do not return it as a published image URL. No Supabase URL migration is needed because the URL is derived from `storage_key`.
+**Why:** AfuCloud needs a product-scoped CDN path without taking over the shared CDN hostname's existing root bucket or invalidating old image links.
+
+**How to apply:** Generate new image links under `/cloud/images` and container links under `/cloud/storage`. Keep the root CDN association and legacy `img.afuchat.com` domain unchanged. The Express API may retain its API route only for credential-free local development files; do not return it as a published image URL. No Supabase URL migration is needed because the URL is derived from `storage_key`.

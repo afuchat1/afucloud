@@ -1,0 +1,12 @@
+name = "afucloud-cdn"
+main = "src/index.ts"
+compatibility_date = "2025-07-01"
+account_id = "42e79186125e8ff83e51f15816e074de"
+workers_dev = false
+routes = [
+  { pattern = "cdn.afuchat.com/cloud/*", zone_name = "afuchat.com" }
+]
+
+[[r2_buckets]]
+binding = "IMAGES_BUCKET"
+bucket_name = "afucloud-images"

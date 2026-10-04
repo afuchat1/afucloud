@@ -41,27 +41,12 @@ function normalizeTimestamp(value: Date | string | null | undefined, fallback?: 
   return new Date().toISOString();
 }
 
-function mediaKind(contentType: string | null | undefined, name: string): "image" | "video" | "other" {
-  const normalizedType = contentType?.toLowerCase() ?? "";
-  if (normalizedType.startsWith("image/") || /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|webp)$/i.test(name)) return "image";
-  if (normalizedType.startsWith("video/") || /\.(avi|m4v|mkv|mov|mp4|mpeg|mpg|webm)$/i.test(name)) return "video";
-  return "other";
-}
-
-function publicHostname(contentType: string | null | undefined, name: string, configuredHostname: string | null): string {
-  const kind = mediaKind(contentType, name);
-  const defaultHostname = kind === "image"
-    ? "img.afuchat.com"
-    : kind === "video"
-      ? "vid.afuchat.com"
-      : "cdn.afuchat.com";
-  if (!configuredHostname) return defaultHostname;
-
-  const configured = configuredHostname.toLowerCase().replace(/\.$/, "");
-  if (configured === "img.afuchat.com") return kind === "image" ? configured : defaultHostname;
-  if (configured === "vid.afuchat.com") return kind === "video" ? configured : defaultHostname;
-  if (configured === "cdn.afuchat.com") return kind === "other" ? configured : defaultHostname;
-  return configured;
+function publicStorageBase(configuredHostname: string | null): string {
+  const configured = configuredHostname?.toLowerCase().replace(/\.$/, "");
+  if (!configured || ["img.afuchat.com", "vid.afuchat.com", "cdn.afuchat.com"].includes(configured)) {
+    return "https://cdn.afuchat.com/cloud/storage";
+  }
+  return `https://${configured}`;
 }
 
 function objectApi(object: typeof storageObjectsTable.$inferSelect, containerId: string, cdn: CdnResolution) {
@@ -70,7 +55,7 @@ function objectApi(object: typeof storageObjectsTable.$inferSelect, containerId:
   const encodedPublicKey = encodeObjectPath(publicKey);
   const publicUrl = object.isFolder
     ? null
-    : `https://${publicHostname(object.contentType, object.name, cdn.hostname)}/${encodedPublicKey}`;
+    : `${publicStorageBase(cdn.hostname)}/${encodedPublicKey}`;
 
   return {
     id: object.id,
@@ -176,7 +161,7 @@ router.get("/v1/storage-containers", requireAuth, async (req: AuthRequest, res):
       bytes: sql<number>`coalesce(sum(${storageObjectsTable.size}), 0)`,
     }).from(storageObjectsTable).where(and(eq(storageObjectsTable.containerId, container.id), eq(storageObjectsTable.isFolder, false)));
     const cdn = await resolveContainerCdn(container);
-    return { ...container, objectCount: Number(count), storageUsed: Number(bytes), cdnUrl: cdn.hostname ? `https://${cdn.hostname}` : null, cdnError: cdn.error };
+    return { ...container, objectCount: Number(count), storageUsed: Number(bytes), cdnUrl: cdn.hostname ? publicStorageBase(cdn.hostname) : null, cdnError: cdn.error };
   }));
   res.json(result);
 });
@@ -202,7 +187,7 @@ router.get("/v1/storage-containers/:id", requireAuth, async (req: AuthRequest, r
   const container = await ownedContainer(req.params.id as string, req.userId!);
   if (!container) { res.status(404).json({ error: "Container not found" }); return; }
   const cdn = await resolveContainerCdn(container);
-  res.json({ ...container, cdnUrl: cdn.hostname ? `https://${cdn.hostname}` : null, cdnError: cdn.error });
+  res.json({ ...container, cdnUrl: cdn.hostname ? publicStorageBase(cdn.hostname) : null, cdnError: cdn.error });
 });
 
 router.patch("/v1/storage-containers/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
@@ -219,7 +204,7 @@ router.patch("/v1/storage-containers/:id", requireAuth, async (req: AuthRequest,
   if (req.body?.accessMode !== undefined && ["private", "public"].includes(req.body.accessMode)) updates.accessMode = req.body.accessMode;
   const [updated] = await db.update(storageContainersTable).set(updates).where(eq(storageContainersTable.id, container.id)).returning();
   const cdn = await resolveContainerCdn(updated);
-  res.json({ ...updated, cdnUrl: cdn.hostname ? `https://${cdn.hostname}` : null, cdnError: cdn.error });
+  res.json({ ...updated, cdnUrl: cdn.hostname ? publicStorageBase(cdn.hostname) : null, cdnError: cdn.error });
 });
 
 router.delete("/v1/storage-containers/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
@@ -404,7 +389,7 @@ router.patch("/v1/storage-containers/:id/cdn", requireAuth, async (req: AuthRequ
     cdnHostnameId: hostname.hostnames.id,
     cdnStatus: "active",
   }).where(eq(storageContainersTable.id, container.id)).returning();
-  res.json({ ...updated, cdnUrl: `https://${hostname.hostnames.hostname}`, cdnStatus: "active", cdnError: null });
+  res.json({ ...updated, cdnUrl: publicStorageBase(hostname.hostnames.hostname), cdnStatus: "active", cdnError: null });
 });
 
 export default router;

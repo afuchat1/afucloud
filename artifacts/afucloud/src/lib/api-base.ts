@@ -6,7 +6,7 @@ export const API_BASE = isDevelopment
   ? '/api'
   : (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.VITE_API_BASE_URL || 'https://api.afuchat.com/afucloud');
 
-const PUBLIC_IMAGE_BASE_URL = 'https://img.afuchat.com';
+const PUBLIC_CDN_BASE_URL = 'https://cdn.afuchat.com/cloud';
 
 function publicUrlForStorageEndpoint(url: string): string | null {
   let pathname: string;
@@ -29,7 +29,10 @@ function publicUrlForStorageEndpoint(url: string): string | null {
   } catch {
     // Keep the original path if a legacy URL contains malformed escaping.
   }
-  return `${PUBLIC_IMAGE_BASE_URL}/${key.split('/').map(encodeURIComponent).join('/')}`;
+  const isContainerObject = key.startsWith('containers/');
+  const route = isContainerObject ? 'storage' : 'images';
+  const publicKey = isContainerObject ? key.slice('containers/'.length) : key;
+  return `${PUBLIC_CDN_BASE_URL}/${route}/${publicKey.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 export function resolveImageUrl(url: string | null | undefined): string {

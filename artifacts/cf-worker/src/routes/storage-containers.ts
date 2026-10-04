@@ -41,27 +41,12 @@ function normalizeTimestamp(value: unknown, fallback?: unknown): string {
   return new Date().toISOString();
 }
 
-function mediaKind(contentType: string | null | undefined, name: string): "image" | "video" | "other" {
-  const normalizedType = contentType?.toLowerCase() ?? "";
-  if (normalizedType.startsWith("image/") || /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|webp)$/i.test(name)) return "image";
-  if (normalizedType.startsWith("video/") || /\.(avi|m4v|mkv|mov|mp4|mpeg|mpg|webm)$/i.test(name)) return "video";
-  return "other";
-}
-
-function publicHostname(contentType: string | null | undefined, name: string, configuredHostname: string | null): string {
-  const kind = mediaKind(contentType, name);
-  const defaultHostname = kind === "image"
-    ? "img.afuchat.com"
-    : kind === "video"
-      ? "vid.afuchat.com"
-      : "cdn.afuchat.com";
-  if (!configuredHostname) return defaultHostname;
-
-  const configured = configuredHostname.toLowerCase().replace(/\.$/, "");
-  if (configured === "img.afuchat.com") return kind === "image" ? configured : defaultHostname;
-  if (configured === "vid.afuchat.com") return kind === "video" ? configured : defaultHostname;
-  if (configured === "cdn.afuchat.com") return kind === "other" ? configured : defaultHostname;
-  return configured;
+function publicStorageBase(configuredHostname: string | null): string {
+  const configured = configuredHostname?.toLowerCase().replace(/\.$/, "");
+  if (!configured || ["img.afuchat.com", "vid.afuchat.com", "cdn.afuchat.com"].includes(configured)) {
+    return "https://cdn.afuchat.com/cloud/storage";
+  }
+  return `https://${configured}`;
 }
 
 function objectApi(object: any, containerId: string, cdn: CdnResolution) {
@@ -70,7 +55,7 @@ function objectApi(object: any, containerId: string, cdn: CdnResolution) {
   const encodedPublicKey = encodeObjectPath(publicKey);
   const publicUrl = object.is_folder
     ? null
-    : `https://${publicHostname(object.content_type, object.name, cdn.hostname)}/${encodedPublicKey}`;
+    : `${publicStorageBase(cdn.hostname)}/${encodedPublicKey}`;
 
   return {
     id: object.id,
@@ -124,7 +109,7 @@ function containerApi(container: any, containerStats: { objectCount: number; sto
     createdAt: normalizeTimestamp(container.created_at),
     updatedAt: normalizeTimestamp(container.updated_at, container.created_at),
     ...containerStats,
-    cdnUrl: cdn.hostname ? `https://${cdn.hostname}` : null,
+    cdnUrl: cdn.hostname ? publicStorageBase(cdn.hostname) : null,
     cdnError: cdn.error,
   };
 }

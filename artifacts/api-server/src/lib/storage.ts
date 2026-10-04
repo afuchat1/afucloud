@@ -11,7 +11,7 @@ const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? "";
 const ACCESS_KEY_ID = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID ?? "";
 const SECRET_ACCESS_KEY = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY ?? "";
 const BUCKET_NAME = process.env.R2_BUCKET_NAME ?? "afucloud-images";
-const PUBLIC_IMAGE_BASE_URL = "https://img.afuchat.com";
+const PUBLIC_IMAGE_BASE_URL = "https://cdn.afuchat.com/cloud/images";
 const DEV_STORAGE_ROOT = path.resolve(
   process.env.AFU_DEV_STORAGE_DIR ?? path.join(process.cwd(), ".dev-storage"),
 );

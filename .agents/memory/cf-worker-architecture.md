@@ -33,9 +33,13 @@ wrangler secret put CLOUDFLARE_R2_SECRET_ACCESS_KEY
 - Run: `pnpm --filter @workspace/cf-worker run dev`
 
 ## Production deploy
-1. `cd artifacts/cf-worker && wrangler secret put SUPABASE_SERVICE_KEY` (etc.)
-2. Uncomment the `routes` block in `wrangler.toml` with `api.afuchat.com/*`
-3. `wrangler deploy`
+The public API host is owned by `workers/api-gateway/`, which forwards `/afucloud/*`, legacy `/v1/*`, `/`, and `/healthz` to `afucloud-api` through the `AFUCLOUD_API` service binding. The product Worker config intentionally does not own `api.afuchat.com` routes. `workers/afucloud-cdn/` owns only `cdn.afuchat.com/cloud/*` and binds to `afucloud-images`.
+
+Wrangler refuses to deploy a route pattern while it is still assigned to another Worker. For a route handoff, deploy and verify the gateway first, transfer only the intended existing route records to the gateway, then redeploy the gateway config. Keep the legacy `/v1/*` dispatch in place.
+
+**Why:** The API and CDN hostnames are shared; product behavior and buckets remain isolated, while legacy API and image URLs must continue working.
+
+**How to apply:** Deploy each Worker from its own Wrangler config. Keep `/v1/*` and `/afucloud/*` dispatched to `afucloud-api`, do not put public host routes back in the product API config, and do not reassign the CDN root or `img.afuchat.com`.
 
 ## Deployment token scope
 - Wrangler deploy requires a Cloudflare API token with `Account → Workers Scripts → Edit` for the target account and `Zone → Workers Routes → Edit` for the routed zone. A token can read/list a Worker while still being unable to upload a new version.

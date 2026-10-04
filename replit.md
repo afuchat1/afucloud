@@ -78,7 +78,8 @@ workflow is stale or the development handler is missing.
 
 - Replit is source storage and editing only; no Replit server is part of the AfuCloud runtime.
 - The production frontend sends API requests directly to `https://api.afuchat.com`.
-- The Cloudflare Worker is the only API layer and is the only component allowed to access Supabase and R2.
+- `workers/api-gateway/` owns the public API host and dispatches AfuCloud paths to `afucloud-api` through a Cloudflare service binding.
+- `artifacts/cf-worker/` is the product API and the only component allowed to access Supabase and R2 for application behavior.
 - Do not put AfuCloud secrets, database URLs, or storage credentials in frontend variables.
 - Production secrets are stored only in the Cloudflare Worker secret store.
 
@@ -86,8 +87,10 @@ workflow is stale or the development handler is missing.
 
 - **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), with shared identities in Supabase's `auth.users`; shared profiles live in `accounts.profiles`, while AfuCloud-owned data lives in the `afucloud` schema
 - **Object storage**: Cloudflare R2 bucket `afucloud-images`
+- **Public CDN**: new AfuCloud assets use `https://cdn.afuchat.com/cloud/*`; the existing `cdn.afuchat.com` root remains attached to its current R2 bucket, and `img.afuchat.com` remains available for previously issued AfuCloud image URLs
 - **Frontend**: Next.js with OpenNext, deployed as a Cloudflare Worker separately from the API
-- **Backend**: Cloudflare Worker (Hono) (`artifacts/cf-worker/`) — deployed to Cloudflare's edge
+- **Backend**: product API Worker (Hono) in `artifacts/cf-worker/`, behind the shared API gateway in `workers/api-gateway/`
+- **CDN edge**: `workers/afucloud-cdn/` serves only the AfuCloud `/cloud/*` namespace from `afucloud-images`
 
 ## Stack
 
@@ -106,6 +109,8 @@ workflow is stale or the development handler is missing.
 
 - `artifacts/afucloud/` — React frontend (SaaS dashboard)
 - `artifacts/cf-worker/` — Cloudflare Worker edge API (production)
+- `workers/api-gateway/` — shared public API routing Worker
+- `workers/afucloud-cdn/` — AfuCloud-only CDN Worker for `/cloud/*`
 - `lib/db/` — Drizzle ORM schema + migrations (source of truth for DB schema)
 - `lib/api-spec/` — OpenAPI 3.1 spec (source of truth for API contract)
 - `lib/api-zod/` — Zod schemas generated from OpenAPI spec (for API validation)
@@ -113,20 +118,20 @@ workflow is stale or the development handler is missing.
 
 ## Cloudflare Worker — Deployment
 
-The CF Worker in `artifacts/cf-worker/` is the production edge API. It uses Hono + Supabase REST + aws4fetch.
+The product API Worker in `artifacts/cf-worker/` uses Hono + Supabase REST + aws4fetch. Public API routing is owned by `workers/api-gateway/`.
 
 ### Canonical production deployment
 
-There is one permanent production Worker for the AfuCloud product:
+The public host is routed through the shared gateway. AfuCloud remains isolated behind its own product Worker:
 
-- **Worker name:** `afucloud-api`
-- **Source:** `artifacts/cf-worker/wrangler.toml`
-- **Public API:** `https://api.afuchat.com`
-- **Staged product route:** `api.afuchat.com/afucloud/*`
-- **Legacy compatibility route:** `api.afuchat.com/*` remains until consumers and shared routing are verified
+- **API gateway:** `afu-api-gateway`, configured in `workers/api-gateway/wrangler.toml`
+- **Product API:** `afucloud-api`, configured in `artifacts/cf-worker/wrangler.toml`, called through the gateway's `AFUCLOUD_API` service binding
+- **Product paths:** `/afucloud/*` and legacy `/v1/*` both reach `afucloud-api`; `/` and `/healthz` are forwarded for compatibility
+- **CDN Worker:** `afucloud-cdn`, configured in `workers/afucloud-cdn/wrangler.toml`, handles only `cdn.afuchat.com/cloud/*`
+- **CDN compatibility:** keep the existing `cdn.afuchat.com` R2 custom-domain association and all root paths unchanged; keep `img.afuchat.com` active for old image URLs
 - **Database/Auth:** Supabase project `poijhidfekwfthyksatp`
 
-All AfuCloud projects use this AfuCloud-owned Worker. Do not route another Afu product to it, create a duplicate AfuCloud API Worker, or remove the legacy route before compatibility and shared-routing owners are verified.
+Do not route another Afu product to `afucloud-api`, reassign another product's bucket or root CDN paths, or remove `/v1/*` compatibility. The public API gateway is shared infrastructure; keep its product dispatch explicit and preserve existing callers.
 
 ### Production secrets setup (Cloudflare only)
 
@@ -155,10 +160,15 @@ The Replit Whop connector is broker-managed and does not OAuth into an existing 
 ### Deploy:
 
 ```bash
+# From artifacts/cf-worker/, deploy the gateway and AfuCloud CDN Worker with:
+pnpm exec wrangler deploy --config ../../workers/api-gateway/wrangler.toml
+pnpm exec wrangler deploy --config ../../workers/afucloud-cdn/wrangler.toml
+
+# Deploy the product API Worker separately:
 pnpm --filter @workspace/cf-worker run deploy
-# or directly:
-cd artifacts/cf-worker && npx wrangler deploy
 ```
+
+Deploy the CDN Worker before changing API responses to its `/cloud/*` URLs. Keep `/v1/*` and `/afucloud/*` covered by the gateway during API route ownership changes.
 
 ### Environment variables in `wrangler.toml` (non-secret):
 

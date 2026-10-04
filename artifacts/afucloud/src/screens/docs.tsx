@@ -348,7 +348,7 @@ const image = await fetch(
   }
 ).then(r => r.json());
 
-console.log(image.url); // https://img.afuchat.com/...`} />
+console.log(image.url); // https://cdn.afuchat.com/cloud/images/...`} />
           </article>
 
           {/* Images */}
