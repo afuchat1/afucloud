@@ -8,6 +8,8 @@ account_id = "42e79186125e8ff83e51f15816e074de"
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 routes = [
+  # Product-specific API path; the broader routes remain during compatibility migration.
+  { pattern = "api.afuchat.com/afucloud/*", zone_name = "afuchat.com" },
   { pattern = "api.afuchat.com", zone_name = "afuchat.com" },
   { pattern = "api.afuchat.com/*", zone_name = "afuchat.com" }
 ]

@@ -73,8 +73,8 @@ function applyBaseUrl(input: RequestInfo | URL): RequestInfo | URL {
   if (!url.startsWith("/")) return input;
 
   // The generated client retains the Express-compatible /api prefix.
-  // The production Worker exposes the same API at /v1, so remove only that
-  // compatibility prefix when routing through the configured remote API.
+  // Production's configured base URL includes the /afucloud product prefix,
+  // so remove only the local proxy prefix and retain the API version path.
   const apiPath = url.startsWith("/api/") ? url.slice(4) : url;
   const absolute = `${_baseUrl}${apiPath}`;
   if (typeof input === "string") return absolute;

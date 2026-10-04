@@ -4,7 +4,7 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
 
 export const API_BASE = isDevelopment
   ? '/api'
-  : (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.VITE_API_BASE_URL || 'https://api.afuchat.com');
+  : (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.VITE_API_BASE_URL || 'https://api.afuchat.com/afucloud');
 
 const PUBLIC_IMAGE_BASE_URL = 'https://img.afuchat.com';
 
@@ -43,7 +43,7 @@ export function resolveImageUrl(url: string | null | undefined): string {
   const base = API_BASE.replace(/\/+$/, '');
   let path = url.startsWith('/') ? url : `/${url}`;
   // Older API-server responses include the local proxy prefix. Production
-  // routes go directly to the Worker, whose canonical API prefix is /v1.
+  // requests use the product-scoped /afucloud/v1 path.
   if (!base.startsWith('/') && (path === '/api/v1' || path.startsWith('/api/v1/'))) {
     path = path.slice(4);
   }

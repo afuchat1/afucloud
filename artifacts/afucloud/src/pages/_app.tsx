@@ -10,7 +10,7 @@ import { SeoHead } from '@/components/seo-head';
 import '@/index.css';
 
 const configuredApiBase =
-  process.env.NEXT_PUBLIC_API_BASE_URL || process.env.VITE_API_BASE_URL || 'https://api.afuchat.com';
+  process.env.NEXT_PUBLIC_API_BASE_URL || process.env.VITE_API_BASE_URL || 'https://api.afuchat.com/afucloud';
 setBaseUrl(process.env.NODE_ENV === 'production' ? configuredApiBase : null);
 if (typeof window !== 'undefined') clearLegacyAuthTokens();
 

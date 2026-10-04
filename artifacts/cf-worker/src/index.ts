@@ -72,36 +72,41 @@ app.get("/healthz", (c) =>
   c.json({ status: "ok", timestamp: new Date().toISOString(), version: "v1" }),
 );
 
-// ── API routes ────────────────────────────────────────────────────────────────
-app.route("/v1/dashboard/session", authRoutes);
-app.route("/v1/projects", projectRoutes);
-app.route("/v1/analytics", analyticsRoutes);
-app.route("/v1/tokens", tokenRoutes);
-app.route("/v1/activity", activityRoutes);
-app.route("/v1/storage", storageRoutes);
-app.route("/v1/domains", domainRoutes);
-app.route("/v1/domains/registrations", domainRegistrationRoutes);
-app.route("/v1/billing", billingRoutes);
-app.route("/v1/storage-containers", storageContainerRoutes);
+// Keep the legacy /v1 API while adding the product-identifying
+// /afucloud/v1 prefix required by the shared API routing architecture.
+function mountApiRoutes(prefix: string) {
+  app.route(`${prefix}/dashboard/session`, authRoutes);
+  app.route(`${prefix}/projects`, projectRoutes);
+  app.route(`${prefix}/analytics`, analyticsRoutes);
+  app.route(`${prefix}/tokens`, tokenRoutes);
+  app.route(`${prefix}/activity`, activityRoutes);
+  app.route(`${prefix}/storage`, storageRoutes);
+  app.route(`${prefix}/domains`, domainRoutes);
+  app.route(`${prefix}/domains/registrations`, domainRegistrationRoutes);
+  app.route(`${prefix}/billing`, billingRoutes);
+  app.route(`${prefix}/storage-containers`, storageContainerRoutes);
 
-// ── Project-scoped sub-routes ─────────────────────────────────────────────────
-// Images: /v1/projects/:projectId/images/*
-const imageApp = new Hono<{ Bindings: Env }>();
-imageApp.route("/:projectId/images", imageRoutes);
-app.route("/v1/projects", imageApp);
+  // Images: /{prefix}/projects/:projectId/images/*
+  const imageApp = new Hono<{ Bindings: Env }>();
+  imageApp.route("/:projectId/images", imageRoutes);
+  app.route(`${prefix}/projects`, imageApp);
 
-// API Keys: /v1/projects/:projectId/api-keys/*
-const apiKeyApp = new Hono<{ Bindings: Env }>();
-apiKeyApp.route("/:projectId/api-keys", apiKeyRoutes);
-app.route("/v1/projects", apiKeyApp);
+  // API Keys: /{prefix}/projects/:projectId/api-keys/*
+  const apiKeyApp = new Hono<{ Bindings: Env }>();
+  apiKeyApp.route("/:projectId/api-keys", apiKeyRoutes);
+  app.route(`${prefix}/projects`, apiKeyApp);
 
-// Webhooks: /v1/projects/:projectId/webhooks/*
-const webhookApp = new Hono<{ Bindings: Env }>();
-webhookApp.route("/:projectId/webhooks", webhookRoutes);
-app.route("/v1/projects", webhookApp);
+  // Webhooks: /{prefix}/projects/:projectId/webhooks/*
+  const webhookApp = new Hono<{ Bindings: Env }>();
+  webhookApp.route("/:projectId/webhooks", webhookRoutes);
+  app.route(`${prefix}/projects`, webhookApp);
 
-// Project analytics: /v1/analytics/projects/:projectId
-app.route("/v1/analytics", analyticsRoutes);
+  // Project analytics: /{prefix}/analytics/projects/:projectId
+  app.route(`${prefix}/analytics`, analyticsRoutes);
+}
+
+mountApiRoutes("/v1");
+mountApiRoutes("/afucloud/v1");
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.notFound((c) =>

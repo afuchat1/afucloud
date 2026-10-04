@@ -74,7 +74,7 @@ const sections = DOCS_SECTIONS.map((section) => ({
   icon: sectionIcons[section.id],
 }));
 
-const BASE = 'https://api.afuchat.com';
+const BASE = 'https://api.afuchat.com/afucloud';
 
 export default function DocsPage({ sectionId = null }: { sectionId?: DocsSectionId | null }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -371,12 +371,12 @@ console.log(image.url); // https://img.afuchat.com/...`} />
                   </thead>
                   <tbody className="divide-y divide-card-border">
                     {[
-                      ['GET', '/v1/projects/{id}/images', 'List images (search, tag, album, format, favorite filters)'],
-                      ['GET', '/v1/projects/{id}/images/{imageId}', 'Get a single image'],
-                      ['PATCH', '/v1/projects/{id}/images/{imageId}', 'Update name, tags, or album'],
-                      ['DELETE', '/v1/projects/{id}/images/{imageId}', 'Soft delete (moves to trash)'],
-                      ['PATCH', '/v1/projects/{id}/images/{imageId}/favorite', 'Toggle favorite'],
-                      ['POST', '/v1/projects/{id}/images/{imageId}/restore', 'Restore from trash'],
+                      ['GET', '/afucloud/v1/projects/{id}/images', 'List images (search, tag, album, format, favorite filters)'],
+                      ['GET', '/afucloud/v1/projects/{id}/images/{imageId}', 'Get a single image'],
+                      ['PATCH', '/afucloud/v1/projects/{id}/images/{imageId}', 'Update name, tags, or album'],
+                      ['DELETE', '/afucloud/v1/projects/{id}/images/{imageId}', 'Soft delete (moves to trash)'],
+                      ['PATCH', '/afucloud/v1/projects/{id}/images/{imageId}/favorite', 'Toggle favorite'],
+                      ['POST', '/afucloud/v1/projects/{id}/images/{imageId}/restore', 'Restore from trash'],
                     ].map(([method, path, desc]) => (
                       <tr key={method + path} className="hover:bg-muted/20">
                         <td className="px-4 py-2.5">
@@ -612,7 +612,7 @@ curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
               <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
                 <h2 className="text-base font-semibold">API Reference</h2>
                 <p className="text-sm text-muted-foreground">
-                  All endpoints are versioned under <code className="rounded bg-muted px-1.5 font-mono text-xs">/v1/</code>.
+                  Production AfuCloud endpoints use <code className="rounded bg-muted px-1.5 font-mono text-xs">/afucloud/v1/</code>; the legacy <code className="rounded bg-muted px-1.5 font-mono text-xs">/v1/</code> paths remain available during migration.
                   Use the documented paths and methods to access public AfuCloud features.
                 </p>
               </div>
@@ -631,37 +631,37 @@ curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
                   </thead>
                   <tbody className="divide-y divide-card-border">
                     {[
-                      ['GET', '/v1/projects', '✓', 'List projects'],
-                      ['POST', '/v1/projects', '✓', 'Create project'],
-                      ['GET', '/v1/projects/:id', '✓', 'Get project'],
-                      ['PATCH', '/v1/projects/:id', '✓', 'Update project'],
-                      ['DELETE', '/v1/projects/:id', '✓', 'Delete project'],
-                      ['GET', '/v1/projects/:id/stats', '✓', 'Project storage stats'],
-                      ['GET', '/v1/projects/:id/images', '✓', 'List images'],
-                      ['POST', '/v1/projects/:id/images/upload-url', '✓', 'Request temporary upload URL'],
-                      ['POST', '/v1/projects/:id/images/confirm-upload', '✓', 'Confirm upload'],
-                      ['GET', '/v1/projects/:id/images/:imgId', '✓', 'Get image'],
-                      ['PATCH', '/v1/projects/:id/images/:imgId', '✓', 'Update image'],
-                      ['DELETE', '/v1/projects/:id/images/:imgId', '✓', 'Soft delete image'],
-                      ['PATCH', '/v1/projects/:id/images/:imgId/favorite', '✓', 'Toggle favorite'],
-                      ['POST', '/v1/projects/:id/images/:imgId/restore', '✓', 'Restore from trash'],
-                      ['GET', '/v1/projects/:id/api-keys', '✓', 'List API keys'],
-                      ['POST', '/v1/projects/:id/api-keys', '✓', 'Create API key'],
-                      ['DELETE', '/v1/projects/:id/api-keys/:keyId', '✓', 'Revoke API key'],
-                      ['GET', '/v1/projects/:id/webhooks', '✓', 'List webhooks'],
-                      ['POST', '/v1/projects/:id/webhooks', '✓', 'Create webhook'],
-                      ['PATCH', '/v1/projects/:id/webhooks/:whId', '✓', 'Update webhook'],
-                      ['DELETE', '/v1/projects/:id/webhooks/:whId', '✓', 'Delete webhook'],
-                      ['GET', '/v1/tokens', '✓', 'List personal tokens'],
-                      ['POST', '/v1/tokens', '✓', 'Create personal token'],
-                      ['DELETE', '/v1/tokens/:id', '✓', 'Revoke personal token'],
-                      ['GET', '/v1/activity', '✓', 'Activity log'],
-                      ['GET', '/v1/domains/registrations/search', '✓', 'Search available domains'],
-                      ['POST', '/v1/domains/registrations/quote', '✓', 'Get live availability and price'],
-                      ['POST', '/v1/domains/registrations/checkout', '✓', 'Create hosted checkout'],
-                      ['GET', '/v1/domains/registrations/orders', '✓', 'List registration orders'],
-                      ['GET', '/v1/domains/registrations/orders/:orderId', '✓', 'Check registration status'],
-                      ['POST', '/v1/domains/registrations/orders/:orderId/register', '✓', 'Submit legal registrant details'],
+                      ['GET', '/afucloud/v1/projects', '✓', 'List projects'],
+                      ['POST', '/afucloud/v1/projects', '✓', 'Create project'],
+                      ['GET', '/afucloud/v1/projects/:id', '✓', 'Get project'],
+                      ['PATCH', '/afucloud/v1/projects/:id', '✓', 'Update project'],
+                      ['DELETE', '/afucloud/v1/projects/:id', '✓', 'Delete project'],
+                      ['GET', '/afucloud/v1/projects/:id/stats', '✓', 'Project storage stats'],
+                      ['GET', '/afucloud/v1/projects/:id/images', '✓', 'List images'],
+                      ['POST', '/afucloud/v1/projects/:id/images/upload-url', '✓', 'Request temporary upload URL'],
+                      ['POST', '/afucloud/v1/projects/:id/images/confirm-upload', '✓', 'Confirm upload'],
+                      ['GET', '/afucloud/v1/projects/:id/images/:imgId', '✓', 'Get image'],
+                      ['PATCH', '/afucloud/v1/projects/:id/images/:imgId', '✓', 'Update image'],
+                      ['DELETE', '/afucloud/v1/projects/:id/images/:imgId', '✓', 'Soft delete image'],
+                      ['PATCH', '/afucloud/v1/projects/:id/images/:imgId/favorite', '✓', 'Toggle favorite'],
+                      ['POST', '/afucloud/v1/projects/:id/images/:imgId/restore', '✓', 'Restore from trash'],
+                      ['GET', '/afucloud/v1/projects/:id/api-keys', '✓', 'List API keys'],
+                      ['POST', '/afucloud/v1/projects/:id/api-keys', '✓', 'Create API key'],
+                      ['DELETE', '/afucloud/v1/projects/:id/api-keys/:keyId', '✓', 'Revoke API key'],
+                      ['GET', '/afucloud/v1/projects/:id/webhooks', '✓', 'List webhooks'],
+                      ['POST', '/afucloud/v1/projects/:id/webhooks', '✓', 'Create webhook'],
+                      ['PATCH', '/afucloud/v1/projects/:id/webhooks/:whId', '✓', 'Update webhook'],
+                      ['DELETE', '/afucloud/v1/projects/:id/webhooks/:whId', '✓', 'Delete webhook'],
+                      ['GET', '/afucloud/v1/tokens', '✓', 'List personal tokens'],
+                      ['POST', '/afucloud/v1/tokens', '✓', 'Create personal token'],
+                      ['DELETE', '/afucloud/v1/tokens/:id', '✓', 'Revoke personal token'],
+                      ['GET', '/afucloud/v1/activity', '✓', 'Activity log'],
+                      ['GET', '/afucloud/v1/domains/registrations/search', '✓', 'Search available domains'],
+                      ['POST', '/afucloud/v1/domains/registrations/quote', '✓', 'Get live availability and price'],
+                      ['POST', '/afucloud/v1/domains/registrations/checkout', '✓', 'Create hosted checkout'],
+                      ['GET', '/afucloud/v1/domains/registrations/orders', '✓', 'List registration orders'],
+                      ['GET', '/afucloud/v1/domains/registrations/orders/:orderId', '✓', 'Check registration status'],
+                      ['POST', '/afucloud/v1/domains/registrations/orders/:orderId/register', '✓', 'Submit legal registrant details'],
                     ].map(([method, path, auth, desc]) => (
                       <tr key={path + method} className="hover:bg-muted/20">
                         <td className="px-4 py-2">

@@ -117,15 +117,16 @@ The CF Worker in `artifacts/cf-worker/` is the production edge API. It uses Hono
 
 ### Canonical production deployment
 
-There is one permanent production Worker:
+There is one permanent production Worker for the AfuCloud product:
 
 - **Worker name:** `afucloud-api`
 - **Source:** `artifacts/cf-worker/wrangler.toml`
 - **Public API:** `https://api.afuchat.com`
-- **Route:** `api.afuchat.com/*`
+- **Staged product route:** `api.afuchat.com/afucloud/*`
+- **Legacy compatibility route:** `api.afuchat.com/*` remains until consumers and shared routing are verified
 - **Database/Auth:** Supabase project `poijhidfekwfthyksatp`
 
-All AfuCloud products and projects must use this Worker. Do not create product-specific Workers or point clients at temporary `workers.dev` deployments.
+All AfuCloud projects use this AfuCloud-owned Worker. Do not route another Afu product to it, create a duplicate AfuCloud API Worker, or remove the legacy route before compatibility and shared-routing owners are verified.
 
 ### Production secrets setup (Cloudflare only)
 

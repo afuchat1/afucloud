@@ -6,7 +6,9 @@ info:
   description: AfuCloud API – cloud platform for storing, managing, and delivering digital assets
 servers:
   - url: /api
-    description: Base API path
+    description: Local development API path
+  - url: https://api.afuchat.com/afucloud
+    description: AfuCloud production API base
 security:
   - BearerAuth: []
 tags:
