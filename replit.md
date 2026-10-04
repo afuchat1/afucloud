@@ -6,6 +6,8 @@ A developer-first cloud platform for storing, processing, managing, and deliveri
 
 Follow the master rules in `attached_assets/Pasted-AFU-ECOSYSTEM-MASTER-DEVELOPMENT-INFRASTRUCTURE-RULES-Y_1791097373465.txt` for backend, Cloudflare, database, storage, API routing, and deployment work. This workspace owns AfuCloud resources only. Before changing shared infrastructure, identify owners, consumers, compatibility requirements, production impact, and rollback; coordinate with affected product owners and do not deploy or decommission an uncertain resource.
 
+For Cloudflare API access, use the `CLOUDFLARE_API_TOKEN` Replit Secret directly; do not use the Replit Cloudflare connector.
+
 ## Run & Operate
 
 - `pnpm install --frozen-lockfile` — restore the exact workspace dependencies before validation
