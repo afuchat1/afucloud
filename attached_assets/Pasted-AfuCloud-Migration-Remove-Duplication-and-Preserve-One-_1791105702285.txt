@@ -1,0 +1,36 @@
+AfuCloud Migration — Remove Duplication and Preserve One Product
+
+Review the current AfuCloud implementation and simplify the migration. The objective is to maintain one AfuCloud product, not create duplicate backends, duplicate CDN systems, or parallel implementations of existing functionality.
+
+Required architecture
+
+- "api.afuchat.com" — the single public API domain for all Afu products.
+- "cdn.afuchat.com" — the single public CDN domain for all Afu products.
+- One shared database, with the existing product-specific schemas.
+- One dedicated AfuCloud backend Worker, using the existing AfuCloud functionality.
+- One dedicated AfuCloud R2 bucket for AfuCloud storage.
+- Existing AfuChat media buckets, objects, routes, and functionality must remain intact.
+- AfuCloud must continue to use its own database schema, storage bucket, configuration, and product-specific functionality.
+
+Migration requirements
+
+1. Inspect the existing AfuCloud backend, API gateway, CDN configuration, R2 buckets, database schema, and frontend before making changes.
+2. Reuse the existing AfuCloud backend and functionality. Do not create a second AfuCloud backend or duplicate API implementations.
+3. Use the central API gateway only to route requests to the existing AfuCloud Worker. Preserve existing "/v1/*" and "/afucloud/*" endpoints and their current behavior.
+4. Use "cdn.afuchat.com" for AfuCloud assets through the "/cloud/*" path, routed to the existing AfuCloud bucket. Do not duplicate the CDN service or modify unrelated CDN paths.
+5. Preserve existing image and file URLs. If migration is necessary, maintain compatibility through the transition.
+6. Do not create duplicate buckets, database schemas, tables, routes, or Workers if suitable AfuCloud-owned resources already exist.
+7. Do not replace working AfuCloud functionality with a new implementation merely to match the architecture.
+8. Keep AfuChat, AfuMail, AfuAI, Afu Ads, and other products unaffected.
+9. Deploy the gateway and routing changes independently of unrelated product releases.
+10. Verify authentication, projects, domains, storage uploads, downloads, image delivery, and existing API operations before declaring the migration complete.
+
+Important decision rule
+
+If an existing resource already fulfils the requirement, reuse it. If it is incorrectly configured, correct or migrate it without duplicating it. Create a replacement only when necessary, and retire the old resource only after successful verification.
+
+Do not make additional infrastructure changes merely for architectural neatness.
+
+Before deploying, provide a concise report listing the existing resources, the changes required, any duplicates found, the resources that will be retained, and the rollback plan.
+
+Final objective: One AfuCloud product, one AfuCloud backend, one AfuCloud database schema, one AfuCloud storage bucket, one shared API domain, and one shared CDN domain—with no duplicated functionality and no disruption to other Afu products.
