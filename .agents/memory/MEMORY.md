@@ -2,6 +2,7 @@
 - [AfuCloud bootstrap](afucloud-bootstrap.md) — target Supabase project poijhidfekwfthyksatp, R2 bucket afucloud-images, pooler-backed API
 - [R2 CORS and image serving](r2-cors-image-serving.md) — published image links use img.afuchat.com; API redirects remain only for local storage previews and non-public routes
 - [CF Worker Architecture](cf-worker-architecture.md) — Hono + Supabase REST, Cloudflare deployment scopes, and direct Whop credentials for production billing
+- [Afu ecosystem isolation](afu-ecosystem-isolation.md) — AfuCloud changes stay product-scoped; shared routes, storage, and database changes need owner and compatibility checks
 - [Shared Afu authentication](shared-afu-auth.md) — auth.users is the only identity/credential source; accounts.profiles links by user_id and product tables reference auth.users directly
 - [AfuCloud dashboard session boundary](dashboard-session-boundary.md) — browser cookie sessions stay separate from developer bearer tokens; PATs are account-scoped and project keys stay project-scoped
 - [Vercel frontend builds](vercel-vite-build.md) — static Vite builds need defaults for PORT and BASE_PATH because Vercel does not inject Replit preview variables

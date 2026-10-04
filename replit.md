@@ -2,6 +2,10 @@
 
 A developer-first cloud platform for storing, processing, managing, and delivering digital assets. Phase 1 focuses on the Images platform, with a full SaaS dashboard, REST API, and Cloudflare R2 object storage.
 
+## Mandatory Afu ecosystem infrastructure rules
+
+Follow the master rules in `attached_assets/Pasted-AFU-ECOSYSTEM-MASTER-DEVELOPMENT-INFRASTRUCTURE-RULES-Y_1791097373465.txt` for backend, Cloudflare, database, storage, API routing, and deployment work. This workspace owns AfuCloud resources only. Before changing shared infrastructure, identify owners, consumers, compatibility requirements, production impact, and rollback; coordinate with affected product owners and do not deploy or decommission an uncertain resource.
+
 ## Run & Operate
 
 - `pnpm install --frozen-lockfile` — restore the exact workspace dependencies before validation
@@ -80,7 +84,7 @@ workflow is stale or the development handler is missing.
 
 - **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), with shared identities in Supabase's `auth.users`; shared profiles live in `accounts.profiles`, while AfuCloud-owned data lives in the `afucloud` schema
 - **Object storage**: Cloudflare R2 bucket `afucloud-images`
-- **Frontend**: React + Vite + shadcn/ui + Tailwind v4, deployed separately from the API
+- **Frontend**: Next.js with OpenNext, deployed as a Cloudflare Worker separately from the API
 - **Backend**: Cloudflare Worker (Hono) (`artifacts/cf-worker/`) — deployed to Cloudflare's edge
 
 ## Stack
