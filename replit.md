@@ -91,6 +91,7 @@ workflow is stale or the development handler is missing.
 - **Public CDN**: new AfuCloud assets use `https://cdn.afuchat.com/cloud/*`; the existing `cdn.afuchat.com` root remains attached to its current R2 bucket, and `img.afuchat.com` remains available for previously issued AfuCloud image URLs
 - **Frontend**: Next.js with OpenNext, deployed as a Cloudflare Worker separately from the API
 - **Backend**: product API Worker (Hono) in `artifacts/cf-worker/`, behind the shared API gateway in `workers/api-gateway/`
+- **API gateway deployment**: `workers/api-gateway/wrangler.toml` must target the live `afu-api` Worker and only its `api.afuchat.com/*` catch-all route; leave the API root and product-specific route owners unchanged. Run `pnpm run test:gateway-routing` before changing dashboard session routing.
 - **CDN edge**: `workers/afucloud-cdn/` exclusively serves `cdn.afuchat.com/cloud/*` from `afucloud-images`; do not assign that route to the product API Worker or gateway. The `test:cdn-path-contract` check enforces the route owner and URL formats.
 
 ## Stack
