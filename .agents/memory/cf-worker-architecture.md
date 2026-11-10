@@ -37,9 +37,11 @@ The public API host is owned by `workers/api-gateway/`, which forwards `/afuclou
 
 Wrangler refuses to deploy a route pattern while it is still assigned to another Worker. For any route handoff, deploy and verify the target Worker first, then transfer only the intended existing route records and update the Wrangler configs so exactly one Worker owns each pattern. Check the live route owner because Cloudflare assignments can drift from checked-in config.
 
+The live shared API fallback is `afu-api`, configured from `workers/api-gateway/`, and bound to the existing `afucloud-api`. Do not deploy a second gateway under a new name. More-specific API routes remain assigned to their existing product Workers.
+
 **Why:** Live route ownership can drift from the repo and cause Wrangler to reject deployment or keep requests on an outdated Worker; the API and CDN hostnames are shared, and legacy API and image URLs must continue working.
 
-**How to apply:** Deploy each Worker from its own Wrangler config. Keep `/v1/*` and `/afucloud/*` dispatched to `afucloud-api`; only `workers/afucloud-cdn/` owns `cdn.afuchat.com/cloud/*`. Do not put CDN routes back in the product API config or reassign the CDN root or `img.afuchat.com`.
+**How to apply:** Keep `/v1/*` and `/afucloud/*` dispatched to `afucloud-api`; only `workers/afucloud-cdn/` owns `cdn.afuchat.com/cloud/*`. Do not put CDN routes back in the product API config or reassign the CDN root or `img.afuchat.com`.
 
 ## Deployment token scope
 - Wrangler deploy requires a Cloudflare API token with `Account → Workers Scripts → Edit` for the target account and `Zone → Workers Routes → Edit` for the routed zone. A token can read/list a Worker while still being unable to upload a new version.

@@ -6,8 +6,8 @@ compatibility_date = "2025-07-01"
 compatibility_flags = ["nodejs_compat"]
 account_id = "42e79186125e8ff83e51f15816e074de"
 
-# The API host is owned by workers/api-gateway. Public AfuCloud assets are
-# served only by workers/afucloud-cdn.
+# Public API host routes are owned by workers/api-gateway. Keep this product
+# Worker independently deployable and target it through the service binding.
 
 # ── R2 Bucket binding ─────────────────────────────────────────────────────────
 [[r2_buckets]]

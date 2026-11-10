@@ -17,22 +17,11 @@ import domainRoutes from "./routes/domains";
 import storageContainerRoutes from "./routes/storage-containers";
 import domainRegistrationRoutes from "./routes/domain-registrations";
 import billingRoutes from "./routes/billing";
-import publicAssetRoutes from "./routes/public-assets";
 
 const app = new Hono<{ Bindings: Env }>();
 
 // ── Global middleware ─────────────────────────────────────────────────────────
 app.use("*", logger());
-app.use("/cloud/*", async (c, next) => {
-  await next();
-  c.header("Cross-Origin-Resource-Policy", "cross-origin");
-  c.header("Access-Control-Allow-Origin", "*");
-  c.header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-  c.header("Access-Control-Allow-Headers", "Range, If-None-Match, If-Modified-Since, If-Range");
-  c.header("Access-Control-Expose-Headers", "Accept-Ranges, Content-Length, Content-Range, ETag");
-  c.header("Access-Control-Max-Age", "86400");
-  c.res.headers.delete("Access-Control-Allow-Credentials");
-});
 app.use("*", secureHeaders());
 const allowedOrigins = new Set([
   "https://afuchat.com",
@@ -82,10 +71,6 @@ app.get("/", (c) =>
 app.get("/healthz", (c) =>
   c.json({ status: "ok", timestamp: new Date().toISOString(), version: "v1" }),
 );
-
-// Shared CDN hostname paths enter this existing AfuCloud Worker and use the
-// same product-owned R2 binding as the API; no separate CDN Worker is needed.
-app.route("/cloud", publicAssetRoutes);
 
 // Keep the legacy /v1 API while adding the product-identifying
 // /afucloud/v1 prefix required by the shared API routing architecture.

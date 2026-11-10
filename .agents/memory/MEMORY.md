@@ -1,14 +1,14 @@
 - [Supabase pooler SSL](supabase-pooler-ssl.md) — direct DB hostname may not resolve from Replit; use session pooler URL, strip sslmode from URL
 - [AfuCloud bootstrap](afucloud-bootstrap.md) — target Supabase project poijhidfekwfthyksatp, R2 bucket afucloud-images, pooler-backed API
 - [R2 CORS and image serving](r2-cors-image-serving.md) — AfuCloud URLs use /cloud/images or /cloud/storage; preserve the legacy img host and shared CDN root
-- [CF Worker Architecture](cf-worker-architecture.md) — product API stays behind a route-owning gateway; preserve legacy paths and hand off Cloudflare routes explicitly
+- [CF Worker Architecture](cf-worker-architecture.md) — use the existing `afu-api` fallback gateway; preserve product routes and keep the `/cloud/*` CDN Worker intact
 - [Afu ecosystem isolation](afu-ecosystem-isolation.md) — AfuCloud changes stay product-scoped; shared routes, storage, and database changes need owner and compatibility checks
 - [Shared Afu authentication](shared-afu-auth.md) — auth.users is the only identity/credential source; accounts.profiles links by user_id and product tables reference auth.users directly
 - [AfuCloud dashboard session boundary](dashboard-session-boundary.md) — browser cookie sessions stay separate from developer bearer tokens; PATs are account-scoped and project keys stay project-scoped
 - [Vercel frontend builds](vercel-vite-build.md) — static Vite builds need defaults for PORT and BASE_PATH because Vercel does not inject Replit preview variables
 - [API workflow database target](api-workflow-supabase-env.md) — keep the API package in the pnpm workspace and provide Supabase target variables so it cannot fall back to DATABASE_URL
 - [Local API token signing](local-api-token-signing.md) — development uses an in-memory JWT key when no persisted JWT_SECRET is available; production still requires explicit configuration
-- [Live Supabase schema and staging](supabase-live-schema-staging.md) — the production catalog is much broader than local Drizzle, staging has no migration baseline, and AfuCloud RLS is disabled
+- [Live Supabase schema and staging](supabase-live-schema-staging.md) — preserve existing PostgREST schemas, expose `afucloud` for Worker requests, and verify live RLS/grants
 - [Cloudflare Pages custom domains](cloudflare-pages-domains.md) — associate the hostname with its Pages project before creating the DNS CNAME, or 522 can persist
 - [AfuCloud subscription tiers](afucloud-subscription-tiers.md) — keep the selected monthly prices and enforceable resource caps consistent across billing and UI
 - [AfuCloud footer standard](afucloud-footer-standard.md) — use a substantial production-site company footer, with Vercel as a visual benchmark; avoid compact link-card layouts

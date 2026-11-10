@@ -78,7 +78,7 @@ workflow is stale or the development handler is missing.
 
 - Replit is source storage and editing only; no Replit server is part of the AfuCloud runtime.
 - The production frontend sends API requests directly to `https://api.afuchat.com`.
-- `workers/api-gateway/` owns the public API host and dispatches AfuCloud paths to `afucloud-api` through a Cloudflare service binding.
+- `workers/api-gateway/` is the source for the existing `afu-api` fallback Worker, which dispatches AfuCloud paths to `afucloud-api` through a Cloudflare service binding.
 - `artifacts/cf-worker/` is the product API and the only component allowed to access Supabase and R2 for application behavior.
 - Do not put AfuCloud secrets, database URLs, or storage credentials in frontend variables.
 - Production secrets are stored only in the Cloudflare Worker secret store.
@@ -126,9 +126,9 @@ The product API Worker in `artifacts/cf-worker/` uses Hono + Supabase REST + aws
 
 The public host is routed through the shared gateway. AfuCloud remains isolated behind its own product Worker:
 
-- **API gateway:** `afu-api-gateway`, configured in `workers/api-gateway/wrangler.toml`
+- **API gateway:** existing shared Worker `afu-api`, configured in `workers/api-gateway/wrangler.toml`
 - **Product API:** `afucloud-api`, configured in `artifacts/cf-worker/wrangler.toml`, called through the gateway's `AFUCLOUD_API` service binding
-- **Product paths:** `/afucloud/*` and legacy `/v1/*` both reach `afucloud-api`; `/` and `/healthz` are forwarded for compatibility
+- **Product paths:** `/afucloud/*` and legacy `/v1/*` both reach `afucloud-api`; `/` and `/healthz` are forwarded for compatibility. More-specific routes for other Afu products remain assigned to their existing Workers.
 - **CDN Worker:** `afucloud-cdn`, configured in `workers/afucloud-cdn/wrangler.toml`, handles only `cdn.afuchat.com/cloud/*`
 - **CDN compatibility:** keep the existing `cdn.afuchat.com` R2 custom-domain association and all root paths unchanged; keep `img.afuchat.com` active for old image URLs
 - **Path guard**: `pnpm run build`, `pnpm run deploy`, and `pnpm run deploy:cdn` run `test:cdn-path-contract`; do not bypass this check when changing public asset URLs or CDN route ownership
