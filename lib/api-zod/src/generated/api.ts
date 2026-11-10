@@ -996,3 +996,83 @@ export const SubmitDomainRegistrationResponse = zod.object({
 })
 
 
+/**
+ * @summary Get the account billing summary
+ */
+export const GetBillingSummaryResponse = zod.object({
+  "currentTier": zod.enum(['free', 'pro', 'business']),
+  "subscription": zod.union([zod.object({
+  "tierKey": zod.enum(['pro', 'business']),
+  "status": zod.string(),
+  "currentPeriodEnd": zod.coerce.date().nullable(),
+  "cancelAtPeriodEnd": zod.boolean(),
+  "manageUrl": zod.string().nullable(),
+  "checkoutPending": zod.boolean()
+}),zod.null()]),
+  "checkoutConfigured": zod.boolean(),
+  "usage": zod.object({
+  "projects": zod.number(),
+  "storageContainers": zod.number(),
+  "apiKeys": zod.number()
+}),
+  "plans": zod.array(zod.object({
+  "key": zod.enum(['free', 'pro', 'business']),
+  "name": zod.string(),
+  "description": zod.string(),
+  "monthlyPriceUsd": zod.number(),
+  "limits": zod.object({
+  "projects": zod.number(),
+  "storageContainers": zod.number(),
+  "apiKeys": zod.number(),
+  "maxFileSizeBytes": zod.number()
+})
+}))
+})
+
+
+/**
+ * @summary Refresh the subscription status from Whop
+ */
+export const SyncBillingSubscriptionResponse = zod.object({
+  "currentTier": zod.enum(['free', 'pro', 'business']),
+  "subscription": zod.union([zod.object({
+  "tierKey": zod.enum(['pro', 'business']),
+  "status": zod.string(),
+  "currentPeriodEnd": zod.coerce.date().nullable(),
+  "cancelAtPeriodEnd": zod.boolean(),
+  "manageUrl": zod.string().nullable(),
+  "checkoutPending": zod.boolean()
+}),zod.null()]),
+  "checkoutConfigured": zod.boolean(),
+  "usage": zod.object({
+  "projects": zod.number(),
+  "storageContainers": zod.number(),
+  "apiKeys": zod.number()
+}),
+  "plans": zod.array(zod.object({
+  "key": zod.enum(['free', 'pro', 'business']),
+  "name": zod.string(),
+  "description": zod.string(),
+  "monthlyPriceUsd": zod.number(),
+  "limits": zod.object({
+  "projects": zod.number(),
+  "storageContainers": zod.number(),
+  "apiKeys": zod.number(),
+  "maxFileSizeBytes": zod.number()
+})
+}))
+})
+
+
+/**
+ * @summary Start checkout for a paid plan
+ */
+export const CreateBillingCheckoutBody = zod.object({
+  "planKey": zod.enum(['pro', 'business'])
+})
+
+export const CreateBillingCheckoutResponse = zod.object({
+  "purchaseUrl": zod.string()
+})
+
+

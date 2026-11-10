@@ -5,6 +5,88 @@
  * AfuCloud API – cloud platform for storing, managing, and delivering digital assets
  * OpenAPI spec version: 1.0.0
  */
+export type BillingPlanKey = typeof BillingPlanKey[keyof typeof BillingPlanKey];
+
+
+export const BillingPlanKey = {
+  free: 'free',
+  pro: 'pro',
+  business: 'business',
+} as const;
+
+export type BillingPlanLimits = {
+  projects: number;
+  storageContainers: number;
+  apiKeys: number;
+  maxFileSizeBytes: number;
+};
+
+export interface BillingPlan {
+  key: BillingPlanKey;
+  name: string;
+  description: string;
+  monthlyPriceUsd: number;
+  limits: BillingPlanLimits;
+}
+
+export type BillingSubscriptionTierKey = typeof BillingSubscriptionTierKey[keyof typeof BillingSubscriptionTierKey];
+
+
+export const BillingSubscriptionTierKey = {
+  pro: 'pro',
+  business: 'business',
+} as const;
+
+export interface BillingSubscription {
+  tierKey: BillingSubscriptionTierKey;
+  status: string;
+  /** @nullable */
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  /** @nullable */
+  manageUrl: string | null;
+  checkoutPending: boolean;
+}
+
+export type BillingSummaryCurrentTier = typeof BillingSummaryCurrentTier[keyof typeof BillingSummaryCurrentTier];
+
+
+export const BillingSummaryCurrentTier = {
+  free: 'free',
+  pro: 'pro',
+  business: 'business',
+} as const;
+
+export type BillingSummaryUsage = {
+  projects: number;
+  storageContainers: number;
+  apiKeys: number;
+};
+
+export interface BillingSummary {
+  currentTier: BillingSummaryCurrentTier;
+  subscription: BillingSubscription | null;
+  checkoutConfigured: boolean;
+  usage: BillingSummaryUsage;
+  plans: BillingPlan[];
+}
+
+export type BillingCheckoutInputPlanKey = typeof BillingCheckoutInputPlanKey[keyof typeof BillingCheckoutInputPlanKey];
+
+
+export const BillingCheckoutInputPlanKey = {
+  pro: 'pro',
+  business: 'business',
+} as const;
+
+export interface BillingCheckoutInput {
+  planKey: BillingCheckoutInputPlanKey;
+}
+
+export interface BillingCheckoutResponse {
+  purchaseUrl: string;
+}
+
 export interface HealthStatus {
   status: string;
 }

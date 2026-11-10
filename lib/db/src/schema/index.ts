@@ -11,3 +11,4 @@ export * from "./domains";
 export * from "./storage-containers";
 export * from "./domain-registration-orders";
 export * from "./billing-subscriptions";
+export * from "./cloudflare-connections";

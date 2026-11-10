@@ -21,6 +21,7 @@ tags:
   - name: activity
   - name: domains
   - name: cloudflare
+  - name: billing
 
 paths:
   /healthz:
@@ -987,6 +988,61 @@ paths:
               schema:
                 $ref: "#/components/schemas/DomainRegistrationOrder"
 
+  /v1/billing:
+    get:
+      operationId: getBillingSummary
+      tags: [billing]
+      summary: Get the account billing summary
+      responses:
+        "200":
+          description: Current plan, usage, and available plans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingSummary"
+        "401":
+          description: Authentication required
+  /v1/billing/sync:
+    post:
+      operationId: syncBillingSubscription
+      tags: [billing]
+      summary: Refresh the subscription status from Whop
+      responses:
+        "200":
+          description: Updated billing summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingSummary"
+        "401":
+          description: Authentication required
+  /v1/billing/checkout:
+    post:
+      operationId: createBillingCheckout
+      tags: [billing]
+      summary: Start checkout for a paid plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingCheckoutInput"
+      responses:
+        "201":
+          description: Hosted checkout URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingCheckoutResponse"
+        "400":
+          description: Invalid plan selection
+        "401":
+          description: Authentication required
+        "409":
+          description: An existing subscription or checkout must be resolved first
+        "503":
+          description: Billing is not configured
+
 components:
   securitySchemes:
     BearerAuth:
@@ -994,6 +1050,90 @@ components:
       scheme: bearer
       bearerFormat: AfuCloudCredential
   schemas:
+    BillingPlan:
+      type: object
+      required: [key, name, description, monthlyPriceUsd, limits]
+      properties:
+        key:
+          type: string
+          enum: [free, pro, business]
+        name:
+          type: string
+        description:
+          type: string
+        monthlyPriceUsd:
+          type: number
+        limits:
+          type: object
+          required: [projects, storageContainers, apiKeys, maxFileSizeBytes]
+          properties:
+            projects:
+              type: number
+            storageContainers:
+              type: number
+            apiKeys:
+              type: number
+            maxFileSizeBytes:
+              type: number
+    BillingSubscription:
+      type: object
+      required: [tierKey, status, currentPeriodEnd, cancelAtPeriodEnd, manageUrl, checkoutPending]
+      properties:
+        tierKey:
+          type: string
+          enum: [pro, business]
+        status:
+          type: string
+        currentPeriodEnd:
+          type: ["string", "null"]
+          format: date-time
+        cancelAtPeriodEnd:
+          type: boolean
+        manageUrl:
+          type: ["string", "null"]
+        checkoutPending:
+          type: boolean
+    BillingSummary:
+      type: object
+      required: [currentTier, subscription, checkoutConfigured, usage, plans]
+      properties:
+        currentTier:
+          type: string
+          enum: [free, pro, business]
+        subscription:
+          anyOf:
+            - $ref: "#/components/schemas/BillingSubscription"
+            - type: "null"
+        checkoutConfigured:
+          type: boolean
+        usage:
+          type: object
+          required: [projects, storageContainers, apiKeys]
+          properties:
+            projects:
+              type: number
+            storageContainers:
+              type: number
+            apiKeys:
+              type: number
+        plans:
+          type: array
+          items:
+            $ref: "#/components/schemas/BillingPlan"
+    BillingCheckoutInput:
+      type: object
+      required: [planKey]
+      properties:
+        planKey:
+          type: string
+          enum: [pro, business]
+    BillingCheckoutResponse:
+      type: object
+      required: [purchaseUrl]
+      properties:
+        purchaseUrl:
+          type: string
+
     # ─── Core ───
     HealthStatus:
       type: object

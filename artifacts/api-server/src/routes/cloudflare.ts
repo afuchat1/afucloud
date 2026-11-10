@@ -325,7 +325,6 @@ router.post("/v1/cloudflare/connect", guarded(async (req, res) => {
 }));
 
 router.get("/v1/cloudflare/connection", guarded(async (req, res) => {
-  requireConfiguration();
   const connection = await findConnection((req as AuthRequest).userId!);
   res.json({
     connected: Boolean(connection),
