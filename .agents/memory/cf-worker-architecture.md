@@ -35,11 +35,11 @@ wrangler secret put CLOUDFLARE_R2_SECRET_ACCESS_KEY
 ## Production deploy
 The public API host is owned by `workers/api-gateway/`, which forwards `/afucloud/*`, legacy `/v1/*`, `/`, and `/healthz` to `afucloud-api` through the `AFUCLOUD_API` service binding. The product Worker config intentionally does not own `api.afuchat.com` routes. `workers/afucloud-cdn/` owns only `cdn.afuchat.com/cloud/*` and binds to `afucloud-images`.
 
-Wrangler refuses to deploy a route pattern while it is still assigned to another Worker. For a route handoff, deploy and verify the gateway first, transfer only the intended existing route records to the gateway, then redeploy the gateway config. Keep the legacy `/v1/*` dispatch in place.
+Wrangler refuses to deploy a route pattern while it is still assigned to another Worker. For any route handoff, deploy and verify the target Worker first, then transfer only the intended existing route records and update the Wrangler configs so exactly one Worker owns each pattern. Check the live route owner because Cloudflare assignments can drift from checked-in config.
 
-**Why:** The API and CDN hostnames are shared; product behavior and buckets remain isolated, while legacy API and image URLs must continue working.
+**Why:** Live route ownership can drift from the repo and cause Wrangler to reject deployment or keep requests on an outdated Worker; the API and CDN hostnames are shared, and legacy API and image URLs must continue working.
 
-**How to apply:** Deploy each Worker from its own Wrangler config. Keep `/v1/*` and `/afucloud/*` dispatched to `afucloud-api`, do not put public host routes back in the product API config, and do not reassign the CDN root or `img.afuchat.com`.
+**How to apply:** Deploy each Worker from its own Wrangler config. Keep `/v1/*` and `/afucloud/*` dispatched to `afucloud-api`; only `workers/afucloud-cdn/` owns `cdn.afuchat.com/cloud/*`. Do not put CDN routes back in the product API config or reassign the CDN root or `img.afuchat.com`.
 
 ## Deployment token scope
 - Wrangler deploy requires a Cloudflare API token with `Account → Workers Scripts → Edit` for the target account and `Zone → Workers Routes → Edit` for the routed zone. A token can read/list a Worker while still being unable to upload a new version.

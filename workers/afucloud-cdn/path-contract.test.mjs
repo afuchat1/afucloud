@@ -99,7 +99,12 @@ test("legacy storage URLs remain readable while new files use /cloud/object", ()
 test("Cloudflare routes keep /cloud/* on the CDN worker, not the API gateway", async () => {
   const cdnConfig = await readFile(new URL("./wrangler.toml", import.meta.url), "utf8");
   const apiGatewayConfig = await readFile(new URL("../api-gateway/wrangler.toml", import.meta.url), "utf8");
+  const productApiConfig = await readFile(
+    new URL("../../artifacts/cf-worker/wrangler.toml", import.meta.url),
+    "utf8",
+  );
 
   assert.match(cdnConfig, /pattern = "cdn\.afuchat\.com\/cloud\/\*"/);
   assert.doesNotMatch(apiGatewayConfig, /cdn\.afuchat\.com/);
+  assert.doesNotMatch(productApiConfig, /cdn\.afuchat\.com/);
 });
