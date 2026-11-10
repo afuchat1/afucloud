@@ -55,8 +55,8 @@ function errorResponse(status: number, message: string, extraHeaders?: HeadersIn
   return Response.json({ error: message }, { status, headers });
 }
 
-function objectKeyFromPath(pathname: string): string | null {
-  const match = pathname.match(/^\/cloud\/(images|storage)\/(.+)$/);
+export function objectKeyFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/cloud\/(images|object|storage)\/(.+)$/);
   if (!match) return null;
 
   let segments: string[];
@@ -80,7 +80,7 @@ function objectKeyFromPath(pathname: string): string | null {
   }
 
   const key = segments.join("/");
-  return match[1] === "storage" ? `containers/${key}` : key;
+  return match[1] === "images" ? key : `containers/${key}`;
 }
 
 function setObjectHeaders(object: R2Object, headers: Headers): void {

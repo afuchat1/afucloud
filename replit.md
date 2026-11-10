@@ -87,6 +87,7 @@ workflow is stale or the development handler is missing.
 
 - **Database**: Supabase PostgreSQL (project: `poijhidfekwfthyksatp`, region: eu-west-1), with shared identities in Supabase's `auth.users`; shared profiles live in `accounts.profiles`, while AfuCloud-owned data lives in the `afucloud` schema
 - **Object storage**: Cloudflare R2 bucket `afucloud-images`
+- **Public URL contract**: images use `https://cdn.afuchat.com/cloud/images/<key>`; object-storage files use `https://cdn.afuchat.com/cloud/object/<public-key>`. `/cloud/storage/*` is a legacy read-only alias; never generate, preview, or copy API endpoints as public file URLs.
 - **Public CDN**: new AfuCloud assets use `https://cdn.afuchat.com/cloud/*`; the existing `cdn.afuchat.com` root remains attached to its current R2 bucket, and `img.afuchat.com` remains available for previously issued AfuCloud image URLs
 - **Frontend**: Next.js with OpenNext, deployed as a Cloudflare Worker separately from the API
 - **Backend**: product API Worker (Hono) in `artifacts/cf-worker/`, behind the shared API gateway in `workers/api-gateway/`
@@ -129,6 +130,7 @@ The public host is routed through the shared gateway. AfuCloud remains isolated 
 - **Product paths:** `/afucloud/*` and legacy `/v1/*` both reach `afucloud-api`; `/` and `/healthz` are forwarded for compatibility
 - **CDN Worker:** `afucloud-cdn`, configured in `workers/afucloud-cdn/wrangler.toml`, handles only `cdn.afuchat.com/cloud/*`
 - **CDN compatibility:** keep the existing `cdn.afuchat.com` R2 custom-domain association and all root paths unchanged; keep `img.afuchat.com` active for old image URLs
+- **Path guard**: run `pnpm run test:cdn-path-contract` before changing public asset URLs or CDN route ownership
 - **Database/Auth:** Supabase project `poijhidfekwfthyksatp`
 
 Do not route another Afu product to `afucloud-api`, reassign another product's bucket or root CDN paths, or remove `/v1/*` compatibility. The public API gateway is shared infrastructure; keep its product dispatch explicit and preserve existing callers.

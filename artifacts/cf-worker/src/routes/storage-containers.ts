@@ -4,6 +4,7 @@ import { createDbClient } from "../lib/db";
 import { requireAccountAuth, requireAuth } from "../middleware/auth";
 import { copyObject, deleteObject, generateUploadUrl } from "../lib/storage";
 import { BillingError, getEntitlements } from "../lib/billing";
+import { publicStorageBase, publicStorageObjectUrl } from "../lib/public-storage-url";
 
 const storageContainers = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
@@ -22,14 +23,6 @@ function relativeObjectKey(objectKey: string, containerId: string, userId: strin
   return objectKey.startsWith(prefix) ? objectKey.slice(prefix.length) : objectKey;
 }
 
-function publicObjectKey(objectKey: string): string {
-  return objectKey.startsWith("containers/") ? objectKey.slice("containers/".length) : objectKey;
-}
-
-function encodeObjectPath(objectKey: string): string {
-  return objectKey.split("/").map(segment => encodeURIComponent(segment)).join("/");
-}
-
 type CdnResolution = { hostname: string | null; error: string | null };
 
 function normalizeTimestamp(value: unknown, fallback?: unknown): string {
@@ -41,21 +34,11 @@ function normalizeTimestamp(value: unknown, fallback?: unknown): string {
   return new Date().toISOString();
 }
 
-function publicStorageBase(configuredHostname: string | null): string {
-  const configured = configuredHostname?.toLowerCase().replace(/\.$/, "");
-  if (!configured || ["img.afuchat.com", "vid.afuchat.com", "cdn.afuchat.com"].includes(configured)) {
-    return "https://cdn.afuchat.com/cloud/storage";
-  }
-  return `https://${configured}`;
-}
-
 function objectApi(object: any, containerId: string, cdn: CdnResolution) {
   const relativeKey = relativeObjectKey(object.object_key, containerId, object.user_id);
-  const publicKey = publicObjectKey(object.object_key);
-  const encodedPublicKey = encodeObjectPath(publicKey);
   const publicUrl = object.is_folder
     ? null
-    : `${publicStorageBase(cdn.hostname)}/${encodedPublicKey}`;
+    : publicStorageObjectUrl(object.object_key, cdn.hostname);
 
   return {
     id: object.id,

@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { db, domainsTable, hostnamesTable, storageContainersTable, storageObjectsTable } from "@workspace/db";
 import { requireAccountAuth, requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 import { copyObject, buildStorageKey, deleteObject, generateUploadUrl } from "../lib/storage";
+import { publicStorageBase, publicStorageObjectUrl } from "../lib/public-storage-url";
 
 const router: IRouter = Router();
 
@@ -22,14 +23,6 @@ function relativeObjectKey(objectKey: string, containerId: string, userId: strin
   return objectKey.startsWith(prefix) ? objectKey.slice(prefix.length) : objectKey;
 }
 
-function publicObjectKey(objectKey: string): string {
-  return objectKey.startsWith("containers/") ? objectKey.slice("containers/".length) : objectKey;
-}
-
-function encodeObjectPath(objectKey: string): string {
-  return objectKey.split("/").map(segment => encodeURIComponent(segment)).join("/");
-}
-
 type CdnResolution = { hostname: string | null; error: string | null };
 
 function normalizeTimestamp(value: Date | string | null | undefined, fallback?: Date | string | null): string {
@@ -41,21 +34,11 @@ function normalizeTimestamp(value: Date | string | null | undefined, fallback?: 
   return new Date().toISOString();
 }
 
-function publicStorageBase(configuredHostname: string | null): string {
-  const configured = configuredHostname?.toLowerCase().replace(/\.$/, "");
-  if (!configured || ["img.afuchat.com", "vid.afuchat.com", "cdn.afuchat.com"].includes(configured)) {
-    return "https://cdn.afuchat.com/cloud/storage";
-  }
-  return `https://${configured}`;
-}
-
 function objectApi(object: typeof storageObjectsTable.$inferSelect, containerId: string, cdn: CdnResolution) {
   const relativeKey = relativeObjectKey(object.objectKey, containerId, object.userId);
-  const publicKey = publicObjectKey(object.objectKey);
-  const encodedPublicKey = encodeObjectPath(publicKey);
   const publicUrl = object.isFolder
     ? null
-    : `${publicStorageBase(cdn.hostname)}/${encodedPublicKey}`;
+    : publicStorageObjectUrl(object.objectKey, cdn.hostname);
 
   return {
     id: object.id,
