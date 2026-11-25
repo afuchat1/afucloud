@@ -105,6 +105,19 @@ export default function PublicRoadmapPage() {
           </p>
         </section>
 
+        <section className="mx-auto max-w-5xl px-6 pb-10">
+          <article className="max-w-2xl rounded-xl border border-primary/30 bg-primary/5 p-6">
+            <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
+              <CheckCircle2 className="h-3 w-3" strokeWidth={2.5} />
+              Available now
+            </div>
+            <h2 className="text-xl font-semibold">Image storage and delivery</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Upload and organize project images, then use their URLs in your applications.
+            </p>
+          </article>
+        </section>
+
         <section className="mx-auto max-w-5xl px-6 pb-16">
           <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
             <div>
