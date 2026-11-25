@@ -1,4 +1,5 @@
-name = "afucloud"
+name = "afucloud-web"
+account_id = "42e79186125e8ff83e51f15816e074de"
 main = ".open-next/worker.js"
 compatibility_date = "2026-10-02"
 compatibility_flags = ["nodejs_compat"]

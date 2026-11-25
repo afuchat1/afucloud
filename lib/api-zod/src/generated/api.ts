@@ -859,7 +859,13 @@ export const SearchDomainRegistrationsResponse = zod.object({
   "available": zod.boolean(),
   "registrable": zod.boolean(),
   "tier": zod.string(),
-  "reason": zod.string().nullish()
+  "reason": zod.string().nullable(),
+  "currency": zod.string(),
+  "markupPercent": zod.number(),
+  "registrarCost": zod.number().nullable(),
+  "renewalRegistrarCost": zod.number().nullable(),
+  "retailPrice": zod.number().nullable(),
+  "renewalRetailPrice": zod.number().nullable()
 }))
 })
 

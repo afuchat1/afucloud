@@ -1712,19 +1712,34 @@ components:
         results:
           type: array
           items:
-            type: object
-            required: [domainName, available, registrable, tier]
-            properties:
-              domainName:
-                type: string
-              available:
-                type: boolean
-              registrable:
-                type: boolean
-              tier:
-                type: string
-              reason:
-                type: ["string", "null"]
+            $ref: "#/components/schemas/DomainRegistrationSearchResult"
+
+    DomainRegistrationSearchResult:
+      type: object
+      required: [domainName, available, registrable, tier, reason, currency, markupPercent, registrarCost, renewalRegistrarCost, retailPrice, renewalRetailPrice]
+      properties:
+        domainName:
+          type: string
+        available:
+          type: boolean
+        registrable:
+          type: boolean
+        tier:
+          type: string
+        reason:
+          type: ["string", "null"]
+        currency:
+          type: string
+        markupPercent:
+          type: number
+        registrarCost:
+          type: ["number", "null"]
+        renewalRegistrarCost:
+          type: ["number", "null"]
+        retailPrice:
+          type: ["number", "null"]
+        renewalRetailPrice:
+          type: ["number", "null"]
 
     DomainRegistrationQuoteRequest:
       type: object

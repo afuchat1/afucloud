@@ -409,17 +409,27 @@ export interface ActivityLog {
   createdAt: string;
 }
 
-export type DomainRegistrationSearchResponseResultsItem = {
+export interface DomainRegistrationSearchResult {
   domainName: string;
   available: boolean;
   registrable: boolean;
   tier: string;
   /** @nullable */
-  reason?: string | null;
-};
+  reason: string | null;
+  currency: string;
+  markupPercent: number;
+  /** @nullable */
+  registrarCost: number | null;
+  /** @nullable */
+  renewalRegistrarCost: number | null;
+  /** @nullable */
+  retailPrice: number | null;
+  /** @nullable */
+  renewalRetailPrice: number | null;
+}
 
 export interface DomainRegistrationSearchResponse {
-  results: DomainRegistrationSearchResponseResultsItem[];
+  results: DomainRegistrationSearchResult[];
 }
 
 export interface DomainRegistrationQuoteRequest {

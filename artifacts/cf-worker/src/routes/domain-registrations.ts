@@ -40,6 +40,13 @@ function retailPrice(cost: number, percent: number): number {
   return Math.round(cost * (1 + percent / 100) * 100) / 100;
 }
 
+function priceAmount(value: unknown): number | null {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && !value.trim()) return null;
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
 async function cloudflareRequest(env: Env, path: string, method: "GET" | "POST", body?: unknown) {
   if (!env.CLOUDFLARE_REGISTRAR_API_TOKEN) {
     throw new ProviderError("Domain registration is not configured yet.", 503);
@@ -71,8 +78,8 @@ async function checkDomain(env: Env, hostname: string) {
   if (!item || typeof item !== "object") throw new ProviderError("Cloudflare returned no availability result.");
 
   const pricing = item.pricing ?? {};
-  const registrationCost = Number(pricing.registration_cost);
-  const renewalCost = Number(pricing.renewal_cost);
+  const registrationCost = priceAmount(pricing.registration_cost);
+  const renewalCost = priceAmount(pricing.renewal_cost);
   const currency = String(pricing.currency ?? "USD").toUpperCase();
   const tier = String(item.tier ?? "standard").toLowerCase();
   const registrable = item.registrable === true;
@@ -85,10 +92,10 @@ async function checkDomain(env: Env, hostname: string) {
     reason: item.reason ? String(item.reason) : null,
     currency,
     markupPercent: percent,
-    registrarCost: Number.isFinite(registrationCost) ? registrationCost : null,
-    renewalRegistrarCost: Number.isFinite(renewalCost) ? renewalCost : null,
-    retailPrice: Number.isFinite(registrationCost) ? retailPrice(registrationCost, percent) : null,
-    renewalRetailPrice: Number.isFinite(renewalCost) ? retailPrice(renewalCost, percent) : null,
+    registrarCost: registrationCost,
+    renewalRegistrarCost: renewalCost,
+    retailPrice: registrationCost === null ? null : retailPrice(registrationCost, percent),
+    renewalRetailPrice: renewalCost === null ? null : retailPrice(renewalCost, percent),
   };
 }
 
@@ -288,14 +295,26 @@ registrations.get("/search", async (c) => {
       "GET",
     );
     const results = Array.isArray(result) ? result : result?.domains ?? result?.matches ?? result?.results ?? [];
+    const percent = markupPercent(c.env);
     return c.json({
-      results: results.map((item: any) => ({
-        domainName: String(item.domain_name ?? item.name ?? item.domain ?? ""),
-        available: item.available === true || item.available_to_register === true || item.registrable === true,
-        registrable: item.registrable === true || item.available_to_register === true || item.available === true,
-        tier: item.tier ?? "standard",
-        reason: item.reason ?? null,
-      })).filter((item: any) => item.domainName),
+      results: results.map((item: any) => {
+        const pricing = item.pricing ?? {};
+        const registrationCost = priceAmount(pricing.registration_cost);
+        const renewalCost = priceAmount(pricing.renewal_cost);
+        return {
+          domainName: String(item.domain_name ?? item.name ?? item.domain ?? ""),
+          available: item.available === true || item.available_to_register === true || item.registrable === true,
+          registrable: item.registrable === true || item.available_to_register === true || item.available === true,
+          tier: String(item.tier ?? "standard").toLowerCase(),
+          reason: item.reason ?? null,
+          currency: String(pricing.currency ?? "USD").toUpperCase(),
+          markupPercent: percent,
+          registrarCost: registrationCost,
+          renewalRegistrarCost: renewalCost,
+          retailPrice: registrationCost === null ? null : retailPrice(registrationCost, percent),
+          renewalRetailPrice: renewalCost === null ? null : retailPrice(renewalCost, percent),
+        };
+      }).filter((item: any) => item.domainName),
     });
   } catch (error) {
     const status = error instanceof ProviderError ? error.status : 502;

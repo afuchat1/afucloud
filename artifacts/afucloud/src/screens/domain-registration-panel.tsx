@@ -7,9 +7,9 @@ import { Label } from '@/components/ui/label';
 import { HowItWorksLink } from '@/components/how-it-works-link';
 import { useToast } from '@/hooks/use-toast';
 import { API_BASE } from '@/lib/api-base';
-import { customFetchResponse } from '@workspace/api-client-react';
+import { customFetchResponse, type DomainRegistrationSearchResponse } from '@workspace/api-client-react';
 
-type SearchResult = { domainName: string; available: boolean; registrable: boolean; tier: string; reason: string | null };
+type SearchResult = DomainRegistrationSearchResponse['results'][number];
 type Quote = {
   domainName: string;
   registrable: boolean;
@@ -64,7 +64,12 @@ async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 function money(value: number | null | undefined, currency = 'USD') {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'Unavailable';
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
+  if (!/^[A-Z]{3}$/.test(currency)) return 'Unavailable';
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
+  } catch {
+    return 'Unavailable';
+  }
 }
 
 function statusLabel(status: string) {
@@ -127,6 +132,7 @@ export function DomainRegistrationPanel() {
     setSearchError('');
     setResults([]);
     setQuote(null);
+    setAcceptedTerms(false);
     try {
       const response = await jsonFetch<{ results: SearchResult[] }>(
         `/v1/domains/registrations/search?q=${encodeURIComponent(searchTerm.trim())}`,
@@ -144,6 +150,7 @@ export function DomainRegistrationPanel() {
     setBusy(`quote:${domainName}`);
     setSearchError('');
     setQuote(null);
+    setAcceptedTerms(false);
     try {
       const response = await jsonFetch<Quote>('/v1/domains/registrations/quote', {
         method: 'POST',
@@ -201,6 +208,12 @@ export function DomainRegistrationPanel() {
   };
 
   const canRegister = order?.status === 'paid';
+  const quoteSupportsCheckout = !!quote &&
+    quote.registrable &&
+    quote.tier.toLowerCase() !== 'premium' &&
+    quote.currency.toUpperCase() === 'USD' &&
+    typeof quote.retailPrice === 'number' &&
+    typeof quote.renewalRetailPrice === 'number';
 
   return (
     <section className="overflow-hidden rounded-xl border border-card-border bg-card" data-testid="domain-registration">
@@ -211,7 +224,7 @@ export function DomainRegistrationPanel() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">AfuCloud service</p>
           <h2 className="mt-1 text-lg font-semibold">Register a domain</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Search domains and review the live price.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Search Cloudflare Registrar inventory to see live first-year and renewal prices, then review the purchase before paying.</p>
         </div>
       </div>
 
@@ -237,19 +250,32 @@ export function DomainRegistrationPanel() {
             <div className="divide-y divide-border rounded-lg border border-border">
               {results.map(result => (
                 <div key={result.domainName} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{result.domainName}</p>
                     <p className="text-xs text-muted-foreground">
-                      {result.available ? 'Listed as available · confirm with live quote' : result.reason || 'Availability not confirmed'}
+                      {result.available ? 'Available · live Cloudflare Registrar price' : result.reason || 'Unavailable for registration'}
                     </p>
+                    {result.available && (
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                        <span className="text-muted-foreground">First year <strong className="ml-1 text-foreground">{money(result.retailPrice, result.currency)}</strong></span>
+                        <span className="text-muted-foreground">Renewal / year <strong className="ml-1 text-foreground">{money(result.renewalRetailPrice, result.currency)}</strong></span>
+                      </div>
+                    )}
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={() => void getQuote(result.domainName)} disabled={busy === `quote:${result.domainName}`}>
-                    {busy === `quote:${result.domainName}` ? 'Checking…' : 'Get price'}
-                  </Button>
+                  {result.available && result.registrable && result.tier.toLowerCase() !== 'premium' && result.currency.toUpperCase() === 'USD' ? (
+                    <Button type="button" variant="outline" size="sm" onClick={() => void getQuote(result.domainName)} disabled={busy === `quote:${result.domainName}`}>
+                      {busy === `quote:${result.domainName}` ? 'Checking…' : result.retailPrice !== null ? 'Review & buy' : 'Check price'}
+                    </Button>
+                  ) : result.available && result.currency.toUpperCase() !== 'USD' ? (
+                    <span className="text-xs text-muted-foreground">Checkout currently supports USD only</span>
+                  ) : result.available && result.tier.toLowerCase() === 'premium' ? (
+                    <span className="text-xs text-muted-foreground">Premium domains are not available through checkout</span>
+                  ) : null}
                 </div>
               ))}
             </div>
           )}
+          {results.length > 0 && <p className="text-xs text-muted-foreground">Displayed prices include AfuCloud’s service markup. Availability and the final quote are rechecked before checkout.</p>}
 
           {quote && (
             <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
@@ -262,25 +288,33 @@ export function DomainRegistrationPanel() {
                 </div>
                 {quote.registrable && quote.tier !== 'premium' && <CheckCircle2 className="h-5 w-5 text-emerald-600" />}
               </div>
-              {quote.registrable && quote.tier !== 'premium' && (
+              {quote.registrable && quote.tier.toLowerCase() !== 'premium' && (
                 <>
                   <div className="space-y-2 border-t border-border pt-3 text-sm">
                     <div className="flex justify-between gap-4"><span className="text-muted-foreground">Registration, first year</span><span>{money(quote.retailPrice, quote.currency)}</span></div>
                     <div className="flex justify-between gap-4"><span className="text-muted-foreground">Renewal per year (manual)</span><span>{money(quote.renewalRetailPrice, quote.currency)}</span></div>
-                    <p className="text-xs text-muted-foreground">Includes the live Cloudflare price plus AfuCloud’s {quote.markupPercent}% service markup. Renewal prices may change.</p>
+                    <p className="text-xs text-muted-foreground">Includes the live Cloudflare price plus AfuCloud’s {quote.markupPercent}% service markup. Availability and price are checked again before checkout; renewal prices may change.</p>
                   </div>
-                  <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-                    <input
-                      type="checkbox"
-                      checked={acceptedTerms}
-                      onChange={event => setAcceptedTerms(event.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
-                    />
-                    <span>I confirm the buyer will be the legal registrant, renewals are manual, and completed domain registrations are non-refundable.</span>
-                  </label>
-                  <Button type="button" className="w-full" onClick={() => void startCheckout()} disabled={!acceptedTerms || busy === 'checkout'}>
-                    {busy === 'checkout' ? 'Starting checkout…' : <>Continue to Whop checkout <ArrowUpRight className="ml-2 h-4 w-4" /></>}
-                  </Button>
+                  {quoteSupportsCheckout ? (
+                    <>
+                      <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={acceptedTerms}
+                          onChange={event => setAcceptedTerms(event.target.checked)}
+                          className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                        />
+                        <span>I confirm the buyer will be the legal registrant, renewals are manual, and completed domain registrations are non-refundable.</span>
+                      </label>
+                      <Button type="button" className="w-full" onClick={() => void startCheckout()} disabled={!acceptedTerms || busy === 'checkout'}>
+                        {busy === 'checkout' ? 'Starting checkout…' : <>Continue to Whop checkout <ArrowUpRight className="ml-2 h-4 w-4" /></>}
+                      </Button>
+                    </>
+                  ) : (
+                    <p role="status" className="text-sm text-muted-foreground">
+                      AfuCloud can only open checkout when Cloudflare returns complete prices in USD.
+                    </p>
+                  )}
                 </>
               )}
             </div>
