@@ -17,3 +17,4 @@
 - [AfuCloud Cloudflare runtime](afucloud-cloudflare-runtime.md) — keep Next.js SSR on an OpenNext Worker; deploy the API Worker separately
 - [Whop trial entitlements](whop-trial-entitlements.md) — trialing memberships can grant access before a payment record exists; bind them by exact server-authored AfuCloud user metadata
 - [AfuCloud auth redirect intent](auth-redirect-intent.md) — generic sign-in defaults to dashboard; only protected-page returns and explicit paid-plan intents override it
+- [AfuCloud domain sales model](afucloud-domain-sales-model.md) — build AfuCloud's domain sales flow around a registrar API, customer payment, AfuCloud margin, and provider settlement
