@@ -904,17 +904,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/DomainRegistrationQuote"
 
+  /v1/domains/registrations/requirements:
+    get:
+      operationId: getDomainRegistrationRequirements
+      tags: [domains]
+      summary: Get the registrar-defined term and contact requirements for a domain extension
+      parameters:
+        - name: domainName
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Supported registration terms and extension-specific contact fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainRegistrationRequirements"
+
   /v1/domains/registrations/checkout:
     post:
       operationId: createDomainRegistrationCheckout
       tags: [domains]
-      summary: Create a one-time Whop checkout for a live domain quote
+      summary: Create or resume a one-time Whop checkout for a live domain quote
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/DomainRegistrationQuoteRequest"
+              $ref: "#/components/schemas/DomainRegistrationCheckoutRequest"
       responses:
         "201":
           description: Whop hosted checkout URL and pending order
@@ -1748,6 +1767,70 @@ components:
         domainName:
           type: string
 
+    DomainRegistrationRequirements:
+      type: object
+      required: [supported, reason, extension, allowedYears, fields]
+      properties:
+        supported:
+          type: boolean
+        reason:
+          type: ["string", "null"]
+        extension:
+          type: string
+        allowedYears:
+          type: array
+          items:
+            type: integer
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/DomainRegistrationRequirementField"
+
+    DomainRegistrationRequirementField:
+      type: object
+      required: [name, label, description, type, required, options, format, minLength, maxLength]
+      properties:
+        name:
+          type: string
+        label:
+          type: string
+        description:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [string, number, integer, boolean]
+        required:
+          type: boolean
+        options:
+          type: ["array", "null"]
+          items:
+            anyOf:
+              - type: string
+              - type: number
+              - type: boolean
+        format:
+          type: ["string", "null"]
+        minLength:
+          type: ["integer", "null"]
+        maxLength:
+          type: ["integer", "null"]
+
+    DomainRegistrationCheckoutRequest:
+      type: object
+      required: [domainName, registrationYears, registrant]
+      properties:
+        domainName:
+          type: string
+        registrationYears:
+          type: integer
+          minimum: 1
+          maximum: 10
+        registrant:
+          $ref: "#/components/schemas/DomainRegistrant"
+        contactExtensions:
+          type: object
+          additionalProperties: true
+
     DomainRegistrationQuote:
       type: object
       required: [domainName, registrable, tier, currency, markupPercent, registrarCost, renewalRegistrarCost, retailPrice, renewalRetailPrice]
@@ -1775,7 +1858,7 @@ components:
 
     DomainRegistrationOrder:
       type: object
-      required: [id, domainName, status, currency, registrarCost, renewalRegistrarCost, retailPrice, renewalRetailPrice, registrationStatus, expiresAt, error, createdAt]
+      required: [id, domainName, status, registrationYears, purchaseUrl, currency, registrarCost, renewalRegistrarCost, retailPrice, renewalRetailPrice, registrationStatus, registeredAt, expiresAt, error, createdAt]
       properties:
         id:
           type: string
@@ -1784,6 +1867,10 @@ components:
         status:
           type: string
           enum: [creating_checkout, pending_payment, paid, registering, processing, registered, registration_failed, checkout_failed, refunded, manual_review]
+        registrationYears:
+          type: integer
+        purchaseUrl:
+          type: ["string", "null"]
         currency:
           type: string
         registrarCost:
@@ -1795,6 +1882,8 @@ components:
         renewalRetailPrice:
           type: number
         registrationStatus:
+          type: ["string", "null"]
+        registeredAt:
           type: ["string", "null"]
         expiresAt:
           type: ["string", "null"]
@@ -1817,27 +1906,33 @@ components:
       required: [registrant]
       properties:
         registrant:
+          $ref: "#/components/schemas/DomainRegistrant"
+        contactExtensions:
           type: object
-          required: [email, phone, name, street, city, postalCode, countryCode]
-          properties:
-            email:
-              type: string
-            phone:
-              type: string
-              description: Cloudflare phone format, for example +256.700000000.
-            name:
-              type: string
-            organization:
-              type: string
-            street:
-              type: string
-            city:
-              type: string
-            state:
-              type: string
-            postalCode:
-              type: string
-            countryCode:
-              type: string
-              minLength: 2
-              maxLength: 2
+          additionalProperties: true
+
+    DomainRegistrant:
+      type: object
+      required: [email, phone, name, street, city, postalCode, countryCode]
+      properties:
+        email:
+          type: string
+        phone:
+          type: string
+          description: Cloudflare phone format, for example +256.700000000.
+        name:
+          type: string
+        organization:
+          type: string
+        street:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        countryCode:
+          type: string
+          minLength: 2
+          maxLength: 2

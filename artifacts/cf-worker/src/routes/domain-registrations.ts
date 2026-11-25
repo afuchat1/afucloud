@@ -1,6 +1,11 @@
 import { Hono } from "hono";
 import type { AuthVariables, Env } from "../types";
 import { createDbClient } from "../lib/db";
+import {
+  quoteForRegistrationYears,
+  registrationRequirements,
+  validateContactExtensions,
+} from "../lib/domain-registrar";
 import { requireAccountAuth, requireAuth } from "../middleware/auth";
 
 const registrations = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
@@ -136,16 +141,63 @@ function apiOrder(order: any) {
     id: order.id,
     domainName: order.hostname,
     status: order.status,
+    registrationYears: Number(order.registration_years ?? 1),
+    purchaseUrl: order.whop_purchase_url ?? null,
     currency: order.currency,
     registrarCost: Number(order.registrar_cost),
     renewalRegistrarCost: Number(order.renewal_registrar_cost),
     retailPrice: Number(order.retail_price),
     renewalRetailPrice: Number(order.renewal_retail_price),
     registrationStatus: order.cloudflare_registration_status ?? null,
+    registeredAt: order.registration_created_at ?? null,
     expiresAt: order.registration_expires_at ?? null,
     error: order.error_message ?? null,
     createdAt: order.created_at,
   };
+}
+
+async function getExtensionRequirements(env: Env, hostname: string) {
+  const labels = hostname.split(".");
+  const candidates = [...new Set([labels.slice(-2).join("."), labels.at(-1)].filter(
+    (candidate): candidate is string => Boolean(candidate),
+  ))];
+  let extensionResult: any = null;
+  let extensionName = "";
+
+  for (const candidate of candidates) {
+    try {
+      const response = await cloudflareRequest(
+        env,
+        `/extensions/${encodeURIComponent(candidate)}`,
+        "GET",
+      );
+      extensionResult = response.result;
+      extensionName = String(extensionResult?.metadata?.name ?? candidate).toLowerCase();
+      break;
+    } catch (error) {
+      if (!(error instanceof ProviderError) || error.status !== 404) throw error;
+    }
+  }
+
+  if (!extensionResult) {
+    throw new ProviderError("Cloudflare did not publish registration requirements for this domain extension.", 422);
+  }
+  const requirements = registrationRequirements(extensionName, extensionResult.registration_schema);
+  return {
+    supported: requirements.supported,
+    reason: requirements.reason,
+    extension: requirements.extension,
+    allowedYears: requirements.allowedYears,
+    fields: requirements.fields,
+    contactExtensionsSchema: requirements.contactExtensionsSchema,
+  };
+}
+
+async function getActiveOrRegisteredOrder(db: ReturnType<typeof createDbClient>, userId: string, hostname: string) {
+  const orders = await db.getDomainRegistrationOrdersByHostname(hostname, userId);
+  return orders.find((order: any) =>
+    ["creating_checkout", "pending_payment", "paid", "registering", "processing", "manual_review", "registered"].includes(order.status),
+  ) ?? null;
 }
 
 async function findPaidPayment(env: Env, order: any) {
@@ -170,8 +222,15 @@ async function findPaidPayment(env: Env, order: any) {
   );
   if (!payment) return null;
 
+  const accountId = payment.company?.id
+    ?? payment.account?.id
+    ?? payment.account_id
+    ?? payment.company_id;
+  if (accountId && accountId !== env.WHOP_COMPANY_ID) {
+    throw new ProviderError("The Whop payment belongs to a different account.", 409);
+  }
   const planId = payment.plan?.id ?? payment.plan_id;
-  if (planId && planId !== order.whop_plan_id) {
+  if (planId !== order.whop_plan_id) {
     throw new ProviderError("The payment does not match this domain order.", 409);
   }
   const status = String(payment.status ?? payment.state ?? "").toLowerCase();
@@ -209,6 +268,7 @@ async function refreshRegistrationStatus(env: Env, db: ReturnType<typeof createD
     return await db.updateDomainRegistrationOrder(order.id, userId, {
       status: "registered",
       cloudflare_registration_status: registrationStatus ?? "active",
+      registration_created_at: registration.created_at ?? result?.created_at ?? null,
       registration_expires_at: expiresAt,
       error_message: null,
     }, "processing") ?? await db.getDomainRegistrationOrder(order.id, userId) ?? order;
@@ -248,6 +308,7 @@ async function refreshRegistrationStatus(env: Env, db: ReturnType<typeof createD
   if (registrationStatus === order.cloudflare_registration_status && !expiresAt) return order;
   return await db.updateDomainRegistrationOrder(order.id, userId, {
     cloudflare_registration_status: registrationStatus ?? "processing",
+    registration_created_at: registration.created_at ?? result?.created_at ?? null,
     registration_expires_at: expiresAt,
   }, "processing") ?? await db.getDomainRegistrationOrder(order.id, userId) ?? order;
 }
@@ -322,6 +383,24 @@ registrations.get("/search", async (c) => {
   }
 });
 
+registrations.get("/requirements", async (c) => {
+  const hostname = normalizeDomain(c.req.query("domainName"));
+  if (!hostname) return c.json({ error: "Enter a valid root domain, such as example.com." }, 400);
+  try {
+    const requirements = await getExtensionRequirements(c.env, hostname);
+    return c.json({
+      supported: requirements.supported,
+      reason: requirements.reason,
+      extension: requirements.extension,
+      allowedYears: requirements.allowedYears,
+      fields: requirements.fields,
+    });
+  } catch (error) {
+    const status = error instanceof ProviderError ? error.status : 502;
+    return c.json({ error: error instanceof Error ? error.message : "Could not load extension requirements." }, status as 400);
+  }
+});
+
 registrations.post("/quote", async (c) => {
   const body = await c.req.json().catch(() => ({})) as { domainName?: unknown };
   const hostname = normalizeDomain(body.domainName);
@@ -335,12 +414,46 @@ registrations.post("/quote", async (c) => {
 });
 
 registrations.post("/checkout", async (c) => {
-  const body = await c.req.json().catch(() => ({})) as { domainName?: unknown };
+  const body = await c.req.json().catch(() => ({})) as {
+    domainName?: unknown;
+    registrationYears?: unknown;
+    registrant?: unknown;
+    contactExtensions?: unknown;
+  };
   const hostname = normalizeDomain(body.domainName);
   if (!hostname) return c.json({ error: "Enter a valid root domain, such as example.com." }, 400);
+  const registrant = validRegistrant(body.registrant);
+  if (!registrant) {
+    return c.json({ error: "Complete valid legal registrant details before checkout." }, 400);
+  }
 
   const db = createDbClient(c.env);
   try {
+    const existingOrder = await getActiveOrRegisteredOrder(db, c.get("userId"), hostname);
+    if (existingOrder) {
+      if (existingOrder.status === "pending_payment" && existingOrder.whop_purchase_url) {
+        return c.json({ order: apiOrder(existingOrder), purchaseUrl: existingOrder.whop_purchase_url });
+      }
+      const message = existingOrder.status === "registered"
+        ? "This domain is already registered on this AfuCloud account."
+        : "An order for this domain is already active. Check its status before trying again.";
+      return c.json({ error: message, order: apiOrder(existingOrder) }, 409);
+    }
+
+    const requirements = await getExtensionRequirements(c.env, hostname);
+    if (!requirements.supported) {
+      return c.json({ error: requirements.reason || "AfuCloud cannot safely register this extension yet." }, 422);
+    }
+    const years = Number(body.registrationYears);
+    if (!Number.isInteger(years) || !requirements.allowedYears.includes(years)) {
+      return c.json({ error: "Choose a registration term supported for this extension." }, 400);
+    }
+    const contactExtensions = validateContactExtensions(
+      requirements.contactExtensionsSchema,
+      body.contactExtensions,
+    );
+    if (!contactExtensions.valid) return c.json({ error: contactExtensions.error }, 400);
+
     const quote = await checkDomain(c.env, hostname);
     if (!quote.registrable || quote.tier === "premium") {
       return c.json({ error: quote.reason || "This domain cannot be registered through AfuCloud." }, 409);
@@ -349,28 +462,47 @@ registrations.post("/checkout", async (c) => {
       quote.retailPrice === null || quote.renewalRetailPrice === null) {
       return c.json({ error: "AfuCloud checkout currently supports domains priced in USD only." }, 422);
     }
+    const termPrice = quoteForRegistrationYears(
+      quote.registrarCost,
+      quote.renewalRegistrarCost,
+      years,
+      quote.markupPercent,
+    );
 
-    const order = await db.createDomainRegistrationOrder({
-      user_id: c.get("userId"),
-      hostname,
-      status: "creating_checkout",
-      currency: quote.currency,
-      registrar_cost: quote.registrarCost,
-      renewal_registrar_cost: quote.renewalRegistrarCost,
-      retail_price: quote.retailPrice,
-      renewal_retail_price: quote.renewalRetailPrice,
-    });
+    let order: any;
+    try {
+      order = await db.createDomainRegistrationOrder({
+        user_id: c.get("userId"),
+        hostname,
+        status: "creating_checkout",
+        registration_years: years,
+        currency: quote.currency,
+        registrar_cost: termPrice.registrarCost,
+        renewal_registrar_cost: termPrice.renewalRegistrarCost,
+        retail_price: termPrice.retailPrice,
+        renewal_retail_price: termPrice.renewalRetailPrice,
+      });
+    } catch (error) {
+      const concurrentOrder = await getActiveOrRegisteredOrder(db, c.get("userId"), hostname).catch(() => null);
+      if (concurrentOrder?.status === "pending_payment" && concurrentOrder.whop_purchase_url) {
+        return c.json({ order: apiOrder(concurrentOrder), purchaseUrl: concurrentOrder.whop_purchase_url });
+      }
+      if (concurrentOrder) {
+        return c.json({ error: "An order for this domain is already active. Check its status before trying again." }, 409);
+      }
+      throw error;
+    }
     if (!order?.id) throw new ProviderError("Could not create the domain order.", 500);
 
     try {
       const plan = await whopRequest(c.env, "/plans", "POST", {
         account_id: c.env.WHOP_COMPANY_ID,
         product_id: c.env.WHOP_PRODUCT_ID,
-        initial_price: quote.retailPrice,
+        initial_price: termPrice.retailPrice,
         currency: quote.currency.toLowerCase(),
         plan_type: "one_time",
-        title: `Domain registration: ${hostname}`,
-        description: `One-time purchase for registering ${hostname} through AfuCloud.`,
+        title: `Domain registration: ${hostname} (${years} year${years === 1 ? "" : "s"})`,
+        description: `One-time purchase for registering ${hostname} for ${years} year${years === 1 ? "" : "s"} through AfuCloud.`,
       });
       const planId = plan?.id;
       if (!planId) throw new ProviderError("Whop did not return a payment plan.");
@@ -390,6 +522,7 @@ registrations.post("/checkout", async (c) => {
         status: "pending_payment",
         whop_plan_id: planId,
         whop_checkout_configuration_id: checkout.id,
+        whop_purchase_url: checkout.purchase_url,
       });
       if (!updated) throw new ProviderError("Could not save the checkout link.", 500);
 
@@ -435,12 +568,14 @@ registrations.get("/orders/:orderId", async (c) => {
 });
 
 registrations.post("/orders/:orderId/register", async (c) => {
-  const registrant = validRegistrant(await c.req.json().catch(() => ({})).then((body: any) => body?.registrant));
+  const body = await c.req.json().catch(() => ({})) as { registrant?: unknown; contactExtensions?: unknown };
+  const registrant = validRegistrant(body.registrant);
   if (!registrant) {
     return c.json({ error: "Enter valid legal contact details, including an email, phone, and postal address." }, 400);
   }
 
   const db = createDbClient(c.env);
+  let claimedOrderId: string | null = null;
   try {
     let order = await db.getDomainRegistrationOrder(c.req.param("orderId"), c.get("userId"));
     if (!order) return c.json({ error: "Domain order not found." }, 404);
@@ -449,6 +584,16 @@ registrations.post("/orders/:orderId/register", async (c) => {
     order = await refreshOrderPayment(c.env, db, order, c.get("userId"));
     if (order.status !== "paid") return c.json({ error: "Payment has not been confirmed by Whop yet." }, 402);
 
+    const requirements = await getExtensionRequirements(c.env, order.hostname);
+    if (!requirements.supported || !requirements.allowedYears.includes(Number(order.registration_years ?? 1))) {
+      return c.json({ error: requirements.reason || "AfuCloud could not confirm this registration term." }, 422);
+    }
+    const contactExtensions = validateContactExtensions(
+      requirements.contactExtensionsSchema,
+      body.contactExtensions,
+    );
+    if (!contactExtensions.valid) return c.json({ error: contactExtensions.error }, 400);
+
     const claimed = await db.updateDomainRegistrationOrder(
       order.id,
       c.get("userId"),
@@ -456,20 +601,36 @@ registrations.post("/orders/:orderId/register", async (c) => {
       "paid",
     );
     if (!claimed) return c.json({ error: "This domain order is already being processed." }, 409);
+    claimedOrderId = order.id;
 
     const latestQuote = await checkDomain(c.env, order.hostname);
-    if (!latestQuote.registrable || latestQuote.tier === "premium") {
+    const termYears = Number(order.registration_years ?? 1);
+    const currentTermPrice = latestQuote.registrarCost !== null && latestQuote.renewalRegistrarCost !== null
+      ? quoteForRegistrationYears(latestQuote.registrarCost, latestQuote.renewalRegistrarCost, termYears, latestQuote.markupPercent)
+      : null;
+    const quoteChanged = !latestQuote.registrable ||
+      latestQuote.tier === "premium" ||
+      latestQuote.currency !== order.currency ||
+      !currentTermPrice ||
+      Math.round(currentTermPrice.registrarCost * 100) !== Math.round(Number(order.registrar_cost) * 100) ||
+      Math.round(currentTermPrice.retailPrice * 100) !== Math.round(Number(order.retail_price) * 100);
+    if (quoteChanged) {
       const paymentId = order.whop_payment_id;
       const refunded = paymentId ? await refundWhopPayment(c.env, paymentId) : false;
       const status = refunded ? "refunded" : "manual_review";
       const failed = await db.updateDomainRegistrationOrder(order.id, c.get("userId"), {
         status,
         error_message: refunded
-          ? "The domain became unavailable after payment. Whop confirmed a refund."
-          : "The domain became unavailable after payment. AfuCloud must review this order.",
+          ? "The domain became unavailable or its registration price changed after payment. Whop confirmed a refund."
+          : "The domain became unavailable or its registration price changed after payment. AfuCloud must review this order.",
       });
       return c.json(apiOrder(failed ?? { ...order, status }), 409);
     }
+
+    await db.updateDomainRegistrationOrder(order.id, c.get("userId"), {
+      renewal_registrar_cost: currentTermPrice!.renewalRegistrarCost,
+      renewal_retail_price: currentTermPrice!.renewalRetailPrice,
+    }, "registering");
 
     const cloudflareContact = {
       email: registrant.email,
@@ -491,10 +652,11 @@ registrations.post("/orders/:orderId/register", async (c) => {
     try {
       registration = await cloudflareRequest(c.env, "/registrations", "POST", {
         domain_name: order.hostname,
-        years: 1,
+        years: termYears,
         auto_renew: false,
         privacy_mode: "redaction",
         contacts: { registrant: cloudflareContact },
+        ...(requirements.contactExtensionsSchema ? { contact_extensions: contactExtensions.values } : {}),
       });
     } catch (error) {
       const definiteFailure = error instanceof ProviderError && error.status < 500 && error.status !== 503;
@@ -521,6 +683,7 @@ registrations.post("/orders/:orderId/register", async (c) => {
     const registrationInfo = result?.context?.registration ?? result?.registration ?? {};
     const state = String(result?.state ?? result?.status ?? "").toLowerCase();
     const registrarStatus = registrationInfo.status ?? state ?? null;
+    const registeredAt = registrationInfo.created_at ?? result.created_at ?? null;
     const expiresAt = registrationInfo.expires_at ?? result.expires_at ?? result.expiration_date ?? null;
 
     if (state === "failed") {
@@ -533,6 +696,7 @@ registrations.post("/orders/:orderId/register", async (c) => {
       const failed = await db.updateDomainRegistrationOrder(order.id, c.get("userId"), {
         status,
         cloudflare_registration_status: registrarStatus ?? "failed",
+        registration_created_at: registeredAt,
         error_message: errorMessage,
       });
       return c.json(apiOrder(failed ?? { ...order, status, error_message: errorMessage }), 409);
@@ -549,6 +713,7 @@ registrations.post("/orders/:orderId/register", async (c) => {
       status: nextStatus,
       cloudflare_registration_id: result.id ?? result.domain_name ?? order.hostname,
       cloudflare_registration_status: registrarStatus ?? nextStatus,
+      registration_created_at: registeredAt,
       registration_expires_at: expiresAt,
       error_message: nextStatus === "manual_review"
         ? "Cloudflare requires additional action or returned an unrecognized registration state. AfuCloud will review this order."
@@ -556,6 +721,17 @@ registrations.post("/orders/:orderId/register", async (c) => {
     });
     return c.json(apiOrder(updated ?? { ...order, status: nextStatus }), registration.status === 202 ? 202 : 200);
   } catch (error) {
+    if (claimedOrderId) {
+      await db.updateDomainRegistrationOrder(
+        claimedOrderId,
+        c.get("userId"),
+        {
+          status: "manual_review",
+          error_message: "The registration result could not be confirmed. Do not place another order; AfuCloud will review it.",
+        },
+        "registering",
+      ).catch(() => null);
+    }
     const status = error instanceof ProviderError ? error.status : 502;
     return c.json({ error: error instanceof Error ? error.message : "Could not complete domain registration." }, status as 400);
   }

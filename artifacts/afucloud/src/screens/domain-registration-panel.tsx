@@ -26,15 +26,35 @@ type DomainOrder = {
   id: string;
   domainName: string;
   status: string;
+  registrationYears: number;
+  purchaseUrl: string | null;
   currency: string;
   registrarCost: number;
   renewalRegistrarCost: number;
   retailPrice: number;
   renewalRetailPrice: number;
   registrationStatus: string | null;
+  registeredAt: string | null;
   expiresAt: string | null;
   error: string | null;
   createdAt: string;
+};
+type RegistrationRequirements = {
+  supported: boolean;
+  reason: string | null;
+  extension: string;
+  allowedYears: number[];
+  fields: Array<{
+    name: string;
+    label: string;
+    description: string | null;
+    type: 'string' | 'number' | 'integer' | 'boolean';
+    required: boolean;
+    options: Array<string | number | boolean> | null;
+    format: string | null;
+    minLength: number | null;
+    maxLength: number | null;
+  }>;
 };
 type Registrant = {
   email: string;
@@ -72,6 +92,21 @@ function money(value: number | null | undefined, currency = 'USD') {
   }
 }
 
+function termPrice(quote: Quote, years: number) {
+  if (quote.registrarCost === null || quote.renewalRegistrarCost === null) return null;
+  const registrarCost = Math.round((quote.registrarCost + quote.renewalRegistrarCost * (years - 1)) * 100) / 100;
+  return {
+    registrarCost,
+    retailPrice: Math.round(registrarCost * (1 + quote.markupPercent / 100) * 100) / 100,
+  };
+}
+
+function displayDate(value: string | null) {
+  if (!value) return 'Not provided by registrar';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? 'Not provided by registrar' : parsed.toLocaleDateString();
+}
+
 function statusLabel(status: string) {
   return ({
     creating_checkout: 'Starting checkout',
@@ -93,6 +128,10 @@ export function DomainRegistrationPanel() {
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [requirements, setRequirements] = useState<RegistrationRequirements | null>(null);
+  const [registrationYears, setRegistrationYears] = useState(1);
+  const [contactExtensions, setContactExtensions] = useState<Record<string, unknown>>({});
+  const [purchaseUrl, setPurchaseUrl] = useState<string | null>(null);
   const [order, setOrder] = useState<DomainOrder | null>(null);
   const [registrant, setRegistrant] = useState<Registrant>(emptyRegistrant);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -114,6 +153,18 @@ export function DomainRegistrationPanel() {
     try {
       const current = await jsonFetch<DomainOrder>(`/v1/domains/registrations/orders/${encodeURIComponent(id)}`);
       syncOrder(current);
+      setPurchaseUrl(current.purchaseUrl);
+      if (current.status === 'paid') {
+        try {
+          const currentRequirements = await jsonFetch<RegistrationRequirements>(
+            `/v1/domains/registrations/requirements?domainName=${encodeURIComponent(current.domainName)}`,
+          );
+          setRequirements(currentRequirements);
+          setRegistrationYears(current.registrationYears);
+        } catch {
+          setRequirements(null);
+        }
+      }
     } catch (error) {
       toast({ title: 'Could not load domain order', description: error instanceof Error ? error.message : 'Please try again', variant: 'destructive' });
     } finally {
@@ -132,6 +183,10 @@ export function DomainRegistrationPanel() {
     setSearchError('');
     setResults([]);
     setQuote(null);
+    setRequirements(null);
+    setPurchaseUrl(null);
+    setOrder(null);
+    setContactExtensions({});
     setAcceptedTerms(false);
     try {
       const response = await jsonFetch<{ results: SearchResult[] }>(
@@ -150,13 +205,25 @@ export function DomainRegistrationPanel() {
     setBusy(`quote:${domainName}`);
     setSearchError('');
     setQuote(null);
+    setRequirements(null);
+    setPurchaseUrl(null);
+    setOrder(null);
     setAcceptedTerms(false);
     try {
-      const response = await jsonFetch<Quote>('/v1/domains/registrations/quote', {
-        method: 'POST',
-        body: JSON.stringify({ domainName }),
-      });
+      const [response, currentRequirements] = await Promise.all([
+        jsonFetch<Quote>('/v1/domains/registrations/quote', {
+          method: 'POST',
+          body: JSON.stringify({ domainName }),
+        }),
+        jsonFetch<RegistrationRequirements>(
+          `/v1/domains/registrations/requirements?domainName=${encodeURIComponent(domainName)}`,
+        ),
+      ]);
       setQuote(response);
+      setRequirements(currentRequirements);
+      setRegistrationYears(currentRequirements.allowedYears[0] ?? 1);
+      setContactExtensions({});
+      setRegistrant(emptyRegistrant);
       setSearchTerm(response.domainName);
     } catch (error) {
       setSearchError(error instanceof Error ? error.message : 'Could not check current pricing.');
@@ -166,14 +233,20 @@ export function DomainRegistrationPanel() {
   };
 
   const startCheckout = async () => {
-    if (!quote || !acceptedTerms) return;
+    if (!quote || !requirements?.supported || !acceptedTerms) return;
     setBusy('checkout');
     try {
       const response = await jsonFetch<{ purchaseUrl: string; order: DomainOrder }>('/v1/domains/registrations/checkout', {
         method: 'POST',
-        body: JSON.stringify({ domainName: quote.domainName }),
+        body: JSON.stringify({
+          domainName: quote.domainName,
+          registrationYears,
+          registrant,
+          contactExtensions,
+        }),
       });
-      window.location.assign(response.purchaseUrl);
+      setPurchaseUrl(response.purchaseUrl);
+      syncOrder(response.order);
     } catch (error) {
       toast({ title: 'Could not start checkout', description: error instanceof Error ? error.message : 'Please try again', variant: 'destructive' });
       setBusy(null);
@@ -187,10 +260,13 @@ export function DomainRegistrationPanel() {
     try {
       const updated = await jsonFetch<DomainOrder>(`/v1/domains/registrations/orders/${encodeURIComponent(order.id)}/register`, {
         method: 'POST',
-        body: JSON.stringify({ registrant }),
+        body: JSON.stringify({ registrant, contactExtensions }),
       });
       syncOrder(updated);
-      setRegistrant(emptyRegistrant);
+      if (updated.status === 'registered') {
+        setRegistrant(emptyRegistrant);
+        setContactExtensions({});
+      }
       toast({
         title: updated.status === 'registered' ? 'Domain registered' : statusLabel(updated.status),
         description: updated.error ?? undefined,
@@ -204,16 +280,124 @@ export function DomainRegistrationPanel() {
   };
 
   const setContact = (field: keyof Registrant, value: string) => {
-    setRegistrant(current => ({ ...current, [field]: value }));
+    setRegistrant(current => ({
+      ...current,
+      [field]: field === 'countryCode' ? value.toUpperCase() : value,
+    }));
+  };
+  const setExtensionContact = (name: string, value: unknown) => {
+    setContactExtensions(current => ({ ...current, [name]: value }));
   };
 
   const canRegister = order?.status === 'paid';
+  const selectedTermPrice = quote ? termPrice(quote, registrationYears) : null;
   const quoteSupportsCheckout = !!quote &&
+    !!requirements?.supported &&
+    requirements.allowedYears.includes(registrationYears) &&
     quote.registrable &&
     quote.tier.toLowerCase() !== 'premium' &&
     quote.currency.toUpperCase() === 'USD' &&
     typeof quote.retailPrice === 'number' &&
     typeof quote.renewalRetailPrice === 'number';
+  const expiryNotices = (ordersQuery.data ?? []).filter(item => {
+    if (item.status !== 'registered' || !item.expiresAt) return false;
+    const expiresAt = new Date(item.expiresAt).getTime();
+    return Number.isFinite(expiresAt) && expiresAt - Date.now() <= 90 * 24 * 60 * 60 * 1000;
+  });
+  const renderRegistrantFields = () => (
+    <div className="space-y-4">
+      <div>
+        <h4 className="font-semibold">Legal registrant details</h4>
+        <p className="mt-1 text-xs text-muted-foreground">
+          AfuCloud checks these details before checkout but does not save them. They are sent to Cloudflare only when you submit the paid registration.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {([
+          ['name', 'Full legal name', 'Jane Doe'],
+          ['organization', 'Organization (optional)', ''],
+          ['email', 'Email', 'name@example.com'],
+          ['phone', 'Phone (+country.number)', '+256.700000000'],
+          ['street', 'Street address', '123 Main Street'],
+          ['city', 'City', 'Kampala'],
+          ['state', 'State / region', 'Central Region'],
+          ['postalCode', 'Postal code', ''],
+          ['countryCode', 'Country code (2 letters)', 'UG'],
+        ] as const).map(([field, title, placeholder]) => (
+          <div key={field} className="space-y-1.5">
+            <Label htmlFor={`registrant-${field}`}>{title}</Label>
+            <Input
+              id={`registrant-${field}`}
+              value={registrant[field]}
+              onChange={event => setContact(field, event.target.value)}
+              placeholder={placeholder}
+              autoComplete={field === 'email' ? 'email' : field === 'name' ? 'name' : undefined}
+              required={!['organization', 'state'].includes(field)}
+              maxLength={field === 'countryCode' ? 2 : 250}
+            />
+          </div>
+        ))}
+      </div>
+      {(requirements?.fields.length ?? 0) > 0 && (
+        <div className="space-y-3 rounded-lg border border-border bg-background/60 p-3">
+          <div>
+            <h5 className="text-sm font-medium">Additional {requirements?.extension} registration details</h5>
+            <p className="mt-1 text-xs text-muted-foreground">These fields are required by the domain extension’s registry.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {requirements?.fields.map(field => (
+              <div key={field.name} className="space-y-1.5">
+                <Label htmlFor={`extension-${field.name}`}>{field.label}{field.required ? ' *' : ''}</Label>
+                {field.options?.length ? (
+                  <select
+                    id={`extension-${field.name}`}
+                    value={contactExtensions[field.name] === undefined ? '' : String(contactExtensions[field.name])}
+                    onChange={event => {
+                      const selected = field.options?.find(option => String(option) === event.target.value);
+                      setExtensionContact(field.name, selected ?? '');
+                    }}
+                    required={field.required}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Choose an option</option>
+                    {field.options.map(option => <option key={String(option)} value={String(option)}>{String(option)}</option>)}
+                  </select>
+                ) : field.type === 'boolean' ? (
+                  <select
+                      id={`extension-${field.name}`}
+                    value={contactExtensions[field.name] === undefined ? '' : String(contactExtensions[field.name])}
+                    onChange={event => setExtensionContact(field.name, event.target.value === 'true')}
+                    required={field.required}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Choose an option</option>
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </select>
+                ) : (
+                  <Input
+                    id={`extension-${field.name}`}
+                    type={field.format === 'email' ? 'email' : field.type === 'number' || field.type === 'integer' ? 'number' : 'text'}
+                    value={contactExtensions[field.name] === undefined ? '' : String(contactExtensions[field.name])}
+                    onChange={event => {
+                      const raw = event.target.value;
+                      const value = raw === '' ? '' : field.type === 'number' || field.type === 'integer' ? Number(raw) : raw;
+                      setExtensionContact(field.name, value);
+                    }}
+                    required={field.required}
+                    minLength={field.minLength ?? undefined}
+                    maxLength={field.maxLength ?? undefined}
+                    step={field.type === 'integer' ? 1 : undefined}
+                  />
+                )}
+                {field.description && <p className="text-xs text-muted-foreground">{field.description}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <section className="overflow-hidden rounded-xl border border-card-border bg-card" data-testid="domain-registration">
@@ -224,7 +408,7 @@ export function DomainRegistrationPanel() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">AfuCloud service</p>
           <h2 className="mt-1 text-lg font-semibold">Register a domain</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Search Cloudflare Registrar inventory to see live first-year and renewal prices, then review the purchase before paying.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Check a fresh quote for availability, annual prices, supported terms, and registry-required contact details.</p>
         </div>
       </div>
 
@@ -253,7 +437,7 @@ export function DomainRegistrationPanel() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{result.domainName}</p>
                     <p className="text-xs text-muted-foreground">
-                      {result.available ? 'Available · live Cloudflare Registrar price' : result.reason || 'Unavailable for registration'}
+                      {result.available ? 'Search suggestion · confirm live availability before checkout' : result.reason || 'Unavailable for registration'}
                     </p>
                     {result.available && (
                       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
@@ -275,7 +459,7 @@ export function DomainRegistrationPanel() {
               ))}
             </div>
           )}
-          {results.length > 0 && <p className="text-xs text-muted-foreground">Displayed prices include AfuCloud’s service markup. Availability and the final quote are rechecked before checkout.</p>}
+          {results.length > 0 && <p className="text-xs text-muted-foreground">Search availability and prices may be cached. The quote step checks current registry availability and prices.</p>}
 
           {quote && (
             <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
@@ -291,12 +475,43 @@ export function DomainRegistrationPanel() {
               {quote.registrable && quote.tier.toLowerCase() !== 'premium' && (
                 <>
                   <div className="space-y-2 border-t border-border pt-3 text-sm">
-                    <div className="flex justify-between gap-4"><span className="text-muted-foreground">Registration, first year</span><span>{money(quote.retailPrice, quote.currency)}</span></div>
-                    <div className="flex justify-between gap-4"><span className="text-muted-foreground">Renewal per year (manual)</span><span>{money(quote.renewalRetailPrice, quote.currency)}</span></div>
-                    <p className="text-xs text-muted-foreground">Includes the live Cloudflare price plus AfuCloud’s {quote.markupPercent}% service markup. Availability and price are checked again before checkout; renewal prices may change.</p>
+                    {requirements?.allowedYears.length === 1 ? (
+                      <div className="flex justify-between gap-4">
+                        <span className="text-muted-foreground">Registration term</span>
+                        <span>{requirements.allowedYears[0]} year{requirements.allowedYears[0] === 1 ? '' : 's'}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-4">
+                        <Label htmlFor="registration-years" className="text-muted-foreground">Registration term</Label>
+                        <select
+                          id="registration-years"
+                          value={registrationYears}
+                          onChange={event => setRegistrationYears(Number(event.target.value))}
+                          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        >
+                          {requirements?.allowedYears.map(years => (
+                            <option key={years} value={years}>{years} year{years === 1 ? '' : 's'}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Registration for {registrationYears} year{registrationYears === 1 ? '' : 's'}</span>
+                      <span>{money(selectedTermPrice?.retailPrice ?? quote.retailPrice, quote.currency)}</span>
+                    </div>
+                    <div className="flex justify-between gap-4"><span className="text-muted-foreground">Renewal per year</span><span>{money(quote.renewalRetailPrice, quote.currency)}</span></div>
+                    <p className="text-xs text-muted-foreground">
+                      Prices are based on Cloudflare’s current annual registration and renewal rates plus AfuCloud’s {quote.markupPercent}% service markup. Availability and registration price are checked again after payment; renewal prices can change.
+                    </p>
                   </div>
-                  {quoteSupportsCheckout ? (
+                  {!requirements?.supported && (
+                    <p role="status" className="text-sm text-amber-700 dark:text-amber-300">
+                      {requirements?.reason || 'AfuCloud could not confirm the registration requirements for this extension.'}
+                    </p>
+                  )}
+                  {quoteSupportsCheckout && (!order || order.domainName !== quote.domainName) ? (
                     <>
+                      {renderRegistrantFields()}
                       <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-muted-foreground">
                         <input
                           type="checkbox"
@@ -304,15 +519,19 @@ export function DomainRegistrationPanel() {
                           onChange={event => setAcceptedTerms(event.target.checked)}
                           className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
                         />
-                        <span>I confirm the buyer will be the legal registrant, renewals are manual, and completed domain registrations are non-refundable.</span>
+                        <span>I am the legal registrant and understand completed registrations are non-refundable. AfuCloud renewal checkout is not available yet.</span>
                       </label>
                       <Button type="button" className="w-full" onClick={() => void startCheckout()} disabled={!acceptedTerms || busy === 'checkout'}>
-                        {busy === 'checkout' ? 'Starting checkout…' : <>Continue to Whop checkout <ArrowUpRight className="ml-2 h-4 w-4" /></>}
+                        {busy === 'checkout' ? 'Preparing checkout…' : <>Create secure checkout <ArrowUpRight className="ml-2 h-4 w-4" /></>}
                       </Button>
                     </>
                   ) : (
                     <p role="status" className="text-sm text-muted-foreground">
-                      AfuCloud can only open checkout when Cloudflare returns complete prices in USD.
+                      {!requirements?.supported
+                        ? requirements?.reason || 'AfuCloud could not confirm the requirements for this extension.'
+                        : quote.currency.toUpperCase() !== 'USD'
+                          ? 'AfuCloud checkout currently supports USD pricing only.'
+                          : 'AfuCloud needs a complete live registration and renewal quote before checkout.'}
                     </p>
                   )}
                 </>
@@ -341,45 +560,29 @@ export function DomainRegistrationPanel() {
             </div>
           </div>
 
+          <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+            <p>Registration term: <strong className="text-foreground">{order.registrationYears} year{order.registrationYears === 1 ? '' : 's'}</strong></p>
+            <p>Registered: <strong className="text-foreground">{displayDate(order.registeredAt)}</strong></p>
+            <p>Expires: <strong className="text-foreground">{displayDate(order.expiresAt)}</strong></p>
+          </div>
+
           {order.status === 'pending_payment' && (
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <p className="text-sm text-muted-foreground">After paying in Whop, check here to confirm payment.</p>
-              <Button type="button" variant="outline" size="sm" onClick={() => void loadOrder(order.id)} disabled={busy === 'order'}>Check payment</Button>
+              <p className="text-sm text-muted-foreground">Complete payment in Whop, then return here to continue registration.</p>
+              {purchaseUrl && (
+                <a href={purchaseUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                  Open secure checkout <ArrowUpRight className="h-4 w-4" />
+                </a>
+              )}
+              <Button type="button" variant="outline" size="sm" onClick={() => void loadOrder(order.id)} disabled={busy === 'order'}>
+                {busy === 'order' ? 'Checking…' : 'Check payment'}
+              </Button>
             </div>
           )}
 
           {canRegister && (
             <form onSubmit={submitRegistrant} className="mt-5 space-y-4">
-              <div>
-                <h4 className="font-semibold">Buyer’s legal registrant details</h4>
-                <p className="mt-1 text-xs text-muted-foreground">Sent directly to Cloudflare to register the domain. AfuCloud does not store these contact details.</p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {([
-                  ['name', 'Full legal name', 'Jane Doe'],
-                  ['organization', 'Organization (optional)', ''],
-                  ['email', 'Email', 'name@example.com'],
-                  ['phone', 'Phone (+country.number)', '+256.700000000'],
-                  ['street', 'Street address', '123 Main Street'],
-                  ['city', 'City', 'Kampala'],
-                  ['state', 'State / region', 'Central Region'],
-                  ['postalCode', 'Postal code', ''],
-                  ['countryCode', 'Country code (2 letters)', 'UG'],
-                ] as const).map(([field, title, placeholder]) => (
-                  <div key={field} className="space-y-1.5">
-                    <Label htmlFor={`registrant-${field}`}>{title}</Label>
-                    <Input
-                      id={`registrant-${field}`}
-                      value={registrant[field]}
-                      onChange={event => setContact(field, event.target.value)}
-                      placeholder={placeholder}
-                      autoComplete={field === 'email' ? 'email' : field === 'name' ? 'name' : undefined}
-                      required={!['organization', 'state'].includes(field)}
-                      maxLength={field === 'countryCode' ? 2 : 250}
-                    />
-                  </div>
-                ))}
-              </div>
+              {renderRegistrantFields()}
               <Button type="submit" disabled={busy === 'register'}>
                 {busy === 'register' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Submit registration
@@ -395,20 +598,51 @@ export function DomainRegistrationPanel() {
               </Button>
             </div>
           )}
+          {order.status === 'registered' && (
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              Automatic renewal is off. AfuCloud’s registrar does not currently expose a manual renewal API, so renewal checkout is not available here. Contact AfuCloud before the registrar-confirmed expiry date.
+            </p>
+          )}
           {order.status === 'manual_review' && <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">Do not place another order for this domain. AfuCloud needs to review the payment or registration result.</p>}
           {order.error && <p className="mt-3 text-sm text-muted-foreground">{order.error}</p>}
         </div>
       )}
 
+      {expiryNotices.length > 0 && (
+        <div className="border-t border-amber-200 bg-amber-50/70 px-5 py-4 dark:border-amber-900 dark:bg-amber-950/30 sm:px-6" role="status">
+          <h3 className="text-sm font-semibold text-amber-950 dark:text-amber-100">Domain expiry reminders</h3>
+          <ul className="mt-2 space-y-1 text-xs text-amber-900 dark:text-amber-200">
+            {expiryNotices.map(item => {
+              const expiry = new Date(item.expiresAt!).getTime();
+              const days = Math.ceil((expiry - Date.now()) / (24 * 60 * 60 * 1000));
+              return (
+                <li key={item.id}>
+                  <strong>{item.domainName}</strong> — {days < 0 ? 'expired' : `expires in ${days} day${days === 1 ? '' : 's'}`} ({displayDate(item.expiresAt)}). AfuCloud renewal checkout is not available yet.
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {(ordersQuery.data?.length ?? 0) > 0 && (
         <div className="border-t border-border px-5 py-4 sm:px-6">
-          <h3 className="text-sm font-semibold">Recent registration orders</h3>
+          <h3 className="text-sm font-semibold">AfuCloud registrations and orders</h3>
+          <p className="mt-1 text-xs text-muted-foreground">These are domains purchased through AfuCloud. Connected DNS domains are listed separately above.</p>
           <div className="mt-2 divide-y divide-border">
             {ordersQuery.data!.slice(0, 5).map(item => (
-              <button key={item.id} type="button" onClick={() => void loadOrder(item.id)} className="flex w-full items-center justify-between gap-3 py-2 text-left hover:text-primary">
-                <span className="truncate text-sm font-medium">{item.domainName}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">{statusLabel(item.status)}</span>
-              </button>
+              <div key={item.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{item.domainName}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {item.registrationYears} year{item.registrationYears === 1 ? '' : 's'}
+                    {item.status === 'registered' ? ` · expires ${displayDate(item.expiresAt)}` : ''}
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => void loadOrder(item.id)}>
+                  {statusLabel(item.status)}
+                </Button>
+              </div>
             ))}
           </div>
         </div>

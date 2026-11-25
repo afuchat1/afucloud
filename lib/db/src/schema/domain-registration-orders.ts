@@ -1,4 +1,5 @@
-import { index, numeric, pgSchema, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { index, integer, numeric, pgSchema, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { authUsersTable } from "./auth-users";
 
 const afucloudSchema = pgSchema("afucloud");
@@ -8,6 +9,7 @@ export const domainRegistrationOrdersTable = afucloudSchema.table("domain_regist
   userId: uuid("user_id").notNull().references(() => authUsersTable.id, { onDelete: "cascade" }),
   hostname: text("hostname").notNull(),
   status: text("status").notNull().default("creating_checkout"),
+  registrationYears: integer("registration_years").notNull().default(1),
   currency: text("currency").notNull().default("USD"),
   registrarCost: numeric("registrar_cost", { precision: 12, scale: 2 }).notNull(),
   renewalRegistrarCost: numeric("renewal_registrar_cost", { precision: 12, scale: 2 }).notNull(),
@@ -16,8 +18,10 @@ export const domainRegistrationOrdersTable = afucloudSchema.table("domain_regist
   whopCheckoutConfigurationId: text("whop_checkout_configuration_id"),
   whopPlanId: text("whop_plan_id"),
   whopPaymentId: text("whop_payment_id"),
+  whopPurchaseUrl: text("whop_purchase_url"),
   cloudflareRegistrationId: text("cloudflare_registration_id"),
   cloudflareRegistrationStatus: text("cloudflare_registration_status"),
+  registrationCreatedAt: timestamp("registration_created_at", { withTimezone: true }),
   registrationExpiresAt: timestamp("registration_expires_at", { withTimezone: true }),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -27,4 +31,7 @@ export const domainRegistrationOrdersTable = afucloudSchema.table("domain_regist
   userStatusIndex: index("domain_registration_orders_user_status_idx").on(table.userId, table.status),
   checkoutUnique: uniqueIndex("domain_registration_orders_checkout_unique").on(table.whopCheckoutConfigurationId),
   paymentUnique: uniqueIndex("domain_registration_orders_payment_unique").on(table.whopPaymentId),
+  activeHostnameUnique: uniqueIndex("domain_registration_orders_user_hostname_active_unique")
+    .on(table.userId, table.hostname)
+    .where(sql`${table.status} IN ('creating_checkout', 'pending_payment', 'paid', 'registering', 'processing', 'manual_review', 'registered')`),
 }));
