@@ -10,6 +10,7 @@ export interface Env {
   CLOUDFLARE_ACCOUNT_ID: string;
   CLOUDFLARE_R2_ACCESS_KEY_ID: string;
   API_BASE_URL?: string;
+  PUBLIC_SITE_URL?: string;
   DASHBOARD_ALLOWED_ORIGINS?: string;
   NODE_ENV: string;
   AFU_CUSTOM_HOSTNAME_TARGET?: string;
@@ -23,6 +24,7 @@ export interface Env {
 
   // Secrets
   SUPABASE_SERVICE_KEY: string;
+  SUPABASE_ANON_KEY: string;
   JWT_SECRET: string;
   CLOUDFLARE_R2_SECRET_ACCESS_KEY: string;
   CLOUDFLARE_OAUTH_CLIENT_SECRET?: string;

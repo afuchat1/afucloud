@@ -20,3 +20,4 @@
 - [AfuCloud auth redirect intent](auth-redirect-intent.md) — generic sign-in defaults to dashboard; only protected-page returns and explicit paid-plan intents override it
 - [AfuCloud domain sales model](afucloud-domain-sales-model.md) — build AfuCloud's domain sales flow around a registrar API, customer payment, AfuCloud margin, and provider settlement
 - [Cloudflare smoke-test client](cloudflare-smoke-test-client.md) — set an explicit curl-like User-Agent; Python urllib's default UA received 403s from the live API
+- [AfuCloud Supabase email](afucloud-supabase-email.md) — custom Auth email templates require a configured SMTP provider; Supabase's default mailer blocks branding

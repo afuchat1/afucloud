@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, MailCheck } from 'lucide-react';
 import { AuthHeader } from '@/components/auth-header';
 import { authHrefWithCurrentIntent, dashboardSessionRequest, postAuthDestination } from '@/lib/auth-session';
 
@@ -17,7 +17,9 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResendingConfirmation, setIsResendingConfirmation] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
   const [loginHref, setLoginHref] = useState('/login');
 
   useEffect(() => {
@@ -39,11 +41,15 @@ export default function RegisterPage() {
     setIsSubmitting(true);
     setRegisterError(null);
     try {
-      await dashboardSessionRequest('register', {
+      const result = await dashboardSessionRequest<{ confirmationRequired?: boolean; email?: string }>('register', {
         method: 'POST',
         body: JSON.stringify({ name, email, password }),
       });
       queryClient.clear();
+      if (result.confirmationRequired) {
+        setConfirmationEmail(result.email ?? email.trim().toLowerCase());
+        return;
+      }
       toast({ title: 'Account created', description: 'Welcome to AfuCloud' });
       setLocation(postAuthDestination());
     } catch (error) {
@@ -52,6 +58,29 @@ export default function RegisterPage() {
       toast({ title: 'Registration failed', description: message, variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!confirmationEmail) return;
+    setIsResendingConfirmation(true);
+    try {
+      await dashboardSessionRequest('resend-confirmation', {
+        method: 'POST',
+        body: JSON.stringify({ email: confirmationEmail }),
+      });
+      toast({
+        title: 'Confirmation email requested',
+        description: 'If this account needs verification, a new email is on its way.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not resend email',
+        description: error instanceof Error ? error.message : 'Please try again shortly.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsResendingConfirmation(false);
     }
   };
 
@@ -73,19 +102,50 @@ export default function RegisterPage() {
       <div className="flex-1 flex items-center justify-center p-6 bg-background">
         <div className="w-full max-w-sm space-y-6">
           <AuthHeader />
-          <div className="space-y-2 text-center lg:text-left">
-            <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
-            <p className="text-sm text-muted-foreground">
-              Get started with AfuCloud today
-            </p>
-          </div>
+          {confirmationEmail ? (
+            <div className="space-y-5 text-center lg:text-left" role="status" aria-live="polite">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <MailCheck className="h-6 w-6" aria-hidden="true" />
+              </div>
+              <div className="space-y-2">
+                <h1 className="text-2xl font-semibold tracking-tight">Check your email</h1>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  We sent an AfuCloud confirmation link to <strong className="font-medium text-foreground">{confirmationEmail}</strong>.
+                  Confirm your address before signing in.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={handleResendConfirmation}
+                disabled={isResendingConfirmation}
+              >
+                {isResendingConfirmation ? 'Sending email...' : 'Resend confirmation email'}
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                Already confirmed?{' '}
+                <Link href={loginHref} className="font-medium text-primary hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2 text-center lg:text-left">
+                <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
+                <p className="text-sm text-muted-foreground">
+                  Get started with AfuCloud today
+                </p>
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
               <Input
                 id="name"
                 type="text"
+                autoComplete="name"
                 placeholder="Alex Chen"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -100,6 +160,9 @@ export default function RegisterPage() {
               <Input
                 id="email"
                 type="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
                 placeholder="you@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -114,6 +177,7 @@ export default function RegisterPage() {
               <Input
                 id="password"
                 type="password"
+                autoComplete="new-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -125,9 +189,9 @@ export default function RegisterPage() {
             </div>
 
             {registerError && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
-                <AlertCircle className="h-4 w-4" />
-                <span>Registration failed. Please try again.</span>
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{registerError}</span>
               </div>
             )}
 
@@ -139,14 +203,16 @@ export default function RegisterPage() {
             >
               {isSubmitting ? 'Creating account...' : 'Create account'}
             </Button>
-          </form>
+              </form>
 
-          <div className="text-center text-sm">
-            <span className="text-muted-foreground">Already have an account? </span>
-            <Link href={loginHref} className="font-medium text-primary hover:underline" data-testid="link-login">
-              Sign in
-            </Link>
-          </div>
+              <div className="text-center text-sm">
+                <span className="text-muted-foreground">Already have an account? </span>
+                <Link href={loginHref} className="font-medium text-primary hover:underline" data-testid="link-login">
+                  Sign in
+                </Link>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

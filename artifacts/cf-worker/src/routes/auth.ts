@@ -2,7 +2,13 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
-import { signInWithSupabase, signUpWithSupabase, updatePasswordWithSupabase } from "../lib/supabase-auth";
+import {
+  resendSignupConfirmation,
+  signInWithSupabase,
+  signUpWithSupabase,
+  SupabaseAuthError,
+  updatePasswordWithSupabase,
+} from "../lib/supabase-auth";
 import {
   signAccessToken,
   generateSecureToken,
@@ -21,6 +27,60 @@ import {
 const auth = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 const ACCESS_COOKIE_MAX_AGE = 60 * 60;
 const REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60;
+const DEFAULT_PUBLIC_SITE_URL = "https://cloud.afuchat.com";
+
+function confirmationRedirectUrl(env: Env): string {
+  let siteUrl = DEFAULT_PUBLIC_SITE_URL;
+  try {
+    const configured = new URL(env.PUBLIC_SITE_URL ?? DEFAULT_PUBLIC_SITE_URL);
+    if (configured.protocol === "https:" && configured.hostname === "cloud.afuchat.com") {
+      siteUrl = configured.origin;
+    }
+  } catch {}
+  const redirect = new URL("/login", siteUrl);
+  redirect.searchParams.set("confirmed", "1");
+  return redirect.toString();
+}
+
+function normalizedAuthError(error: unknown): { status: number | null; code: string | null; text: string } {
+  if (!(error instanceof SupabaseAuthError)) return { status: null, code: null, text: "" };
+  return {
+    status: error.status,
+    code: error.code,
+    text: `${error.code ?? ""} ${error.message}`.toLowerCase(),
+  };
+}
+
+function signUpFailure(error: unknown): { status: 400 | 409 | 429 | 502 | 503; message: string } {
+  const authError = normalizedAuthError(error);
+  if (/already registered|already exists|user_already_exists/.test(authError.text)) {
+    return { status: 409, message: "An Afu account already uses this email. Sign in instead." };
+  }
+  if (/invalid email|email_address_invalid/.test(authError.text)) {
+    return { status: 400, message: "Enter a valid email address." };
+  }
+  if (/password.*(weak|short|characters)|weak_password/.test(authError.text)) {
+    return { status: 400, message: "Choose a stronger password and try again." };
+  }
+  if (/rate.?limit|over_email_send_rate_limit/.test(authError.text) || authError.status === 429) {
+    return { status: 429, message: "Too many confirmation emails were requested. Wait a few minutes and try again." };
+  }
+  if (/signup.*(disabled|not allowed)|signups_not_allowed/.test(authError.text)) {
+    return { status: 503, message: "New account registration is temporarily unavailable." };
+  }
+  return { status: 502, message: "AfuCloud could not create the account right now. Please try again shortly." };
+}
+
+function loginFailure(error: unknown): { status: 401 | 403 | 502; message: string } {
+  const authError = normalizedAuthError(error);
+  if (/email not confirmed|email_not_confirmed/.test(authError.text)) {
+    return { status: 403, message: "Confirm your email address before signing in. Use the link in your confirmation email." };
+  }
+  if (authError.status === 400 || authError.status === 401) {
+    return { status: 401, message: "Invalid email or password." };
+  }
+  return { status: 502, message: "AfuCloud could not sign you in right now. Please try again shortly." };
+}
 
 function sessionCookieOptions(c: { env: Env }, httpOnly: boolean, maxAge: number) {
   return {
@@ -73,10 +133,20 @@ async function ensureAfuCloudProfile(
   authUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; email_confirmed_at?: string | null },
 ) {
   const existing = await db.getUserById(authUser.id);
-  if (existing) return existing;
-
   const email = authUser.email?.trim().toLowerCase();
   if (!email) throw new Error("Supabase Auth user has no email address");
+  if (existing) {
+    const updates: Record<string, unknown> = {};
+    if (existing.email !== email) updates.email = email;
+    if (authUser.email_confirmed_at && !existing.email_verified) updates.email_verified = true;
+    const metadata = authUser.user_metadata ?? {};
+    const candidateName = metadata.name ?? metadata.full_name ?? metadata.display_name;
+    const name = typeof candidateName === "string" ? candidateName.trim() : "";
+    if (name && existing.name !== name) updates.name = name;
+    return Object.keys(updates).length
+      ? (await db.updateUser(authUser.id, updates)) ?? { ...existing, ...updates }
+      : existing;
+  }
 
   return db.createUser({
     user_id: authUser.id,
@@ -102,15 +172,29 @@ auth.post("/register", rejectDeveloperCredential, requireCsrf, async (c) => {
   if (!email || typeof password !== "string" || typeof name !== "string" || !name.trim()) {
     return c.json({ error: "email, password, and name are required" }, 400);
   }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return c.json({ error: "Enter a valid email address." }, 400);
   if (password.length < 8) return c.json({ error: "Password must be at least 8 characters" }, 400);
 
   const db = createDbClient(c.env);
   const existing = await db.getUserByEmail(email);
-  if (existing) return c.json({ error: "Email already registered" }, 409);
+  if (existing) return c.json({ error: "An Afu account already uses this email. Sign in instead." }, 409);
 
-  const authUser = await signUpWithSupabase(c.env, email, password, name.trim());
-  if (!authUser) return c.json({ error: "Unable to create account" }, 400);
+  let authUser;
+  try {
+    authUser = await signUpWithSupabase(c.env, email, password, name.trim(), confirmationRedirectUrl(c.env));
+  } catch (error) {
+    const failure = signUpFailure(error);
+    const authError = normalizedAuthError(error);
+    console.error("[AfuCloud Auth] sign-up rejected", { status: authError.status, code: authError.code });
+    return c.json({ error: failure.message }, failure.status);
+  }
   const user = await ensureAfuCloudProfile(db, authUser);
+  await db.logActivity({ user_id: user.user_id, action: "register", resource: "user", resource_id: user.user_id });
+
+  if (!authUser.email_confirmed_at) {
+    return c.json({ confirmationRequired: true, email: user.email }, 202);
+  }
+
   const accessToken = await signAccessToken({ userId: user.user_id, email: user.email }, c.env);
   const rawRefresh = generateSecureToken();
   await db.createRefreshToken({
@@ -118,10 +202,31 @@ auth.post("/register", rejectDeveloperCredential, requireCsrf, async (c) => {
     token_hash: await hashToken(rawRefresh),
     expires_at: refreshTokenExpiresAt(),
   });
-  await db.logActivity({ user_id: user.user_id, action: "register", resource: "user", resource_id: user.user_id });
-
   setDashboardCookies(c, accessToken, rawRefresh);
   return c.json({ user: responseUser(user) }, 201);
+});
+
+auth.post("/resend-confirmation", rejectDeveloperCredential, requireCsrf, async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return c.json({ error: "Enter a valid email address." }, 400);
+  }
+
+  try {
+    await resendSignupConfirmation(c.env, email, confirmationRedirectUrl(c.env));
+  } catch (error) {
+    const authError = normalizedAuthError(error);
+    console.warn("[AfuCloud Auth] confirmation resend rejected", { status: authError.status, code: authError.code });
+    if (/rate.?limit|over_email_send_rate_limit/.test(authError.text) || authError.status === 429) {
+      return c.json({ error: "Too many confirmation emails were requested. Wait a few minutes and try again." }, 429);
+    }
+    if (!authError.status || authError.status >= 500) {
+      return c.json({ error: "Could not send a confirmation email right now. Please try again shortly." }, 502);
+    }
+  }
+
+  return c.json({ message: "If this account needs verification, a confirmation email has been sent." }, 202);
 });
 
 auth.post("/login", rejectDeveloperCredential, requireCsrf, async (c) => {
@@ -131,7 +236,15 @@ auth.post("/login", rejectDeveloperCredential, requireCsrf, async (c) => {
   if (!email || typeof password !== "string") return c.json({ error: "email and password are required" }, 400);
 
   const db = createDbClient(c.env);
-  const sharedAuthUser = await signInWithSupabase(c.env, email, password);
+  let sharedAuthUser;
+  try {
+    sharedAuthUser = await signInWithSupabase(c.env, email, password);
+  } catch (error) {
+    const failure = loginFailure(error);
+    const authError = normalizedAuthError(error);
+    console.warn("[AfuCloud Auth] sign-in rejected", { status: authError.status, code: authError.code });
+    return c.json({ error: failure.message }, failure.status);
+  }
   if (!sharedAuthUser) return c.json({ error: "Invalid credentials" }, 401);
   const user = await ensureAfuCloudProfile(db, sharedAuthUser);
   const accessToken = await signAccessToken({ userId: user.user_id, email: user.email }, c.env);

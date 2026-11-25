@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, MailCheck } from 'lucide-react';
 import { AuthHeader } from '@/components/auth-header';
 import { authHrefWithCurrentIntent, dashboardSessionRequest, postAuthDestination } from '@/lib/auth-session';
 
@@ -16,18 +16,23 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [loginError, setLoginError] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [canResendConfirmation, setCanResendConfirmation] = useState(false);
+  const [isResendingConfirmation, setIsResendingConfirmation] = useState(false);
+  const [emailConfirmed, setEmailConfirmed] = useState(false);
   const [registerHref, setRegisterHref] = useState('/register');
 
   useEffect(() => {
     setRegisterHref(authHrefWithCurrentIntent('/register'));
+    setEmailConfirmed(new URLSearchParams(window.location.search).get('confirmed') === '1');
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     setIsSubmitting(true);
-    setLoginError(false);
+    setLoginError(null);
+    setCanResendConfirmation(false);
     try {
       await dashboardSessionRequest('login', {
         method: 'POST',
@@ -37,14 +42,38 @@ export default function LoginPage() {
       toast({ title: 'Welcome back', description: 'Successfully logged in' });
       setLocation(postAuthDestination());
     } catch (error) {
-      setLoginError(true);
+      const message = error instanceof Error ? error.message : 'Invalid email or password';
+      setLoginError(message);
+      setCanResendConfirmation(/confirm your email address/i.test(message));
       toast({
         title: 'Login failed',
-        description: error instanceof Error ? error.message : 'Invalid credentials',
+        description: message,
         variant: 'destructive',
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    setIsResendingConfirmation(true);
+    try {
+      await dashboardSessionRequest('resend-confirmation', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      });
+      toast({
+        title: 'Confirmation email requested',
+        description: 'If this account needs verification, a new email is on its way.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not resend email',
+        description: error instanceof Error ? error.message : 'Please try again shortly.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsResendingConfirmation(false);
     }
   };
 
@@ -73,12 +102,22 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {emailConfirmed && (
+            <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-foreground" role="status">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              <span>Your email is confirmed. Sign in to continue to AfuCloud.</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
                 placeholder="you@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -93,6 +132,7 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
+                autoComplete="current-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -103,9 +143,23 @@ export default function LoginPage() {
             </div>
 
             {loginError && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
-                <AlertCircle className="h-4 w-4" />
-                <span>Invalid email or password</span>
+              <div className="space-y-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>{loginError}</span>
+                </div>
+                {canResendConfirmation && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleResendConfirmation}
+                    disabled={isResendingConfirmation || !email}
+                  >
+                    <MailCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+                    {isResendingConfirmation ? 'Sending email...' : 'Resend confirmation email'}
+                  </Button>
+                )}
               </div>
             )}
 
