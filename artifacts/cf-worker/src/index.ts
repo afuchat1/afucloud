@@ -17,6 +17,7 @@ import domainRoutes from "./routes/domains";
 import storageContainerRoutes from "./routes/storage-containers";
 import domainRegistrationRoutes from "./routes/domain-registrations";
 import billingRoutes from "./routes/billing";
+import { cloudflareRoutes, cloudflareDnsRoutes } from "./routes/cloudflare";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -82,7 +83,9 @@ function mountApiRoutes(prefix: string) {
   app.route(`${prefix}/activity`, activityRoutes);
   app.route(`${prefix}/storage`, storageRoutes);
   app.route(`${prefix}/domains`, domainRoutes);
+  app.route(`${prefix}/domains`, cloudflareDnsRoutes);
   app.route(`${prefix}/domains/registrations`, domainRegistrationRoutes);
+  app.route(`${prefix}/cloudflare`, cloudflareRoutes);
   app.route(`${prefix}/billing`, billingRoutes);
   app.route(`${prefix}/storage-containers`, storageContainerRoutes);
 

@@ -2137,7 +2137,7 @@ export const getGetProjectAnalyticsUrl = (projectId: string,
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/api/v1/projects/${projectId}/analytics?${stringifiedParams}` : `/api/v1/projects/${projectId}/analytics`
+  return stringifiedParams.length > 0 ? `/api/v1/analytics/projects/${projectId}?${stringifiedParams}` : `/api/v1/analytics/projects/${projectId}`
 }
 
 /**
@@ -2162,7 +2162,7 @@ export const getProjectAnalytics = async (projectId: string,
 export const getGetProjectAnalyticsQueryKey = (projectId: string,
     params?: GetProjectAnalyticsParams,) => {
     return [
-    `/api/v1/projects/${projectId}/analytics`, ...(params ? [params] : [])
+    `/api/v1/analytics/projects/${projectId}`, ...(params ? [params] : [])
     ] as const;
     }
 

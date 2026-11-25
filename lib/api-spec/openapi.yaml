@@ -625,7 +625,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/AnalyticsOverviewResponse"
 
-  /v1/projects/{projectId}/analytics:
+  /v1/analytics/projects/{projectId}:
     get:
       operationId: getProjectAnalytics
       tags: [analytics]

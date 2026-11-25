@@ -28,7 +28,7 @@ analytics.get("/overview", requireAuth, requireAccountAuth, async (c) => {
   });
 });
 
-// GET /v1/projects/:projectId/analytics
+// GET /v1/analytics/projects/:projectId
 analytics.get("/projects/:projectId", requireAuth, requireProjectAuth, async (c) => {
   const projectId = c.req.param("projectId");
   const db = createDbClient(c.env);
