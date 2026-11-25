@@ -2,6 +2,7 @@
 - [AfuCloud bootstrap](afucloud-bootstrap.md) — target Supabase project poijhidfekwfthyksatp, R2 bucket afucloud-images, pooler-backed API
 - [R2 CORS and image serving](r2-cors-image-serving.md) — AfuCloud URLs use /cloud/images or /cloud/storage; preserve the legacy img host and shared CDN root
 - [CF Worker Architecture](cf-worker-architecture.md) — use the existing `afu-api` fallback gateway; preserve product routes and keep the `/cloud/*` CDN Worker intact
+- [Cloudflare direct Worker access](cloudflare-direct-worker-access.md) — when the Cloudflare connector returns 401, a saved API token with Workers Scripts Write can manage Worker secrets directly
 - [Afu ecosystem isolation](afu-ecosystem-isolation.md) — AfuCloud changes stay product-scoped; shared routes, storage, and database changes need owner and compatibility checks
 - [Shared Afu authentication](shared-afu-auth.md) — auth.users is the only identity/credential source; accounts.profiles links by user_id and product tables reference auth.users directly
 - [AfuCloud dashboard session boundary](dashboard-session-boundary.md) — browser cookie sessions stay separate from developer bearer tokens; PATs are account-scoped and project keys stay project-scoped
