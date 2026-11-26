@@ -46,6 +46,13 @@ export function createDbClient(env: Env) {
     }
   }
 
+  async function getUserById(id: string) {
+    const r = await request(`/profiles?user_id=eq.${id}&limit=1`, "GET", undefined, undefined, "accounts");
+    if (!r.ok) throw new Error(`Shared profile lookup failed: HTTP ${r.status}`);
+    const rows = await r.json() as any[];
+    return rows[0] ?? null;
+  }
+
   return {
     // ── Users ──────────────────────────────────────────────────────────────
     async getUserByEmail(email: string) {
@@ -55,10 +62,7 @@ export function createDbClient(env: Env) {
       return rows[0] ?? null;
     },
     async getUserById(id: string) {
-      const r = await request(`/profiles?user_id=eq.${id}&limit=1`, "GET", undefined, undefined, "accounts");
-      if (!r.ok) throw new Error(`Shared profile lookup failed: HTTP ${r.status}`);
-      const rows = await r.json() as any[];
-      return rows[0] ?? null;
+      return getUserById(id);
     },
     async createUser(data: {
       user_id: string;
@@ -67,7 +71,16 @@ export function createDbClient(env: Env) {
       email_verified?: boolean;
     }) {
       const r = await request("/profiles", "POST", data, { Prefer: "return=representation" }, "accounts");
-      if (!r.ok) throw new Error(`Shared profile creation failed: HTTP ${r.status}`);
+      if (!r.ok) {
+        // Supabase's auth trigger can create this profile concurrently with
+        // the sign-in/signup repair path. Only recover when the conflicting
+        // row belongs to this exact Auth user; never attach by email alone.
+        if (r.status === 409) {
+          const existing = await getUserById(data.user_id);
+          if (existing) return existing;
+        }
+        throw new Error(`Shared profile creation failed: HTTP ${r.status}`);
+      }
       const rows = await r.json() as any[];
       if (!rows[0]) throw new Error("Shared profile creation returned no row");
       return rows[0];

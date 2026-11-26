@@ -6,6 +6,7 @@ import {
   SupabaseAuthError,
   verifySignupEmailWithSupabase,
 } from "../src/lib/supabase-auth.ts";
+import { createDbClient } from "../src/lib/db.ts";
 
 const env = {
   SUPABASE_URL: "https://auth-provider.invalid",
@@ -112,4 +113,82 @@ test("confirmation email template links only to AfuCloud", async () => {
   const template = await readFile(new URL("../email-templates/confirmation.html", import.meta.url), "utf8");
   assert.match(template, /https:\/\/cloud\.afuchat\.com\/auth\/confirm#token_hash=\{\{ \.TokenHash \}\}/);
   assert.doesNotMatch(template, /ConfirmationURL|supabase\.co/i);
+});
+
+test("profile creation recovers a duplicate only for the same Auth user", async () => {
+  const profile = {
+    user_id: "test-user-id",
+    email: "user@example.test",
+    name: "Test User",
+    email_verified: true,
+  };
+  let requests = 0;
+
+  await withMockFetch(async (input, init) => {
+    requests += 1;
+    const url = new URL(String(input));
+    assert.equal(new Headers(init.headers).get("Content-Profile"), "accounts");
+
+    if (requests === 1) {
+      assert.equal(init.method, "POST");
+      assert.equal(url.pathname, "/rest/v1/profiles");
+      return new Response(JSON.stringify({ code: "23505" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    assert.equal(init.method, "GET");
+    assert.equal(url.pathname, "/rest/v1/profiles");
+    assert.equal(url.searchParams.get("user_id"), "eq.test-user-id");
+    return new Response(JSON.stringify([profile]), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }, async () => {
+    const db = createDbClient({
+      SUPABASE_URL: "https://database-provider.invalid",
+      SUPABASE_SERVICE_KEY: "test-service-key",
+    });
+    const result = await db.createUser(profile);
+    assert.deepEqual(result, profile);
+  });
+  assert.equal(requests, 2);
+});
+
+test("profile creation does not recover a duplicate owned by another user", async () => {
+  let requests = 0;
+
+  await withMockFetch(async (input, init) => {
+    requests += 1;
+    const url = new URL(String(input));
+    if (requests === 1) {
+      assert.equal(init.method, "POST");
+      return new Response(JSON.stringify({ code: "23505" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    assert.equal(init.method, "GET");
+    assert.equal(url.searchParams.get("user_id"), "eq.test-user-id");
+    return new Response("[]", {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }, async () => {
+    const db = createDbClient({
+      SUPABASE_URL: "https://database-provider.invalid",
+      SUPABASE_SERVICE_KEY: "test-service-key",
+    });
+    await assert.rejects(
+      db.createUser({
+        user_id: "test-user-id",
+        email: "user@example.test",
+        name: "Test User",
+      }),
+      /Shared profile creation failed: HTTP 409/,
+    );
+  });
+  assert.equal(requests, 2);
 });
