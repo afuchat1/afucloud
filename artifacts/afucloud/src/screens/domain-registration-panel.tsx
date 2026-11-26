@@ -58,8 +58,6 @@ type RegistrationRequirements = {
     maximum: number | null;
     multipleOf: number | null;
     pattern: string | null;
-    multipleOf: number | null;
-    pattern: string | null;
   }>;
 };
 type Registrant = {
