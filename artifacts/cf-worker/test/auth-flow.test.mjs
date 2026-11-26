@@ -192,3 +192,58 @@ test("profile creation does not recover a duplicate owned by another user", asyn
   });
   assert.equal(requests, 2);
 });
+
+test("only a single exact-email profile with no Auth user can be claimed", async () => {
+  const unlinkedProfile = {
+    id: "profile-row-id",
+    user_id: null,
+    email: "user@example.test",
+    name: "Test User",
+  };
+  let requests = 0;
+
+  await withMockFetch(async (input, init) => {
+    requests += 1;
+    const url = new URL(String(input));
+    assert.equal(new Headers(init.headers).get("Content-Profile"), "accounts");
+
+    if (requests === 1) {
+      assert.equal(init.method, "GET");
+      assert.equal(url.searchParams.get("email"), "eq.user@example.test");
+      assert.equal(url.searchParams.get("user_id"), "is.null");
+      assert.equal(url.searchParams.get("limit"), "2");
+      return new Response(JSON.stringify([unlinkedProfile]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    assert.equal(init.method, "PATCH");
+    assert.equal(url.searchParams.get("id"), "eq.profile-row-id");
+    assert.equal(url.searchParams.get("email"), "eq.user@example.test");
+    assert.equal(url.searchParams.get("user_id"), "is.null");
+    assert.deepEqual(JSON.parse(String(init.body)), {
+      user_id: "test-user-id",
+      email_verified: true,
+    });
+    return new Response(JSON.stringify([{
+      ...unlinkedProfile,
+      user_id: "test-user-id",
+      email_verified: true,
+    }]), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }, async () => {
+    const db = createDbClient({
+      SUPABASE_URL: "https://database-provider.invalid",
+      SUPABASE_SERVICE_KEY: "test-service-key",
+    });
+    const candidate = await db.getUnlinkedUserByEmail("user@example.test");
+    assert.equal(candidate.id, "profile-row-id");
+    const linked = await db.linkUnlinkedUser(candidate.id, "test-user-id", "user@example.test");
+    assert.equal(linked.user_id, "test-user-id");
+    assert.equal(linked.email_verified, true);
+  });
+  assert.equal(requests, 2);
+});

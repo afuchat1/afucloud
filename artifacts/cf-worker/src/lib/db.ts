@@ -53,6 +53,32 @@ export function createDbClient(env: Env) {
     return rows[0] ?? null;
   }
 
+  async function getUnlinkedUserByEmail(email: string) {
+    const r = await request(
+      `/profiles?email=eq.${encodeURIComponent(email)}&user_id=is.null&limit=2`,
+      "GET",
+      undefined,
+      undefined,
+      "accounts",
+    );
+    if (!r.ok) throw new Error(`Unlinked shared profile lookup failed: HTTP ${r.status}`);
+    const rows = await r.json() as any[];
+    return rows.length === 1 ? rows[0] : null;
+  }
+
+  async function linkUnlinkedUser(id: string, userId: string, email: string) {
+    const r = await request(
+      `/profiles?id=eq.${encodeURIComponent(id)}&email=eq.${encodeURIComponent(email)}&user_id=is.null`,
+      "PATCH",
+      { user_id: userId, email_verified: true },
+      { Prefer: "return=representation" },
+      "accounts",
+    );
+    if (!r.ok) throw new Error(`Shared profile link failed: HTTP ${r.status}`);
+    const rows = await r.json() as any[];
+    return rows[0] ?? null;
+  }
+
   return {
     // ── Users ──────────────────────────────────────────────────────────────
     async getUserByEmail(email: string) {
@@ -63,6 +89,12 @@ export function createDbClient(env: Env) {
     },
     async getUserById(id: string) {
       return getUserById(id);
+    },
+    async getUnlinkedUserByEmail(email: string) {
+      return getUnlinkedUserByEmail(email);
+    },
+    async linkUnlinkedUser(id: string, userId: string, email: string) {
+      return linkUnlinkedUser(id, userId, email);
     },
     async createUser(data: {
       user_id: string;

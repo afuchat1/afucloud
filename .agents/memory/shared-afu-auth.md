@@ -11,8 +11,8 @@ Supabase `auth.users` is the only identity and credential source across Afu prod
 
 **How to apply:** Add new domain tables under the product schema, use `user_id uuid references auth.users(id)`, and read shared display data from `accounts.profiles` by `user_id`. Do not add product credential tables or use `accounts.profiles.id` as the Auth identity.
 
-Profile provisioning must be idempotent. If inserting a profile conflicts, resolve it only by the same `auth.users.id`; never attach an account by email alone.
+Profile provisioning must be idempotent. Resolve insert conflicts by the same Auth UUID. A profile with no `user_id` may be claimed only after Auth confirms the exact email and by conditional update; never reassign a profile linked to a different UUID.
 
 **Why:** Supabase Auth may create the shared profile through its database trigger before an app's profile-repair path runs. Treating that duplicate as a fatal login error caused confirmed users to receive HTTP 500.
 
-**How to apply:** After a duplicate insert conflict, look up the profile by `user_id` and reuse it only if it matches the authenticated UUID. Keep unrelated or email-only conflicts as errors.
+**How to apply:** After a duplicate insert conflict, look up the profile by `user_id`. If Auth has verified the email, a profile with `user_id IS NULL` may be linked only after matching its exact email and conditionally updating while it remains unlinked. Keep profiles owned by another Auth UUID as errors.

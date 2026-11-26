@@ -163,6 +163,19 @@ async function ensureAfuCloudProfile(
       : existing;
   }
 
+  // Some legacy Auth triggers created an email-only profile before the
+  // shared user_id link was installed. Claim it only after Supabase confirms
+  // the email, and only while the profile remains unlinked.
+  if (authUser.email_confirmed_at) {
+    const unlinked = await db.getUnlinkedUserByEmail(email);
+    if (unlinked?.id) {
+      const linked = await db.linkUnlinkedUser(unlinked.id, authUser.id, email);
+      if (linked) return linked;
+      const concurrentlyLinked = await db.getUserById(authUser.id);
+      if (concurrentlyLinked) return concurrentlyLinked;
+    }
+  }
+
   return db.createUser({
     user_id: authUser.id,
     email,
