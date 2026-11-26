@@ -187,6 +187,7 @@ async function ensureAfuCloudProfile(
   }
 
   return db.createUser({
+    id: authUser.id,
     user_id: authUser.id,
     email,
     name: getAuthName(email, authUser.user_metadata),

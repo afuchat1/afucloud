@@ -117,6 +117,7 @@ test("confirmation email template links only to AfuCloud", async () => {
 
 test("profile creation recovers a duplicate only for the same Auth user", async () => {
   const profile = {
+    id: "test-user-id",
     user_id: "test-user-id",
     email: "user@example.test",
     name: "Test User",
@@ -132,6 +133,7 @@ test("profile creation recovers a duplicate only for the same Auth user", async 
     if (requests === 1) {
       assert.equal(init.method, "POST");
       assert.equal(url.pathname, "/rest/v1/profiles");
+      assert.deepEqual(JSON.parse(String(init.body)), profile);
       return new Response(JSON.stringify({ code: "23505" }), {
         status: 409,
         headers: { "Content-Type": "application/json" },
@@ -183,6 +185,7 @@ test("profile creation does not recover a duplicate owned by another user", asyn
     });
     await assert.rejects(
       db.createUser({
+        id: "test-user-id",
         user_id: "test-user-id",
         email: "user@example.test",
         name: "Test User",
