@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
 import { useToast } from '@/hooks/use-toast';
 import { CreditCard, Copy, ExternalLink, RefreshCw, User, Shield, LogOut } from 'lucide-react';
 import { clearAuthTokens, dashboardSessionRequest, paidPlanKey, type DashboardUser } from '@/lib/auth-session';
@@ -490,36 +491,39 @@ export default function SettingsPage() {
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="currentPassword">Current password</Label>
-                <Input
+                <PasswordInput
                   id="currentPassword"
-                  type="password"
+                  autoComplete="current-password"
                   value={currentPassword}
                   onChange={e => setCurrentPassword(e.target.value)}
                   placeholder="Your current password"
                   required
+                  data-testid="input-current-password"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="newPassword">New password</Label>
-                <Input
+                <PasswordInput
                   id="newPassword"
-                  type="password"
+                  autoComplete="new-password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
                   placeholder="At least 8 characters"
                   required
                   minLength={8}
+                  data-testid="input-new-password"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm new password</Label>
-                <Input
+                <PasswordInput
                   id="confirmPassword"
-                  type="password"
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
                   placeholder="Repeat new password"
                   required
+                  data-testid="input-confirm-password"
                 />
               </div>
               {newPassword && confirmPassword && newPassword !== confirmPassword && (
