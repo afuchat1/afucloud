@@ -9,6 +9,13 @@ import { AlertCircle, MailCheck } from 'lucide-react';
 import { AuthHeader } from '@/components/auth-header';
 import { authHrefWithCurrentIntent, dashboardSessionRequest, postAuthDestination } from '@/lib/auth-session';
 
+function confirmationMayHaveBeenSent(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { status?: unknown; data?: unknown };
+  if (candidate.status !== 503 || !candidate.data || typeof candidate.data !== 'object') return false;
+  return (candidate.data as { confirmationMayHaveBeenSent?: unknown }).confirmationMayHaveBeenSent === true;
+}
+
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -20,6 +27,7 @@ export default function RegisterPage() {
   const [isResendingConfirmation, setIsResendingConfirmation] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
+  const [confirmationMayBeSent, setConfirmationMayBeSent] = useState(false);
   const [loginHref, setLoginHref] = useState('/login');
 
   useEffect(() => {
@@ -40,6 +48,7 @@ export default function RegisterPage() {
     
     setIsSubmitting(true);
     setRegisterError(null);
+    setConfirmationMayBeSent(false);
     try {
       const result = await dashboardSessionRequest<{ confirmationRequired?: boolean; email?: string }>('register', {
         method: 'POST',
@@ -48,11 +57,21 @@ export default function RegisterPage() {
       queryClient.clear();
       if (result.confirmationRequired) {
         setConfirmationEmail(result.email ?? email.trim().toLowerCase());
+        setConfirmationMayBeSent(false);
         return;
       }
       toast({ title: 'Account created', description: 'Welcome to AfuCloud' });
       setLocation(postAuthDestination());
     } catch (error) {
+      if (confirmationMayHaveBeenSent(error)) {
+        setConfirmationEmail(email.trim().toLowerCase());
+        setConfirmationMayBeSent(true);
+        toast({
+          title: 'Check your email',
+          description: 'Your signup may have completed. If no confirmation arrived, request another email below.',
+        });
+        return;
+      }
       const message = error instanceof Error ? error.message : 'Please try again';
       setRegisterError(message);
       toast({ title: 'Registration failed', description: message, variant: 'destructive' });
@@ -110,8 +129,15 @@ export default function RegisterPage() {
               <div className="space-y-2">
                 <h1 className="text-2xl font-semibold tracking-tight">Check your email</h1>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  We sent an AfuCloud confirmation link to <strong className="font-medium text-foreground">{confirmationEmail}</strong>.
-                  Confirm your address before signing in.
+                  {confirmationMayBeSent
+                    ? 'Your signup may have completed. If you received a confirmation email, follow its link. If not, request another below.'
+                    : 'We sent an AfuCloud confirmation link to '}
+                  {!confirmationMayBeSent && (
+                    <>
+                      <strong className="font-medium text-foreground">{confirmationEmail}</strong>.
+                      {' '}Confirm your address before signing in.
+                    </>
+                  )}
                 </p>
               </div>
               <Button

@@ -104,6 +104,7 @@ workflow is stale or the development handler is missing.
 - Frontend auth: JWT stored in `localStorage` as `afucloud_token`
 - Shared auth: Supabase's `auth.users` is the only identity and credential source for AfuChat, AfuMail, AfuAI, AfuCloud, and AfuAds. Shared profile data lives in `accounts.profiles` keyed by `user_id`; AfuCloud domain tables live under `afucloud.*` and reference `auth.users(id)` directly
 - Passwords and identity are managed by Supabase Auth; the Worker never creates a product-specific credential store
+- Confirmation emails must link to `https://cloud.afuchat.com/auth/confirm` with Supabase's token hash in the URL fragment; the browser posts that hash to the AfuCloud API Worker for server-side verification. Never use Supabase's `ConfirmationURL` in user-facing email or expose Supabase auth URLs in frontend code.
 - The Node API maps Supabase Auth explicitly with `pgSchema("auth")`; do not use an unqualified `users` table for login queries
 - Storage: Cloudflare R2 (S3-compatible) with pre-signed PUT URLs
 

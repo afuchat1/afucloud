@@ -50,11 +50,13 @@ export function createDbClient(env: Env) {
     // ── Users ──────────────────────────────────────────────────────────────
     async getUserByEmail(email: string) {
       const r = await request(`/profiles?email=ilike.${encodeURIComponent(email)}&limit=1`, "GET", undefined, undefined, "accounts");
+      if (!r.ok) throw new Error(`Shared profile lookup failed: HTTP ${r.status}`);
       const rows = await r.json() as any[];
       return rows[0] ?? null;
     },
     async getUserById(id: string) {
       const r = await request(`/profiles?user_id=eq.${id}&limit=1`, "GET", undefined, undefined, "accounts");
+      if (!r.ok) throw new Error(`Shared profile lookup failed: HTTP ${r.status}`);
       const rows = await r.json() as any[];
       return rows[0] ?? null;
     },
@@ -65,11 +67,14 @@ export function createDbClient(env: Env) {
       email_verified?: boolean;
     }) {
       const r = await request("/profiles", "POST", data, { Prefer: "return=representation" }, "accounts");
+      if (!r.ok) throw new Error(`Shared profile creation failed: HTTP ${r.status}`);
       const rows = await r.json() as any[];
+      if (!rows[0]) throw new Error("Shared profile creation returned no row");
       return rows[0];
     },
     async updateUser(id: string, data: Record<string, unknown>) {
       const r = await request(`/profiles?user_id=eq.${id}`, "PATCH", data, { Prefer: "return=representation" }, "accounts");
+      if (!r.ok) throw new Error(`Shared profile update failed: HTTP ${r.status}`);
       const rows = await r.json() as any[];
       return rows[0];
     },

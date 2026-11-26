@@ -9,6 +9,14 @@ export interface SupabaseAuthUser {
 
 interface AuthResponse {
   user?: SupabaseAuthUser;
+  data?: {
+    user?: SupabaseAuthUser;
+    session?: unknown;
+  };
+  id?: string;
+  email?: string;
+  user_metadata?: Record<string, unknown>;
+  email_confirmed_at?: string | null;
   access_token?: string;
   error?: string | { message?: string; code?: string };
   error_description?: string;
@@ -19,10 +27,22 @@ interface AuthResponse {
 }
 
 export class SupabaseAuthError extends Error {
-  constructor(message: string, readonly status: number, readonly code: string | null = null) {
+  readonly status: number;
+  readonly code: string | null;
+
+  constructor(message: string, status: number, code: string | null = null) {
     super(message);
     this.name = "SupabaseAuthError";
+    this.status = status;
+    this.code = code;
   }
+}
+
+function authUserFromResponse(data: AuthResponse): SupabaseAuthUser | null {
+  const nestedUser = data.user ?? data.data?.user;
+  if (nestedUser && typeof nestedUser.id === "string" && nestedUser.id) return nestedUser;
+  if (typeof data.id === "string" && data.id) return data as SupabaseAuthUser;
+  return null;
 }
 
 function authErrorMessage(data: AuthResponse | null): string {
@@ -38,16 +58,21 @@ function authErrorMessage(data: AuthResponse | null): string {
 
 async function authRequest(env: Env, path: string, body: Record<string, unknown>): Promise<AuthResponse> {
   if (!env.SUPABASE_ANON_KEY) {
-    throw new Error("Supabase public auth key is not configured");
+    throw new SupabaseAuthError("AfuCloud authentication is temporarily unavailable", 503, "auth_not_configured");
   }
-  const response = await fetch(`${env.SUPABASE_URL}/auth/v1${path}`, {
-    method: "POST",
-    headers: {
-      apikey: env.SUPABASE_ANON_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${env.SUPABASE_URL}/auth/v1${path}`, {
+      method: "POST",
+      headers: {
+        apikey: env.SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new SupabaseAuthError("AfuCloud authentication is temporarily unavailable", 503, "auth_upstream_unavailable");
+  }
 
   const data = await response.json().catch(() => null) as AuthResponse | null;
   if (!response.ok) {
@@ -67,7 +92,7 @@ export async function signInWithSupabase(
   password: string,
 ): Promise<SupabaseAuthUser | null> {
   const response = await authRequest(env, "/token?grant_type=password", { email, password });
-  return response?.user ?? null;
+  return authUserFromResponse(response);
 }
 
 export async function signUpWithSupabase(
@@ -82,8 +107,26 @@ export async function signUpWithSupabase(
     password,
     data: { name },
   });
-  if (!response.user) throw new Error("Supabase Auth did not return a user");
-  return response.user;
+  const user = authUserFromResponse(response);
+  if (!user) {
+    throw new SupabaseAuthError("Signup response did not include a user", 502, "signup_user_missing");
+  }
+  return user;
+}
+
+export async function verifySignupEmailWithSupabase(
+  env: Env,
+  tokenHash: string,
+): Promise<SupabaseAuthUser> {
+  const response = await authRequest(env, "/verify", {
+    token_hash: tokenHash,
+    type: "email",
+  });
+  const user = authUserFromResponse(response);
+  if (!user) {
+    throw new SupabaseAuthError("Confirmation response did not include a user", 502, "confirmation_user_missing");
+  }
+  return user;
 }
 
 export async function resendSignupConfirmation(
