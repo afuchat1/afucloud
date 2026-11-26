@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { authUsersTable, db, profilesTable, refreshTokensTable } from "@workspace/db";
 import {
   hashPassword,
@@ -84,22 +84,88 @@ function authUnavailable(res: Parameters<Parameters<typeof router.post>[1]>[1], 
 
 async function ensureAfuCloudProfile(authUser: typeof authUsersTable.$inferSelect) {
   const [existing] = await db.select().from(profilesTable).where(eq(profilesTable.userId, authUser.id)).limit(1);
-  if (existing) return existing;
-
   const email = authUser.email?.trim().toLowerCase();
   if (!email) throw new Error("Supabase Auth user has no email address");
+  const authName = getAuthName(email, authUser.rawUserMetaData);
 
-  const [emailMatch] = await db.select().from(profilesTable).where(eq(profilesTable.email, email)).limit(1);
-  if (emailMatch) {
-    throw new Error("Supabase Auth email is already linked to a different AfuCloud user");
+  if (existing) {
+    const updates: Partial<{
+      email: string;
+      emailVerified: boolean;
+      name: string;
+      fullName: string;
+    }> = {};
+    if (existing.email !== email) updates.email = email;
+    if (authUser.emailConfirmedAt && !existing.emailVerified) updates.emailVerified = true;
+    if (!existing.name) updates.name = authName;
+    if (!existing.fullName) updates.fullName = authName;
+    if (Object.keys(updates).length === 0) return existing;
+
+    const [updated] = await db.update(profilesTable)
+      .set(updates)
+      .where(eq(profilesTable.userId, authUser.id))
+      .returning();
+    return updated ?? existing;
   }
 
-  const [profile] = await db.insert(profilesTable).values({
-    userId: authUser.id,
-    email,
-    name: getAuthName(email, authUser.rawUserMetaData),
-  }).returning();
-  return profile;
+  const emailMatches = await db.select().from(profilesTable)
+    .where(sql`lower(${profilesTable.email}) = ${email}`)
+    .limit(2);
+  if (emailMatches.length > 1) {
+    throw new Error("Multiple shared profiles use the Supabase Auth email");
+  }
+  const emailMatch = emailMatches[0];
+  if (emailMatch) {
+    if (emailMatch.userId === authUser.id) return emailMatch;
+    if (emailMatch.userId != null) {
+      throw new Error("Supabase Auth email is already linked to a different user");
+    }
+    if (!authUser.emailConfirmedAt || emailMatch.id !== authUser.id) {
+      throw new Error("Unlinked shared profile cannot be safely claimed by this Auth user");
+    }
+
+    const [claimed] = await db.update(profilesTable)
+      .set({
+        id: authUser.id,
+        userId: authUser.id,
+        email,
+        emailVerified: true,
+        name: emailMatch.name ?? authName,
+        fullName: emailMatch.fullName ?? authName,
+      })
+      .where(and(
+        eq(profilesTable.id, emailMatch.id),
+        sql`lower(${profilesTable.email}) = ${email}`,
+        isNull(profilesTable.userId),
+      ))
+      .returning();
+    if (claimed) return claimed;
+
+    const [concurrentlyLinked] = await db.select().from(profilesTable)
+      .where(eq(profilesTable.userId, authUser.id))
+      .limit(1);
+    if (concurrentlyLinked) return concurrentlyLinked;
+    throw new Error("Shared profile changed before it could be linked");
+  }
+
+  try {
+    const [profile] = await db.insert(profilesTable).values({
+      id: authUser.id,
+      userId: authUser.id,
+      email,
+      emailVerified: Boolean(authUser.emailConfirmedAt),
+      name: authName,
+      fullName: authName,
+    }).returning();
+    if (!profile) throw new Error("Shared profile creation returned no row");
+    return profile;
+  } catch (error) {
+    const [concurrentProfile] = await db.select().from(profilesTable)
+      .where(eq(profilesTable.userId, authUser.id))
+      .limit(1);
+    if (concurrentProfile) return concurrentProfile;
+    throw error;
+  }
 }
 
 function toApiUser(

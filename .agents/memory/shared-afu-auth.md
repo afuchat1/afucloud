@@ -15,9 +15,9 @@ Profile provisioning must be idempotent. Resolve insert conflicts by the same Au
 
 Some deployed `accounts.profiles` schemas also enforce a foreign key on `id`; profile creation must set both `id` and `user_id` to the authenticated Auth UUID.
 
-**Why:** Supabase Auth may create the shared profile through its database trigger before an app's profile-repair path runs. Treating that duplicate as a fatal login error caused confirmed users to receive HTTP 500.
+**Why:** The production database checked on 2026-11-27 had no `auth.users` profile-creation trigger. A confirmed account existed without a shared profile even though a correctly keyed profile insert succeeded.
 
-**How to apply:** After a duplicate insert conflict, look up the profile by `user_id`. If Auth has verified the email, a profile with `user_id IS NULL` may be linked only after matching its exact email and conditionally updating while it remains unlinked. Keep profiles owned by another Auth UUID as errors.
+**How to apply:** Verify `accounts.profiles` after signup or confirmation instead of assuming Auth created it. Check live triggers before relying on them, and do not add a shared Auth/profile trigger without reviewing its impact on other Afu products.
 
 **Why:** The live Supabase schema rejected generated profile IDs with SQLSTATE `23503`; matching the Auth UUID satisfies legacy identity constraints without changing the database.
 
