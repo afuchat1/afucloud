@@ -167,12 +167,22 @@ async function ensureAfuCloudProfile(
   // shared user_id link was installed. Claim it only after Supabase confirms
   // the email, and only while the profile remains unlinked.
   if (authUser.email_confirmed_at) {
-    const unlinked = await db.getUnlinkedUserByEmail(email);
-    if (unlinked?.id) {
-      const linked = await db.linkUnlinkedUser(unlinked.id, authUser.id, email);
+    const emailProfile = await db.getUserByEmail(email);
+    const profileEmail = typeof emailProfile?.email === "string"
+      ? emailProfile.email.trim().toLowerCase()
+      : "";
+    if (emailProfile && profileEmail === email && emailProfile.user_id === authUser.id) {
+      return emailProfile;
+    }
+    if (emailProfile && profileEmail === email && emailProfile.user_id == null && emailProfile.id) {
+      const linked = await db.linkUnlinkedUser(emailProfile.id, authUser.id, emailProfile.email);
       if (linked) return linked;
       const concurrentlyLinked = await db.getUserById(authUser.id);
       if (concurrentlyLinked) return concurrentlyLinked;
+    }
+    if (emailProfile && profileEmail === email && emailProfile.user_id) {
+      console.error("[AfuCloud Auth] shared email profile belongs to another Auth user");
+      throw new Error("Shared profile identity conflict");
     }
   }
 

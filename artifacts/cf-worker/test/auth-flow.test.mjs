@@ -193,11 +193,11 @@ test("profile creation does not recover a duplicate owned by another user", asyn
   assert.equal(requests, 2);
 });
 
-test("only a single exact-email profile with no Auth user can be claimed", async () => {
+test("a confirmed email match can claim only a still-unlinked profile", async () => {
   const unlinkedProfile = {
     id: "profile-row-id",
     user_id: null,
-    email: "user@example.test",
+    email: "User@Example.Test",
     name: "Test User",
   };
   let requests = 0;
@@ -209,9 +209,8 @@ test("only a single exact-email profile with no Auth user can be claimed", async
 
     if (requests === 1) {
       assert.equal(init.method, "GET");
-      assert.equal(url.searchParams.get("email"), "eq.user@example.test");
-      assert.equal(url.searchParams.get("user_id"), "is.null");
-      assert.equal(url.searchParams.get("limit"), "2");
+      assert.equal(url.searchParams.get("email"), "ilike.user@example.test");
+      assert.equal(url.searchParams.get("limit"), "1");
       return new Response(JSON.stringify([unlinkedProfile]), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -220,7 +219,7 @@ test("only a single exact-email profile with no Auth user can be claimed", async
 
     assert.equal(init.method, "PATCH");
     assert.equal(url.searchParams.get("id"), "eq.profile-row-id");
-    assert.equal(url.searchParams.get("email"), "eq.user@example.test");
+    assert.equal(url.searchParams.get("email"), "eq.User@Example.Test");
     assert.equal(url.searchParams.get("user_id"), "is.null");
     assert.deepEqual(JSON.parse(String(init.body)), {
       user_id: "test-user-id",
@@ -239,9 +238,9 @@ test("only a single exact-email profile with no Auth user can be claimed", async
       SUPABASE_URL: "https://database-provider.invalid",
       SUPABASE_SERVICE_KEY: "test-service-key",
     });
-    const candidate = await db.getUnlinkedUserByEmail("user@example.test");
+    const candidate = await db.getUserByEmail("user@example.test");
     assert.equal(candidate.id, "profile-row-id");
-    const linked = await db.linkUnlinkedUser(candidate.id, "test-user-id", "user@example.test");
+    const linked = await db.linkUnlinkedUser(candidate.id, "test-user-id", candidate.email);
     assert.equal(linked.user_id, "test-user-id");
     assert.equal(linked.email_verified, true);
   });

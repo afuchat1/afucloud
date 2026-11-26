@@ -53,19 +53,6 @@ export function createDbClient(env: Env) {
     return rows[0] ?? null;
   }
 
-  async function getUnlinkedUserByEmail(email: string) {
-    const r = await request(
-      `/profiles?email=eq.${encodeURIComponent(email)}&user_id=is.null&limit=2`,
-      "GET",
-      undefined,
-      undefined,
-      "accounts",
-    );
-    if (!r.ok) throw new Error(`Unlinked shared profile lookup failed: HTTP ${r.status}`);
-    const rows = await r.json() as any[];
-    return rows.length === 1 ? rows[0] : null;
-  }
-
   async function linkUnlinkedUser(id: string, userId: string, email: string) {
     const r = await request(
       `/profiles?id=eq.${encodeURIComponent(id)}&email=eq.${encodeURIComponent(email)}&user_id=is.null`,
@@ -90,9 +77,6 @@ export function createDbClient(env: Env) {
     async getUserById(id: string) {
       return getUserById(id);
     },
-    async getUnlinkedUserByEmail(email: string) {
-      return getUnlinkedUserByEmail(email);
-    },
     async linkUnlinkedUser(id: string, userId: string, email: string) {
       return linkUnlinkedUser(id, userId, email);
     },
@@ -110,6 +94,28 @@ export function createDbClient(env: Env) {
         if (r.status === 409) {
           const existing = await getUserById(data.user_id);
           if (existing) return existing;
+
+          // PostgREST's duplicate response can identify the conflicting
+          // constraint. Log only schema metadata, never its key values.
+          const conflict = await r.clone().json().catch(() => ({})) as {
+            code?: unknown;
+            message?: unknown;
+            details?: unknown;
+          };
+          const message = typeof conflict.message === "string" ? conflict.message : "";
+          const details = typeof conflict.details === "string" ? conflict.details : "";
+          const rawConstraint = message.match(/unique constraint ["']([^"']+)["']/i)?.[1];
+          const rawColumns = details.match(/Key \(([^)]+)\)=/)?.[1];
+          const constraint = rawConstraint && /^[A-Za-z0-9_.]+$/.test(rawConstraint) ? rawConstraint : null;
+          const keyColumns = rawColumns
+            ?.split(",")
+            .map((column) => column.trim())
+            .filter((column) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(column)) ?? [];
+          console.warn("[AfuCloud Auth] shared profile insert conflict", {
+            code: typeof conflict.code === "string" ? conflict.code : null,
+            constraint,
+            keyColumns,
+          });
         }
         throw new Error(`Shared profile creation failed: HTTP ${r.status}`);
       }
