@@ -312,9 +312,9 @@ export function createDbClient(env: Env) {
       if (!r.ok) throw new Error(`Domain registration order lookup failed: HTTP ${r.status}`);
       return r.json() as Promise<any[]>;
     },
-    async getDomainRegistrationOrdersByHostname(hostname: string, userId: string) {
+    async getActiveDomainRegistrationOrdersByHostname(hostname: string) {
       const r = await request(
-        `/domain_registration_orders?user_id=eq.${encodeURIComponent(userId)}&hostname=eq.${encodeURIComponent(hostname)}&order=created_at.desc&limit=20`,
+        `/domain_registration_orders?hostname=eq.${encodeURIComponent(hostname)}&status=in.(creating_checkout,pending_payment,paid,registering,processing,manual_review,registered)&order=created_at.desc&limit=1`,
       );
       if (!r.ok) throw new Error(`Domain registration order lookup failed: HTTP ${r.status}`);
       return r.json() as Promise<any[]>;

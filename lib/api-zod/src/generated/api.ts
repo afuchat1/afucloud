@@ -892,23 +892,85 @@ export const QuoteDomainRegistrationResponse = zod.object({
 
 
 /**
- * @summary Create a one-time Whop checkout for a live domain quote
+ * @summary Get the registrar-defined term and contact requirements for a domain extension
  */
-export const CreateDomainRegistrationCheckoutBody = zod.object({
-  "domainName": zod.string()
+export const GetDomainRegistrationRequirementsQueryParams = zod.object({
+  "domainName": zod.coerce.string()
 })
+
+export const getDomainRegistrationRequirementsResponseAllowedYearsItemMultipleOf = 1;
+
+
+
+export const GetDomainRegistrationRequirementsResponse = zod.object({
+  "supported": zod.boolean(),
+  "reason": zod.string().nullable(),
+  "extension": zod.string(),
+  "allowedYears": zod.array(zod.number().multipleOf(getDomainRegistrationRequirementsResponseAllowedYearsItemMultipleOf)),
+  "fields": zod.array(zod.object({
+  "name": zod.string(),
+  "label": zod.string(),
+  "description": zod.string().nullable(),
+  "type": zod.enum(['string', 'number', 'integer', 'boolean']),
+  "required": zod.boolean(),
+  "options": zod.array(zod.union([zod.string(),zod.number(),zod.boolean()])).nullable(),
+  "format": zod.string().nullable(),
+  "minLength": zod.number().nullable(),
+  "maxLength": zod.number().nullable(),
+  "minimum": zod.number().nullable(),
+  "maximum": zod.number().nullable(),
+  "multipleOf": zod.number().nullable(),
+  "pattern": zod.string().nullable()
+}))
+})
+
+
+/**
+ * @summary Create or resume a one-time Whop checkout for a live domain quote
+ */
+export const createDomainRegistrationCheckoutBodyRegistrationYearsMax = 10;
+export const createDomainRegistrationCheckoutBodyRegistrationYearsMultipleOf = 1;
+
+export const createDomainRegistrationCheckoutBodyRegistrantCountryCodeMin = 2;
+export const createDomainRegistrationCheckoutBodyRegistrantCountryCodeMax = 2;
+
+
+
+export const CreateDomainRegistrationCheckoutBody = zod.object({
+  "domainName": zod.string(),
+  "registrationYears": zod.number().min(1).max(createDomainRegistrationCheckoutBodyRegistrationYearsMax).multipleOf(createDomainRegistrationCheckoutBodyRegistrationYearsMultipleOf),
+  "registrant": zod.object({
+  "email": zod.string(),
+  "phone": zod.string().describe('Cloudflare phone format, for example +256.700000000.'),
+  "name": zod.string(),
+  "organization": zod.string().optional(),
+  "street": zod.string(),
+  "city": zod.string(),
+  "state": zod.string().optional(),
+  "postalCode": zod.string(),
+  "countryCode": zod.string().min(createDomainRegistrationCheckoutBodyRegistrantCountryCodeMin).max(createDomainRegistrationCheckoutBodyRegistrantCountryCodeMax)
+}),
+  "contactExtensions": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+export const createDomainRegistrationCheckoutResponseOrderRegistrationYearsMultipleOf = 1;
+
+
 
 export const CreateDomainRegistrationCheckoutResponse = zod.object({
   "order": zod.object({
   "id": zod.string(),
   "domainName": zod.string(),
   "status": zod.enum(['creating_checkout', 'pending_payment', 'paid', 'registering', 'processing', 'registered', 'registration_failed', 'checkout_failed', 'refunded', 'manual_review']),
+  "registrationYears": zod.number().multipleOf(createDomainRegistrationCheckoutResponseOrderRegistrationYearsMultipleOf),
+  "purchaseUrl": zod.string().nullable(),
   "currency": zod.string(),
   "registrarCost": zod.number(),
   "renewalRegistrarCost": zod.number(),
   "retailPrice": zod.number(),
   "renewalRetailPrice": zod.number(),
   "registrationStatus": zod.string().nullable(),
+  "registeredAt": zod.string().nullable(),
   "expiresAt": zod.string().nullable(),
   "error": zod.string().nullable(),
   "createdAt": zod.string()
@@ -920,16 +982,23 @@ export const CreateDomainRegistrationCheckoutResponse = zod.object({
 /**
  * @summary List the authenticated user's domain registration orders
  */
+export const listDomainRegistrationOrdersResponseRegistrationYearsMultipleOf = 1;
+
+
+
 export const ListDomainRegistrationOrdersResponseItem = zod.object({
   "id": zod.string(),
   "domainName": zod.string(),
   "status": zod.enum(['creating_checkout', 'pending_payment', 'paid', 'registering', 'processing', 'registered', 'registration_failed', 'checkout_failed', 'refunded', 'manual_review']),
+  "registrationYears": zod.number().multipleOf(listDomainRegistrationOrdersResponseRegistrationYearsMultipleOf),
+  "purchaseUrl": zod.string().nullable(),
   "currency": zod.string(),
   "registrarCost": zod.number(),
   "renewalRegistrarCost": zod.number(),
   "retailPrice": zod.number(),
   "renewalRetailPrice": zod.number(),
   "registrationStatus": zod.string().nullable(),
+  "registeredAt": zod.string().nullable(),
   "expiresAt": zod.string().nullable(),
   "error": zod.string().nullable(),
   "createdAt": zod.string()
@@ -944,16 +1013,23 @@ export const GetDomainRegistrationOrderParams = zod.object({
   "orderId": zod.coerce.string()
 })
 
+export const getDomainRegistrationOrderResponseRegistrationYearsMultipleOf = 1;
+
+
+
 export const GetDomainRegistrationOrderResponse = zod.object({
   "id": zod.string(),
   "domainName": zod.string(),
   "status": zod.enum(['creating_checkout', 'pending_payment', 'paid', 'registering', 'processing', 'registered', 'registration_failed', 'checkout_failed', 'refunded', 'manual_review']),
+  "registrationYears": zod.number().multipleOf(getDomainRegistrationOrderResponseRegistrationYearsMultipleOf),
+  "purchaseUrl": zod.string().nullable(),
   "currency": zod.string(),
   "registrarCost": zod.number(),
   "renewalRegistrarCost": zod.number(),
   "retailPrice": zod.number(),
   "renewalRetailPrice": zod.number(),
   "registrationStatus": zod.string().nullable(),
+  "registeredAt": zod.string().nullable(),
   "expiresAt": zod.string().nullable(),
   "error": zod.string().nullable(),
   "createdAt": zod.string()
@@ -983,19 +1059,27 @@ export const SubmitDomainRegistrationBody = zod.object({
   "state": zod.string().optional(),
   "postalCode": zod.string(),
   "countryCode": zod.string().min(submitDomainRegistrationBodyRegistrantCountryCodeMin).max(submitDomainRegistrationBodyRegistrantCountryCodeMax)
+}),
+  "contactExtensions": zod.record(zod.string(), zod.unknown()).optional()
 })
-})
+
+export const submitDomainRegistrationResponseRegistrationYearsMultipleOf = 1;
+
+
 
 export const SubmitDomainRegistrationResponse = zod.object({
   "id": zod.string(),
   "domainName": zod.string(),
   "status": zod.enum(['creating_checkout', 'pending_payment', 'paid', 'registering', 'processing', 'registered', 'registration_failed', 'checkout_failed', 'refunded', 'manual_review']),
+  "registrationYears": zod.number().multipleOf(submitDomainRegistrationResponseRegistrationYearsMultipleOf),
+  "purchaseUrl": zod.string().nullable(),
   "currency": zod.string(),
   "registrarCost": zod.number(),
   "renewalRegistrarCost": zod.number(),
   "retailPrice": zod.number(),
   "renewalRetailPrice": zod.number(),
   "registrationStatus": zod.string().nullable(),
+  "registeredAt": zod.string().nullable(),
   "expiresAt": zod.string().nullable(),
   "error": zod.string().nullable(),
   "createdAt": zod.string()

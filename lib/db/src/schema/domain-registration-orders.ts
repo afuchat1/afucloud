@@ -31,7 +31,7 @@ export const domainRegistrationOrdersTable = afucloudSchema.table("domain_regist
   userStatusIndex: index("domain_registration_orders_user_status_idx").on(table.userId, table.status),
   checkoutUnique: uniqueIndex("domain_registration_orders_checkout_unique").on(table.whopCheckoutConfigurationId),
   paymentUnique: uniqueIndex("domain_registration_orders_payment_unique").on(table.whopPaymentId),
-  activeHostnameUnique: uniqueIndex("domain_registration_orders_user_hostname_active_unique")
-    .on(table.userId, table.hostname)
+  activeHostnameUnique: uniqueIndex("domain_registration_orders_hostname_active_unique")
+    .on(table.hostname)
     .where(sql`${table.status} IN ('creating_checkout', 'pending_payment', 'paid', 'registering', 'processing', 'manual_review', 'registered')`),
 }));

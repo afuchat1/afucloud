@@ -175,7 +175,7 @@ export default function DomainsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Custom domains"
-        description="Connect custom domains and manage DNS."
+        description="Connect a Cloudflare DNS zone you control and manage its records. Registration stays separate."
         docsSection="domains"
         actions={<Button className="gap-2" onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" />Add domain</Button>}
       />

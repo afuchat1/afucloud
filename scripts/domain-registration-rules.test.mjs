@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  normalizeRegistrant,
   quoteForRegistrationYears,
   registrationRequirements,
   validateContactExtensions,
@@ -33,6 +34,15 @@ test("applies Cloudflare's documented minimum term when no term schema is return
   assert.deepEqual(registrationRequirements("com", { properties: {} }).allowedYears, [1]);
 });
 
+test("limits term choices to the registrar's numeric constraints", () => {
+  assert.deepEqual(
+    registrationRequirements("test", {
+      properties: { years: { type: "integer", minimum: 2, maximum: 10, multipleOf: 2 } },
+    }).allowedYears,
+    [2, 4, 6, 8, 10],
+  );
+});
+
 test("blocks registration when extension requirements cannot be represented safely", () => {
   const requirements = registrationRequirements("test", {
     properties: {
@@ -55,6 +65,33 @@ test("validates required and enumerated registry contact fields", () => {
   assert.equal(validateContactExtensions(schema, {}).valid, false);
   assert.equal(validateContactExtensions(schema, { entity_type: "other" }).valid, false);
   assert.equal(validateContactExtensions(schema, { entity_type: "company" }).valid, true);
+});
+
+test("enforces numeric registry contact constraints", () => {
+  const schema = {
+    type: "object",
+    required: ["employees"],
+    properties: { employees: { type: "integer", minimum: 2, maximum: 10, multipleOf: 2 } },
+  };
+  assert.equal(validateContactExtensions(schema, { employees: 4 }).valid, true);
+  assert.equal(validateContactExtensions(schema, { employees: 3 }).valid, false);
+  assert.equal(validateContactExtensions(schema, { employees: 12 }).valid, false);
+});
+
+test("accepts international phone calling codes including Uganda's +256", () => {
+  const registrant = {
+    email: "buyer@example.com",
+    phone: "+256.700000000",
+    name: "Alex Example",
+    organization: "",
+    street: "555 Example Street",
+    city: "Kampala",
+    state: "",
+    postalCode: "00000",
+    countryCode: "ug",
+  };
+  assert.deepEqual(normalizeRegistrant(registrant), { ...registrant, countryCode: "UG" });
+  assert.equal(normalizeRegistrant({ ...registrant, phone: "+256700000000" }), null);
 });
 
 test("quotes a multi-year term from live registration and renewal costs", () => {

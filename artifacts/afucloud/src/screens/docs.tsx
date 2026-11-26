@@ -543,7 +543,7 @@ const isValid = crypto.timingSafeEqual(
             <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
               <h2 className="text-base font-semibold">Custom Domains</h2>
               <p className="text-sm text-muted-foreground">
-                Connect Cloudflare, verify a domain you control, and manage its DNS records from the domain page.
+                Connect a Cloudflare DNS zone for a domain you control, verify DNS ownership, and manage its records. This does not transfer the registration or change nameservers.
               </p>
               <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
                 <li>Connect your Cloudflare account.</li>
@@ -561,12 +561,12 @@ const isValid = crypto.timingSafeEqual(
             <div className="space-y-3 rounded-lg border border-card-border bg-card p-4 sm:p-6">
               <h2 className="text-base font-semibold">Domain Registration</h2>
               <p className="text-sm text-muted-foreground">
-                Search for an available domain, review the current registration and renewal price, then complete the purchase through hosted checkout.
+                Search for a domain, review current registration and renewal pricing, then complete checkout. Supported terms and any registry-specific contact fields come from the registrar.
               </p>
               <ul className="list-inside list-disc space-y-2 text-sm text-muted-foreground">
-                <li>You are the legal registrant. Contact details you provide are shared with the registrar to complete registration.</li>
-                <li>The current registration and renewal prices are shown before checkout.</li>
-                <li>Registration is for one year with automatic renewal disabled. Renewal checkout is not yet available in the dashboard; contact AfuCloud before expiry.</li>
+                <li>You are the legal registrant. Contact details are checked before checkout, are not saved to the order, and are sent to Cloudflare when you submit the paid registration.</li>
+                <li>The checkout total uses the current registration price for year one and the current renewal price for any additional selected years. The renewal price can change.</li>
+                <li>Automatic renewal is off. Cloudflare’s Registrar API does not currently support renewals, so renewal checkout is unavailable. The dashboard shows a reminder based on the expiry date Cloudflare confirms.</li>
                 <li>Completed registrations are non-refundable. If a registration cannot be completed after checkout, contact AfuCloud support.</li>
                 <li>Premium domains and non-USD quotes are not supported.</li>
               </ul>
@@ -574,11 +574,18 @@ const isValid = crypto.timingSafeEqual(
             <div className="space-y-4 rounded-lg border border-card-border bg-card p-4 sm:p-6">
               <h3 className="text-sm font-semibold">API flow</h3>
               <p className="text-sm text-muted-foreground">
-                Use an AfuCloud bearer token to search, check current pricing, and create hosted checkout. After purchase, check the order and submit the required registrant details.
+                Use an AfuCloud bearer token to search, load extension requirements, and get a fresh quote. Submit valid registrant details and a registrar-supported term to create checkout. After payment, submit the same contact details to complete registration.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Replace the example term and extension fields with values returned by the requirements endpoint for the domain you selected.
               </p>
               <CodeBlock language="bash" code={`# Search names or a full domain
 curl -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
   "${BASE}/v1/domains/registrations/search?q=example.com"
+
+# Get supported terms and registry-specific contact fields
+curl -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
+  "${BASE}/v1/domains/registrations/requirements?domainName=example.com"
 
 # Get current availability and retail price
 curl -X POST "${BASE}/v1/domains/registrations/quote" \\
@@ -590,7 +597,7 @@ curl -X POST "${BASE}/v1/domains/registrations/quote" \\
 curl -X POST "${BASE}/v1/domains/registrations/checkout" \\
   -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
   -H "Content-Type: application/json" \\
-  -d '{"domainName":"example.com"}'
+  -d '{"domainName":"example.com","registrationYears":1,"registrant":{"email":"buyer@example.com","phone":"+1.202.555.0100","name":"Alex Example","street":"555 Example Street","city":"Example City","state":"CA","postalCode":"00000","countryCode":"US"},"contactExtensions":{}}'
 
 # Check registration status after checkout
 curl -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
@@ -600,7 +607,7 @@ curl -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
 curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
   -H "Authorization: Bearer $AFUCLOUD_TOKEN" \\
   -H "Content-Type: application/json" \\
-  -d '{"registrant":{"email":"buyer@example.com","phone":"+1.202.555.0100","name":"Alex Example","street":"555 Example Street","city":"Example City","state":"CA","postalCode":"00000","countryCode":"US"}}'`} />
+  -d '{"registrant":{"email":"buyer@example.com","phone":"+1.202.555.0100","name":"Alex Example","street":"555 Example Street","city":"Example City","state":"CA","postalCode":"00000","countryCode":"US"},"contactExtensions":{}}'`} />
             </div>
           </article>
 
@@ -657,6 +664,7 @@ curl -X POST "${BASE}/v1/domains/registrations/orders/ORDER_ID/register" \\
                       ['DELETE', '/afucloud/v1/tokens/:id', '✓', 'Revoke personal token'],
                       ['GET', '/afucloud/v1/activity', '✓', 'Activity log'],
                       ['GET', '/afucloud/v1/domains/registrations/search', '✓', 'Search available domains'],
+                      ['GET', '/afucloud/v1/domains/registrations/requirements', '✓', 'List supported terms and contact fields'],
                       ['POST', '/afucloud/v1/domains/registrations/quote', '✓', 'Get live availability and price'],
                       ['POST', '/afucloud/v1/domains/registrations/checkout', '✓', 'Create hosted checkout'],
                       ['GET', '/afucloud/v1/domains/registrations/orders', '✓', 'List registration orders'],

@@ -10,6 +10,22 @@ export type RegistrarField = {
   format: string | null;
   minLength: number | null;
   maxLength: number | null;
+  minimum: number | null;
+  maximum: number | null;
+  multipleOf: number | null;
+  pattern: string | null;
+};
+
+export type RegistrantDetails = {
+  email: string;
+  phone: string;
+  name: string;
+  organization: string;
+  street: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  countryCode: string;
 };
 
 export type RegistrationRequirements = {
@@ -39,9 +55,16 @@ function yearsFromSchema(schema: unknown, extension: string): number[] | null {
     // extensions its documented default is one year.
     return [extension === "ai" ? 2 : 1];
   }
+  if (schema.type !== undefined && schema.type !== "integer" && schema.type !== "number") return null;
+  const multipleOf = schema.multipleOf === undefined ? 1 : schema.multipleOf;
+  if (typeof multipleOf !== "number" || !Number.isFinite(multipleOf) || multipleOf <= 0) return null;
+  const matchesMultipleOf = (year: number) =>
+    Math.abs(year / multipleOf - Math.round(year / multipleOf)) < 1e-9;
 
   if (Array.isArray(schema.enum)) {
-    const values = [...new Set(schema.enum.map(supportedTerm).filter((value): value is number => value !== null))];
+    const values = [...new Set(schema.enum.map(supportedTerm).filter(
+      (value): value is number => value !== null && matchesMultipleOf(value),
+    ))];
     return values.length === schema.enum.length ? values.sort((a, b) => a - b) : null;
   }
 
@@ -55,17 +78,26 @@ function yearsFromSchema(schema: unknown, extension: string): number[] | null {
   const maximum = supportedTerm(schema.maximum);
   if (maximum === null) {
     const defaultValue = supportedTerm(schema.default);
-    return defaultValue !== null ? [defaultValue] : [minimum];
+    const onlySupportedChoice = defaultValue !== null ? defaultValue : minimum;
+    return matchesMultipleOf(onlySupportedChoice) ? [onlySupportedChoice] : null;
   }
   if (maximum < minimum || maximum - minimum > 9) return null;
-  return Array.from({ length: maximum - minimum + 1 }, (_, index) => minimum + index);
+  const allowed = Array.from({ length: maximum - minimum + 1 }, (_, index) => minimum + index)
+    .filter(matchesMultipleOf);
+  return allowed.length ? allowed : null;
 }
 
 function fieldType(schema: JsonObject): RegistrarField["type"] | null {
   if (schema.type === "string" || schema.type === "number" || schema.type === "integer" || schema.type === "boolean") {
     return schema.type;
   }
-  if (Array.isArray(schema.enum) && schema.enum.every(value => typeof value === "string")) return "string";
+  if (Array.isArray(schema.enum)) {
+    if (schema.enum.every(value => typeof value === "string")) return "string";
+    if (schema.enum.every(value => typeof value === "boolean")) return "boolean";
+    if (schema.enum.every(value => typeof value === "number")) {
+      return schema.enum.every(value => Number.isInteger(value)) ? "integer" : "number";
+    }
+  }
   return null;
 }
 
@@ -162,7 +194,23 @@ export function registrationRequirements(
       rawSchema.enum.every(value => ["string", "number", "boolean"].includes(typeof value))
       ? rawSchema.enum as Array<string | number | boolean>
       : null;
-    if (!type || (Array.isArray(rawSchema.enum) && !options)) {
+    const validPattern = rawSchema.pattern === undefined || (
+      typeof rawSchema.pattern === "string" &&
+      (() => {
+        try {
+          new RegExp(rawSchema.pattern as string);
+          return true;
+        } catch {
+          return false;
+        }
+      })()
+    );
+    const validMultipleOf = rawSchema.multipleOf === undefined ||
+      (["number", "integer"].includes(type ?? "") &&
+        typeof rawSchema.multipleOf === "number" &&
+        Number.isFinite(rawSchema.multipleOf) &&
+        rawSchema.multipleOf > 0);
+    if (!type || (Array.isArray(rawSchema.enum) && !options) || !validPattern || !validMultipleOf) {
       return {
         supported: false,
         reason: "AfuCloud cannot safely collect the registry-specific fields required for this extension yet.",
@@ -182,6 +230,12 @@ export function registrationRequirements(
       format: typeof rawSchema.format === "string" ? rawSchema.format : null,
       minLength: positiveInteger(rawSchema.minLength),
       maxLength: positiveInteger(rawSchema.maxLength),
+      minimum: typeof rawSchema.minimum === "number" ? rawSchema.minimum : null,
+      maximum: typeof rawSchema.maximum === "number" ? rawSchema.maximum : null,
+      multipleOf: typeof rawSchema.multipleOf === "number" && Number.isFinite(rawSchema.multipleOf) && rawSchema.multipleOf > 0
+        ? rawSchema.multipleOf
+        : null,
+      pattern: typeof rawSchema.pattern === "string" ? rawSchema.pattern : null,
     });
   }
 
@@ -193,6 +247,29 @@ export function registrationRequirements(
     fields,
     contactExtensionsSchema: contactSchema,
   };
+}
+
+export function normalizeRegistrant(rawValue: unknown): RegistrantDetails | null {
+  if (!isObject(rawValue)) return null;
+  const text = (value: unknown, max: number) => typeof value === "string" ? value.trim().slice(0, max) : "";
+  const registrant = {
+    email: text(rawValue.email, 254),
+    phone: text(rawValue.phone, 32),
+    name: text(rawValue.name, 200),
+    organization: text(rawValue.organization, 200),
+    street: text(rawValue.street, 250),
+    city: text(rawValue.city, 120),
+    state: text(rawValue.state, 120),
+    postalCode: text(rawValue.postalCode, 32),
+    countryCode: text(rawValue.countryCode, 2).toUpperCase(),
+  };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registrant.email)) return null;
+  // Cloudflare's phone format uses a dot between the 1–3 digit calling code
+  // and national number (for example, +256.700000000).
+  if (!/^\+[1-9]\d{0,2}\.\d{4,14}$/.test(registrant.phone)) return null;
+  if (!registrant.name || !registrant.street || !registrant.city || !registrant.postalCode) return null;
+  if (!/^[A-Z]{2}$/.test(registrant.countryCode)) return null;
+  return registrant;
 }
 
 function validSchemaValue(schema: JsonObject, value: unknown): boolean {
@@ -212,10 +289,16 @@ function validSchemaValue(schema: JsonObject, value: unknown): boolean {
     if (typeof value !== "number" || !Number.isFinite(value)) return false;
     if (typeof schema.minimum === "number" && value < schema.minimum) return false;
     if (typeof schema.maximum === "number" && value > schema.maximum) return false;
+    if (schema.multipleOf !== undefined &&
+      (typeof schema.multipleOf !== "number" || !Number.isFinite(schema.multipleOf) || schema.multipleOf <= 0 ||
+        Math.abs(value / schema.multipleOf - Math.round(value / schema.multipleOf)) >= 1e-9)) return false;
   } else if (type === "integer") {
     if (!Number.isInteger(value)) return false;
     if (typeof schema.minimum === "number" && Number(value) < schema.minimum) return false;
     if (typeof schema.maximum === "number" && Number(value) > schema.maximum) return false;
+    if (schema.multipleOf !== undefined &&
+      (typeof schema.multipleOf !== "number" || !Number.isFinite(schema.multipleOf) || schema.multipleOf <= 0 ||
+        Math.abs(Number(value) / schema.multipleOf - Math.round(Number(value) / schema.multipleOf)) >= 1e-9)) return false;
   } else if (type === "boolean") {
     if (typeof value !== "boolean") return false;
   } else {

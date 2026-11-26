@@ -1780,7 +1780,8 @@ components:
         allowedYears:
           type: array
           items:
-            type: integer
+            type: number
+            multipleOf: 1
         fields:
           type: array
           items:
@@ -1788,7 +1789,7 @@ components:
 
     DomainRegistrationRequirementField:
       type: object
-      required: [name, label, description, type, required, options, format, minLength, maxLength]
+      required: [name, label, description, type, required, options, format, minLength, maxLength, minimum, maximum, multipleOf, pattern]
       properties:
         name:
           type: string
@@ -1811,9 +1812,17 @@ components:
         format:
           type: ["string", "null"]
         minLength:
-          type: ["integer", "null"]
+          type: ["number", "null"]
         maxLength:
-          type: ["integer", "null"]
+          type: ["number", "null"]
+        minimum:
+          type: ["number", "null"]
+        maximum:
+          type: ["number", "null"]
+        multipleOf:
+          type: ["number", "null"]
+        pattern:
+          type: ["string", "null"]
 
     DomainRegistrationCheckoutRequest:
       type: object
@@ -1822,7 +1831,8 @@ components:
         domainName:
           type: string
         registrationYears:
-          type: integer
+          type: number
+          multipleOf: 1
           minimum: 1
           maximum: 10
         registrant:
@@ -1868,7 +1878,8 @@ components:
           type: string
           enum: [creating_checkout, pending_payment, paid, registering, processing, registered, registration_failed, checkout_failed, refunded, manual_review]
         registrationYears:
-          type: integer
+          type: number
+          multipleOf: 1
         purchaseUrl:
           type: ["string", "null"]
         currency:

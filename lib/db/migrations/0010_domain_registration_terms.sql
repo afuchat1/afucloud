@@ -13,13 +13,13 @@ BEGIN
     SELECT 1
     FROM afucloud.domain_registration_orders
     WHERE status IN ('creating_checkout', 'pending_payment', 'paid', 'registering', 'processing', 'manual_review', 'registered')
-    GROUP BY user_id, hostname
+    GROUP BY hostname
     HAVING COUNT(*) > 1
   ) THEN
     RAISE EXCEPTION 'Duplicate active domain orders exist; review them before applying the AfuCloud registration-term migration';
   END IF;
 END $$;
 
-CREATE UNIQUE INDEX IF NOT EXISTS domain_registration_orders_user_hostname_active_unique
-  ON afucloud.domain_registration_orders (user_id, hostname)
+CREATE UNIQUE INDEX IF NOT EXISTS domain_registration_orders_hostname_active_unique
+  ON afucloud.domain_registration_orders (hostname)
   WHERE status IN ('creating_checkout', 'pending_payment', 'paid', 'registering', 'processing', 'manual_review', 'registered');

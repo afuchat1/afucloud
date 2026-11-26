@@ -39,11 +39,14 @@ import type {
   CloudflareZone,
   ConfirmUploadInput,
   DomainRegistrantRequest,
+  DomainRegistrationCheckoutRequest,
   DomainRegistrationCheckoutResponse,
   DomainRegistrationOrder,
   DomainRegistrationQuote,
   DomainRegistrationQuoteRequest,
+  DomainRegistrationRequirements,
   DomainRegistrationSearchResponse,
+  GetDomainRegistrationRequirementsParams,
   GetProjectAnalyticsParams,
   HealthStatus,
   Image,
@@ -3187,6 +3190,90 @@ export const useQuoteDomainRegistration = <TError = ErrorType<unknown>,
       return useMutation(getQuoteDomainRegistrationMutationOptions(options));
     }
 
+export const getGetDomainRegistrationRequirementsUrl = (params: GetDomainRegistrationRequirementsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/domains/registrations/requirements?${stringifiedParams}` : `/api/v1/domains/registrations/requirements`
+}
+
+/**
+ * @summary Get the registrar-defined term and contact requirements for a domain extension
+ */
+export const getDomainRegistrationRequirements = async (params: GetDomainRegistrationRequirementsParams, options?: Parameters<typeof customFetch>[1]): Promise<DomainRegistrationRequirements> => {
+
+  return customFetch<DomainRegistrationRequirements>(getGetDomainRegistrationRequirementsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDomainRegistrationRequirementsQueryKey = (params?: GetDomainRegistrationRequirementsParams,) => {
+    return [
+    `/api/v1/domains/registrations/requirements`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDomainRegistrationRequirementsQueryOptions = <TData = Awaited<ReturnType<typeof getDomainRegistrationRequirements>>, TError = ErrorType<unknown>>(params: GetDomainRegistrationRequirementsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDomainRegistrationRequirements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDomainRegistrationRequirementsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDomainRegistrationRequirements>>> = ({ signal }) => getDomainRegistrationRequirements(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDomainRegistrationRequirements>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDomainRegistrationRequirementsQueryResult = NonNullable<Awaited<ReturnType<typeof getDomainRegistrationRequirements>>>
+export type GetDomainRegistrationRequirementsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the registrar-defined term and contact requirements for a domain extension
+ */
+
+export function useGetDomainRegistrationRequirements<TData = Awaited<ReturnType<typeof getDomainRegistrationRequirements>>, TError = ErrorType<unknown>>(
+ params: GetDomainRegistrationRequirementsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDomainRegistrationRequirements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDomainRegistrationRequirementsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getCreateDomainRegistrationCheckoutUrl = () => {
 
 
@@ -3196,16 +3283,16 @@ export const getCreateDomainRegistrationCheckoutUrl = () => {
 }
 
 /**
- * @summary Create a one-time Whop checkout for a live domain quote
+ * @summary Create or resume a one-time Whop checkout for a live domain quote
  */
-export const createDomainRegistrationCheckout = async (domainRegistrationQuoteRequest: DomainRegistrationQuoteRequest, options?: Parameters<typeof customFetch>[1]): Promise<DomainRegistrationCheckoutResponse> => {
+export const createDomainRegistrationCheckout = async (domainRegistrationCheckoutRequest: DomainRegistrationCheckoutRequest, options?: Parameters<typeof customFetch>[1]): Promise<DomainRegistrationCheckoutResponse> => {
 
   return customFetch<DomainRegistrationCheckoutResponse>(getCreateDomainRegistrationCheckoutUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(domainRegistrationQuoteRequest)
+    body: JSON.stringify(domainRegistrationCheckoutRequest)
   }
 );}
 
@@ -3214,8 +3301,8 @@ export const createDomainRegistrationCheckout = async (domainRegistrationQuoteRe
 
 
 export const getCreateDomainRegistrationCheckoutMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>, TError,{data: BodyType<DomainRegistrationQuoteRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>, TError,{data: BodyType<DomainRegistrationQuoteRequest>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>, TError,{data: BodyType<DomainRegistrationCheckoutRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>, TError,{data: BodyType<DomainRegistrationCheckoutRequest>}, TContext> => {
 
 const mutationKey = ['createDomainRegistrationCheckout'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -3227,7 +3314,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>, {data: BodyType<DomainRegistrationQuoteRequest>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>, {data: BodyType<DomainRegistrationCheckoutRequest>}> = (props) => {
           const {data} = props ?? {};
 
           return  createDomainRegistrationCheckout(data,requestOptions)
@@ -3241,18 +3328,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type CreateDomainRegistrationCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>>
-    export type CreateDomainRegistrationCheckoutMutationBody = BodyType<DomainRegistrationQuoteRequest>
+    export type CreateDomainRegistrationCheckoutMutationBody = BodyType<DomainRegistrationCheckoutRequest>
     export type CreateDomainRegistrationCheckoutMutationError = ErrorType<unknown>
 
     /**
- * @summary Create a one-time Whop checkout for a live domain quote
+ * @summary Create or resume a one-time Whop checkout for a live domain quote
  */
 export const useCreateDomainRegistrationCheckout = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>, TError,{data: BodyType<DomainRegistrationQuoteRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDomainRegistrationCheckout>>, TError,{data: BodyType<DomainRegistrationCheckoutRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createDomainRegistrationCheckout>>,
         TError,
-        {data: BodyType<DomainRegistrationQuoteRequest>},
+        {data: BodyType<DomainRegistrationCheckoutRequest>},
         TContext
       > => {
       return useMutation(getCreateDomainRegistrationCheckoutMutationOptions(options));

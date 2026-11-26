@@ -436,6 +436,80 @@ export interface DomainRegistrationQuoteRequest {
   domainName: string;
 }
 
+export type DomainRegistrationRequirementFieldType = typeof DomainRegistrationRequirementFieldType[keyof typeof DomainRegistrationRequirementFieldType];
+
+
+export const DomainRegistrationRequirementFieldType = {
+  string: 'string',
+  number: 'number',
+  integer: 'integer',
+  boolean: 'boolean',
+} as const;
+
+export interface DomainRegistrationRequirementField {
+  name: string;
+  label: string;
+  /** @nullable */
+  description: string | null;
+  type: DomainRegistrationRequirementFieldType;
+  required: boolean;
+  /** @nullable */
+  options: (string | number | boolean)[] | null;
+  /** @nullable */
+  format: string | null;
+  /** @nullable */
+  minLength: number | null;
+  /** @nullable */
+  maxLength: number | null;
+  /** @nullable */
+  minimum: number | null;
+  /** @nullable */
+  maximum: number | null;
+  /** @nullable */
+  multipleOf: number | null;
+  /** @nullable */
+  pattern: string | null;
+}
+
+export interface DomainRegistrationRequirements {
+  supported: boolean;
+  /** @nullable */
+  reason: string | null;
+  extension: string;
+  allowedYears: number[];
+  fields: DomainRegistrationRequirementField[];
+}
+
+export type DomainRegistrationCheckoutRequestContactExtensions = { [key: string]: unknown };
+
+export interface DomainRegistrant {
+  email: string;
+  /** Cloudflare phone format, for example +256.700000000. */
+  phone: string;
+  name: string;
+  organization?: string;
+  street: string;
+  city: string;
+  state?: string;
+  postalCode: string;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     */
+  countryCode: string;
+}
+
+export interface DomainRegistrationCheckoutRequest {
+  domainName: string;
+  /**
+     * @minimum 1
+     * @maximum 10
+     */
+  registrationYears: number;
+  registrant: DomainRegistrant;
+  contactExtensions?: DomainRegistrationCheckoutRequestContactExtensions;
+}
+
 export interface DomainRegistrationQuote {
   domainName: string;
   registrable: boolean;
@@ -474,6 +548,9 @@ export interface DomainRegistrationOrder {
   id: string;
   domainName: string;
   status: DomainRegistrationOrderStatus;
+  registrationYears: number;
+  /** @nullable */
+  purchaseUrl: string | null;
   currency: string;
   registrarCost: number;
   renewalRegistrarCost: number;
@@ -481,6 +558,8 @@ export interface DomainRegistrationOrder {
   renewalRetailPrice: number;
   /** @nullable */
   registrationStatus: string | null;
+  /** @nullable */
+  registeredAt: string | null;
   /** @nullable */
   expiresAt: string | null;
   /** @nullable */
@@ -493,25 +572,11 @@ export interface DomainRegistrationCheckoutResponse {
   purchaseUrl: string;
 }
 
-export type DomainRegistrantRequestRegistrant = {
-  email: string;
-  /** Cloudflare phone format, for example +256.700000000. */
-  phone: string;
-  name: string;
-  organization?: string;
-  street: string;
-  city: string;
-  state?: string;
-  postalCode: string;
-  /**
-     * @minLength 2
-     * @maxLength 2
-     */
-  countryCode: string;
-};
+export type DomainRegistrantRequestContactExtensions = { [key: string]: unknown };
 
 export interface DomainRegistrantRequest {
-  registrant: DomainRegistrantRequestRegistrant;
+  registrant: DomainRegistrant;
+  contactExtensions?: DomainRegistrantRequestContactExtensions;
 }
 
 export type ListImagesParams = {
@@ -549,5 +614,9 @@ type?: string;
 
 export type SearchDomainRegistrationsParams = {
 q: string;
+};
+
+export type GetDomainRegistrationRequirementsParams = {
+domainName: string;
 };
 

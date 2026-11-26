@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { AuthVariables, Env } from "../types";
 import { createDbClient } from "../lib/db";
 import {
+  normalizeRegistrant,
   quoteForRegistrationYears,
   registrationRequirements,
   validateContactExtensions,
@@ -193,11 +194,9 @@ async function getExtensionRequirements(env: Env, hostname: string) {
   };
 }
 
-async function getActiveOrRegisteredOrder(db: ReturnType<typeof createDbClient>, userId: string, hostname: string) {
-  const orders = await db.getDomainRegistrationOrdersByHostname(hostname, userId);
-  return orders.find((order: any) =>
-    ["creating_checkout", "pending_payment", "paid", "registering", "processing", "manual_review", "registered"].includes(order.status),
-  ) ?? null;
+async function getActiveOrRegisteredOrder(db: ReturnType<typeof createDbClient>, hostname: string) {
+  const orders = await db.getActiveDomainRegistrationOrdersByHostname(hostname);
+  return orders[0] ?? null;
 }
 
 async function findPaidPayment(env: Env, order: any) {
@@ -313,27 +312,6 @@ async function refreshRegistrationStatus(env: Env, db: ReturnType<typeof createD
   }, "processing") ?? await db.getDomainRegistrationOrder(order.id, userId) ?? order;
 }
 
-function validRegistrant(raw: any) {
-  if (!raw || typeof raw !== "object") return null;
-  const text = (value: unknown, max: number) => typeof value === "string" ? value.trim().slice(0, max) : "";
-  const registrant = {
-    email: text(raw.email, 254),
-    phone: text(raw.phone, 32),
-    name: text(raw.name, 200),
-    organization: text(raw.organization, 200),
-    street: text(raw.street, 250),
-    city: text(raw.city, 120),
-    state: text(raw.state, 120),
-    postalCode: text(raw.postalCode, 32),
-    countryCode: text(raw.countryCode, 2).toUpperCase(),
-  };
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registrant.email)) return null;
-  if (!/^\+[1-9]\.\d{4,14}$/.test(registrant.phone)) return null;
-  if (!registrant.name || !registrant.street || !registrant.city || !registrant.postalCode) return null;
-  if (!/^[A-Z]{2}$/.test(registrant.countryCode)) return null;
-  return registrant;
-}
-
 async function refundWhopPayment(env: Env, paymentId: string): Promise<boolean> {
   try {
     await whopRequest(env, `/payments/${encodeURIComponent(paymentId)}/refund`, "POST", {});
@@ -422,22 +400,27 @@ registrations.post("/checkout", async (c) => {
   };
   const hostname = normalizeDomain(body.domainName);
   if (!hostname) return c.json({ error: "Enter a valid root domain, such as example.com." }, 400);
-  const registrant = validRegistrant(body.registrant);
+  const registrant = normalizeRegistrant(body.registrant);
   if (!registrant) {
     return c.json({ error: "Complete valid legal registrant details before checkout." }, 400);
   }
 
   const db = createDbClient(c.env);
   try {
-    const existingOrder = await getActiveOrRegisteredOrder(db, c.get("userId"), hostname);
+    const existingOrder = await getActiveOrRegisteredOrder(db, hostname);
     if (existingOrder) {
-      if (existingOrder.status === "pending_payment" && existingOrder.whop_purchase_url) {
+      if (existingOrder.user_id === c.get("userId") &&
+        existingOrder.status === "pending_payment" &&
+        existingOrder.whop_purchase_url) {
         return c.json({ order: apiOrder(existingOrder), purchaseUrl: existingOrder.whop_purchase_url });
       }
-      const message = existingOrder.status === "registered"
+      const message = existingOrder.user_id === c.get("userId") && existingOrder.status === "registered"
         ? "This domain is already registered on this AfuCloud account."
-        : "An order for this domain is already active. Check its status before trying again.";
-      return c.json({ error: message, order: apiOrder(existingOrder) }, 409);
+        : "A registration order for this domain is already active. Try again after it is resolved.";
+      return c.json({
+        error: message,
+        ...(existingOrder.user_id === c.get("userId") ? { order: apiOrder(existingOrder) } : {}),
+      }, 409);
     }
 
     const requirements = await getExtensionRequirements(c.env, hostname);
@@ -483,12 +466,14 @@ registrations.post("/checkout", async (c) => {
         renewal_retail_price: termPrice.renewalRetailPrice,
       });
     } catch (error) {
-      const concurrentOrder = await getActiveOrRegisteredOrder(db, c.get("userId"), hostname).catch(() => null);
-      if (concurrentOrder?.status === "pending_payment" && concurrentOrder.whop_purchase_url) {
+      const concurrentOrder = await getActiveOrRegisteredOrder(db, hostname).catch(() => null);
+      if (concurrentOrder?.user_id === c.get("userId") &&
+        concurrentOrder.status === "pending_payment" &&
+        concurrentOrder.whop_purchase_url) {
         return c.json({ order: apiOrder(concurrentOrder), purchaseUrl: concurrentOrder.whop_purchase_url });
       }
       if (concurrentOrder) {
-        return c.json({ error: "An order for this domain is already active. Check its status before trying again." }, 409);
+        return c.json({ error: "A registration order for this domain is already active. Try again after it is resolved." }, 409);
       }
       throw error;
     }
@@ -569,7 +554,7 @@ registrations.get("/orders/:orderId", async (c) => {
 
 registrations.post("/orders/:orderId/register", async (c) => {
   const body = await c.req.json().catch(() => ({})) as { registrant?: unknown; contactExtensions?: unknown };
-  const registrant = validRegistrant(body.registrant);
+  const registrant = normalizeRegistrant(body.registrant);
   if (!registrant) {
     return c.json({ error: "Enter valid legal contact details, including an email, phone, and postal address." }, 400);
   }

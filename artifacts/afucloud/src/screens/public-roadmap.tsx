@@ -18,7 +18,7 @@ const domainRoadmap = [
   {
     icon: Globe2,
     title: 'Domain registration',
-    description: 'Find available domain names, compare transparent pricing, and register domains through AfuCloud.',
+    description: 'Find available domain names, see supported registration terms and current pricing, then register through AfuCloud.',
     status: 'In focus',
   },
   {
