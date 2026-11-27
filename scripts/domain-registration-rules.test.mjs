@@ -7,6 +7,11 @@ import {
   registrationRequirements,
   validateContactExtensions,
 } from "../artifacts/cf-worker/src/lib/domain-registrar.ts";
+import {
+  buildDomainSearchResults,
+  domainSearchCandidateNames,
+  parseDomainSearchInput,
+} from "../artifacts/cf-worker/src/lib/domain-search.ts";
 
 const readProjectFile = path => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -101,6 +106,103 @@ test("quotes a multi-year term from live registration and renewal costs", () => 
     retailPrice: 40.8,
     renewalRetailPrice: 14.4,
   });
+});
+
+test("parses exact domains and preserves the requested keyword", () => {
+  assert.deepEqual(parseDomainSearchInput(" Example.com "), {
+    keyword: "example",
+    exactDomain: "example.com",
+  });
+  assert.deepEqual(parseDomainSearchInput("my-brand.net"), {
+    keyword: "my-brand",
+    exactDomain: "my-brand.net",
+  });
+  assert.deepEqual(parseDomainSearchInput("my-brand"), {
+    keyword: "my-brand",
+    exactDomain: null,
+  });
+  assert.equal(parseDomainSearchInput("example.com/path"), null);
+});
+
+test("keeps only extensions that use the searched keyword", () => {
+  assert.deepEqual(
+    domainSearchCandidateNames("example", [
+      { domain_name: "example.com" },
+      { domain_name: "example.net" },
+      { domain_name: "example-news.com" },
+      { domain_name: "other.com" },
+    ], "example.com"),
+    ["example.com", "example.net"],
+  );
+});
+
+test("includes purchased exact domains as taken even when Cloudflare omits them", () => {
+  const results = buildDomainSearchResults({
+    keyword: "example",
+    suggestions: [{ domain_name: "example.net" }],
+    quotes: [{
+      domainName: "example.net",
+      registrable: true,
+      tier: "standard",
+      reason: null,
+      currency: "USD",
+      markupPercent: 20,
+      registrarCost: 10,
+      renewalRegistrarCost: 12,
+      retailPrice: 12,
+      renewalRetailPrice: 14.4,
+    }],
+    exactDomain: "example.com",
+    activeOrders: [{ hostname: "example.com", status: "registered" }],
+    markupPercent: 20,
+  });
+
+  assert.deepEqual(results.map(result => [result.domainName, result.availabilityStatus]), [
+    ["example.com", "taken"],
+    ["example.net", "available"],
+  ]);
+  assert.equal(results[0].available, false);
+});
+
+test("marks stale suggestions unknown when authoritative availability checks fail", () => {
+  const [result] = buildDomainSearchResults({
+    keyword: "example",
+    suggestions: [{ domain_name: "example.net", registrable: true }],
+    quotes: [],
+    exactDomain: "example.com",
+    activeOrders: [],
+    markupPercent: 20,
+    availabilityCheckFailed: true,
+  });
+
+  assert.equal(result.domainName, "example.com");
+  assert.equal(result.availabilityStatus, "unknown");
+  assert.equal(result.available, false);
+});
+
+test("authoritative domain checks override cached search suggestions", () => {
+  const [result] = buildDomainSearchResults({
+    keyword: "example",
+    suggestions: [{ domain_name: "example.com", registrable: true }],
+    quotes: [{
+      domainName: "example.com",
+      registrable: false,
+      tier: "standard",
+      reason: null,
+      currency: "USD",
+      markupPercent: 20,
+      registrarCost: 10,
+      renewalRegistrarCost: 12,
+      retailPrice: 12,
+      renewalRetailPrice: 14.4,
+    }],
+    exactDomain: "example.com",
+    activeOrders: [],
+    markupPercent: 20,
+  });
+
+  assert.equal(result.availabilityStatus, "taken");
+  assert.equal(result.available, false);
 });
 
 test("keeps public landing prices aligned with the enforced billing catalog", () => {

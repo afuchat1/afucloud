@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowUpRight, CheckCircle2, CircleAlert, Globe2, LoaderCircle, Search } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, CheckCircle2, CircleAlert, Globe2, LoaderCircle, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { HowItWorksLink } from '@/components/how-it-works-link';
 import { useToast } from '@/hooks/use-toast';
 import { API_BASE } from '@/lib/api-base';
+import { Link } from '@/lib/navigation';
 import { customFetchResponse, type DomainRegistrationSearchResponse } from '@workspace/api-client-react';
 
 type SearchResult = DomainRegistrationSearchResponse['results'][number];
@@ -76,6 +77,76 @@ const emptyRegistrant: Registrant = {
   email: '', phone: '', name: '', organization: '', street: '', city: '', state: '', postalCode: '', countryCode: '',
 };
 
+type PendingRegistrantDetails = {
+  savedAt: number;
+  termsAccepted: true;
+  registrant: Registrant;
+  contactExtensions: Record<string, unknown>;
+};
+
+const PENDING_REGISTRANT_PREFIX = 'afucloud:domain-registration:';
+const PENDING_REGISTRANT_TTL_MS = 30 * 60 * 1000;
+
+function pendingRegistrantKey(orderId: string) {
+  return `${PENDING_REGISTRANT_PREFIX}${orderId}`;
+}
+
+function savePendingRegistrant(orderId: string, details: Omit<PendingRegistrantDetails, 'savedAt' | 'termsAccepted'>) {
+  try {
+    const payload: PendingRegistrantDetails = {
+      ...details,
+      savedAt: Date.now(),
+      termsAccepted: true,
+    };
+    window.sessionStorage.setItem(pendingRegistrantKey(orderId), JSON.stringify(payload));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function loadPendingRegistrant(orderId: string): PendingRegistrantDetails | null {
+  try {
+    const key = pendingRegistrantKey(orderId);
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingRegistrantDetails>;
+    const person = parsed.registrant;
+    if (
+      parsed.termsAccepted !== true ||
+      typeof parsed.savedAt !== 'number' ||
+      Date.now() - parsed.savedAt > PENDING_REGISTRANT_TTL_MS ||
+      !person ||
+      typeof person.email !== 'string' ||
+      typeof person.phone !== 'string' ||
+      typeof person.name !== 'string' ||
+      typeof person.organization !== 'string' ||
+      typeof person.street !== 'string' ||
+      typeof person.city !== 'string' ||
+      typeof person.state !== 'string' ||
+      typeof person.postalCode !== 'string' ||
+      typeof person.countryCode !== 'string' ||
+      !parsed.contactExtensions ||
+      typeof parsed.contactExtensions !== 'object' ||
+      Array.isArray(parsed.contactExtensions)
+    ) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+    return parsed as PendingRegistrantDetails;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingRegistrant(orderId: string) {
+  try {
+    window.sessionStorage.removeItem(pendingRegistrantKey(orderId));
+  } catch {
+    // Storage is best-effort cleanup; the registration result is already saved by the API.
+  }
+}
+
 async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await customFetchResponse(`${API_BASE}${path}`, {
     ...init,
@@ -126,7 +197,15 @@ function statusLabel(status: string) {
   } as Record<string, string>)[status] ?? status;
 }
 
-export function DomainRegistrationPanel() {
+type DomainRegistrationPanelProps = {
+  registrationPage?: boolean;
+  initialDomainName?: string;
+};
+
+export function DomainRegistrationPanel({
+  registrationPage = false,
+  initialDomainName,
+}: DomainRegistrationPanelProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
@@ -138,10 +217,15 @@ export function DomainRegistrationPanel() {
   const [purchaseUrl, setPurchaseUrl] = useState<string | null>(null);
   const [order, setOrder] = useState<DomainOrder | null>(null);
   const [registrant, setRegistrant] = useState<Registrant>(emptyRegistrant);
+  const [checkoutOpenInNewTab, setCheckoutOpenInNewTab] = useState(false);
   const [registrationStep, setRegistrationStep] = useState<'registrant' | 'checkout'>('registrant');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [searchError, setSearchError] = useState('');
+  const [autoRegistrationError, setAutoRegistrationError] = useState('');
+  const searchRequestId = useRef(0);
+  const handledInitialRoute = useRef('');
+  const autoSubmittedOrders = useRef(new Set<string>());
 
   const ordersQuery = useQuery<DomainOrder[]>({
     queryKey: ['domain-registration-orders'],
@@ -155,10 +239,16 @@ export function DomainRegistrationPanel() {
 
   const loadOrder = async (id: string) => {
     setBusy('order');
+    setAutoRegistrationError('');
     try {
       const current = await jsonFetch<DomainOrder>(`/v1/domains/registrations/orders/${encodeURIComponent(id)}`);
       syncOrder(current);
       setPurchaseUrl(current.purchaseUrl);
+      const pendingRegistrant = loadPendingRegistrant(id);
+      if (pendingRegistrant) {
+        setRegistrant(pendingRegistrant.registrant);
+        setContactExtensions(pendingRegistrant.contactExtensions);
+      }
       if (current.status === 'paid') {
         try {
           const currentRequirements = await jsonFetch<RegistrationRequirements>(
@@ -166,9 +256,44 @@ export function DomainRegistrationPanel() {
           );
           setRequirements(currentRequirements);
           setRegistrationYears(current.registrationYears);
+          if (!currentRequirements.supported) {
+            setAutoRegistrationError(currentRequirements.reason || 'AfuCloud cannot safely complete this extension registration.');
+          } else if (pendingRegistrant && !autoSubmittedOrders.current.has(id)) {
+            autoSubmittedOrders.current.add(id);
+            try {
+              const updated = await jsonFetch<DomainOrder>(
+                `/v1/domains/registrations/orders/${encodeURIComponent(id)}/register`,
+                {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    registrant: pendingRegistrant.registrant,
+                    contactExtensions: pendingRegistrant.contactExtensions,
+                  }),
+                },
+              );
+              syncOrder(updated);
+              if (['registered', 'processing', 'manual_review', 'registration_failed', 'refunded'].includes(updated.status)) {
+                clearPendingRegistrant(id);
+              }
+              setAutoRegistrationError(updated.error ?? '');
+              if (updated.status === 'registered') {
+                setRegistrant(emptyRegistrant);
+                setContactExtensions({});
+              }
+            } catch (error) {
+              setAutoRegistrationError(
+                error instanceof Error
+                  ? `Payment is confirmed, but registration did not finish: ${error.message}`
+                  : 'Payment is confirmed, but registration did not finish. Retry the form below.',
+              );
+            }
+          }
         } catch {
           setRequirements(null);
+          setAutoRegistrationError('Payment is confirmed, but AfuCloud could not reload the extension requirements. Retry the order before submitting.');
         }
+      } else if (['registered', 'processing', 'registering', 'manual_review', 'registration_failed', 'refunded'].includes(current.status)) {
+        clearPendingRegistrant(id);
       }
     } catch (error) {
       toast({ title: 'Could not load domain order', description: error instanceof Error ? error.message : 'Please try again', variant: 'destructive' });
@@ -177,13 +302,9 @@ export function DomainRegistrationPanel() {
     }
   };
 
-  useEffect(() => {
-    const orderId = new URLSearchParams(window.location.search).get('registrationOrder');
-    if (orderId) void loadOrder(orderId);
-  }, []);
-
   const searchDomains = async (event: React.FormEvent) => {
     event.preventDefault();
+    const requestId = ++searchRequestId.current;
     setBusy('search');
     setSearchError('');
     setResults([]);
@@ -198,16 +319,21 @@ export function DomainRegistrationPanel() {
       const response = await jsonFetch<{ results: SearchResult[] }>(
         `/v1/domains/registrations/search?q=${encodeURIComponent(searchTerm.trim())}`,
       );
-      setResults(response.results);
-      if (!response.results.length) setSearchError('No matching domains were returned. Try another name.');
+      if (requestId !== searchRequestId.current) return;
+      const nextResults = Array.isArray(response.results) ? response.results : [];
+      setResults(nextResults);
+      if (!nextResults.length) setSearchError('No matching domains were returned. Try another name.');
     } catch (error) {
-      setSearchError(error instanceof Error ? error.message : 'Search is temporarily unavailable.');
+      if (requestId === searchRequestId.current) {
+        setSearchError(error instanceof Error ? error.message : 'Search is temporarily unavailable.');
+      }
     } finally {
-      setBusy(null);
+      if (requestId === searchRequestId.current) setBusy(null);
     }
   };
 
   const getQuote = async (domainName: string) => {
+    const requestId = ++searchRequestId.current;
     setBusy(`quote:${domainName}`);
     setSearchError('');
     setQuote(null);
@@ -226,6 +352,7 @@ export function DomainRegistrationPanel() {
           `/v1/domains/registrations/requirements?domainName=${encodeURIComponent(domainName)}`,
         ),
       ]);
+      if (requestId !== searchRequestId.current) return;
       setQuote(response);
       setRequirements(currentRequirements);
       setRegistrationYears(currentRequirements.allowedYears[0] ?? 1);
@@ -233,11 +360,27 @@ export function DomainRegistrationPanel() {
       setRegistrant(emptyRegistrant);
       setSearchTerm(response.domainName);
     } catch (error) {
-      setSearchError(error instanceof Error ? error.message : 'Could not check current pricing.');
+      if (requestId === searchRequestId.current) {
+        setSearchError(error instanceof Error ? error.message : 'Could not check current pricing.');
+      }
     } finally {
-      setBusy(null);
+      if (requestId === searchRequestId.current) setBusy(null);
     }
   };
+
+  useEffect(() => {
+    const orderId = new URLSearchParams(window.location.search).get('registrationOrder');
+    const domainName = initialDomainName?.trim() ?? '';
+    const key = orderId ? `order:${orderId}` : registrationPage && domainName ? `domain:${domainName}` : '';
+    if (!key || handledInitialRoute.current === key) return;
+    handledInitialRoute.current = key;
+    if (orderId) {
+      void loadOrder(orderId);
+    } else if (domainName) {
+      setSearchTerm(domainName);
+      void getQuote(domainName);
+    }
+  }, [registrationPage, initialDomainName]);
 
   const startCheckout = async () => {
     if (!quote || !requirements?.supported || !acceptedTerms || registrationStep !== 'checkout') return;
@@ -254,7 +397,22 @@ export function DomainRegistrationPanel() {
       });
       setPurchaseUrl(response.purchaseUrl);
       syncOrder(response.order);
-      setBusy(null);
+      const savedForReturn = savePendingRegistrant(response.order.id, {
+        registrant,
+        contactExtensions,
+      });
+      if (!savedForReturn) {
+        setCheckoutOpenInNewTab(true);
+        toast({
+          title: 'Keep this page open during checkout',
+          description: 'Your browser could not retain the form for the return journey. The order is ready; return to this tab after payment to finish registration.',
+          variant: 'destructive',
+        });
+        setBusy(null);
+        return;
+      }
+      setCheckoutOpenInNewTab(false);
+      window.location.assign(response.purchaseUrl);
     } catch (error) {
       toast({ title: 'Could not start checkout', description: error instanceof Error ? error.message : 'Please try again', variant: 'destructive' });
       setBusy(null);
@@ -271,6 +429,10 @@ export function DomainRegistrationPanel() {
         body: JSON.stringify({ registrant, contactExtensions }),
       });
       syncOrder(updated);
+      if (['registered', 'processing', 'manual_review', 'registration_failed', 'refunded'].includes(updated.status)) {
+        clearPendingRegistrant(order.id);
+      }
+      setAutoRegistrationError(updated.error ?? '');
       if (updated.status === 'registered') {
         setRegistrant(emptyRegistrant);
         setContactExtensions({});
@@ -302,7 +464,7 @@ export function DomainRegistrationPanel() {
     });
   };
 
-  const canRegister = order?.status === 'paid';
+  const canRegister = order?.status === 'paid' && requirements?.supported === true;
   const selectedTermPrice = quote ? termPrice(quote, registrationYears) : null;
   const quoteSupportsCheckout = !!quote &&
     !!requirements?.supported &&
@@ -328,7 +490,7 @@ export function DomainRegistrationPanel() {
       <div>
         <h4 className="font-semibold">Legal registrant details</h4>
         <p className="mt-1 text-xs text-muted-foreground">
-          AfuCloud validates these details when you continue to checkout but does not save them. They are sent to Cloudflare only after payment when you submit the registration.
+          AfuCloud does not store these details. They stay temporarily in this browser session so registration can continue after payment, then are sent to Cloudflare.
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -447,61 +609,125 @@ export function DomainRegistrationPanel() {
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">AfuCloud service</p>
-          <h2 className="mt-1 text-lg font-semibold">Register a domain</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Check a fresh quote for availability, annual prices, supported terms, and registry-required contact details.</p>
+          <h2 className="mt-1 text-lg font-semibold">{registrationPage ? 'Complete your domain registration' : 'Find your domain'}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {registrationPage
+              ? 'Review live availability and pricing, then enter the legal registrant details.'
+              : 'Search exact names and available extensions. Select an available domain to continue on its registration page.'}
+          </p>
+          {registrationPage && (
+            <Link href="/domains" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+              <ArrowLeft className="h-4 w-4" />
+              Back to available extensions
+            </Link>
+          )}
         </div>
       </div>
 
       <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(250px,0.8fr)]">
         <div className="space-y-4">
-          <form onSubmit={searchDomains} className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              value={searchTerm}
-              onChange={event => setSearchTerm(event.target.value)}
-              placeholder="example.com or a name to search"
-              aria-label="Domain name to search"
-              data-testid="input-domain-search"
-              required
-              maxLength={253}
-            />
-            <Button type="submit" disabled={busy === 'search'} className="shrink-0" data-testid="button-search-domains">
-              {busy === 'search' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-              Search
-            </Button>
-          </form>
+          {!registrationPage && (
+            <form onSubmit={searchDomains} className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={searchTerm}
+                onChange={event => setSearchTerm(event.target.value)}
+                placeholder="example.com or a name to search"
+                aria-label="Domain name to search"
+                data-testid="input-domain-search"
+                required
+                maxLength={253}
+              />
+              <Button type="submit" disabled={busy === 'search'} className="shrink-0" data-testid="button-search-domains">
+                {busy === 'search' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                Search
+              </Button>
+            </form>
+          )}
 
           {searchError && <p role="alert" className="text-sm text-destructive">{searchError}</p>}
-          {results.length > 0 && (
+          {!registrationPage && results.length > 0 && (
             <div className="divide-y divide-border rounded-lg border border-border">
+              <div className="p-3">
+                <h3 className="text-sm font-semibold">Available extensions</h3>
+                <p className="mt-1 text-xs text-muted-foreground">Names keep your search keyword unchanged. Taken domains are listed but cannot be selected.</p>
+              </div>
               {results.map(result => (
-                <div key={result.domainName} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">{result.domainName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {result.available ? 'Search suggestion · confirm live availability before checkout' : result.reason || 'Unavailable for registration'}
-                    </p>
-                    {result.available && (
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                        <span className="text-muted-foreground">First year <strong className="ml-1 text-foreground">{money(result.retailPrice, result.currency)}</strong></span>
-                        <span className="text-muted-foreground">Renewal / year <strong className="ml-1 text-foreground">{money(result.renewalRetailPrice, result.currency)}</strong></span>
-                      </div>
-                    )}
-                  </div>
-                  {result.available && result.registrable && result.tier.toLowerCase() !== 'premium' && result.currency.toUpperCase() === 'USD' ? (
-                    <Button type="button" variant="outline" size="sm" onClick={() => void getQuote(result.domainName)} disabled={busy === `quote:${result.domainName}`} data-testid={`button-register-domain-${result.domainName}`}>
-                      {busy === `quote:${result.domainName}` ? 'Checking…' : result.retailPrice !== null ? 'Register' : 'Check price'}
-                    </Button>
-                  ) : result.available && result.currency.toUpperCase() !== 'USD' ? (
-                    <span className="text-xs text-muted-foreground">Checkout currently supports USD only</span>
-                  ) : result.available && result.tier.toLowerCase() === 'premium' ? (
-                    <span className="text-xs text-muted-foreground">Premium domains are not available through checkout</span>
-                  ) : null}
-                </div>
+                (() => {
+                  const canSelect = result.availabilityStatus === 'available' &&
+                    result.registrable &&
+                    result.tier.toLowerCase() !== 'premium' &&
+                    result.currency.toUpperCase() === 'USD' &&
+                    typeof result.retailPrice === 'number' &&
+                    typeof result.renewalRetailPrice === 'number';
+                  const canRetryAvailability = result.availabilityStatus === 'unknown' && result.registrable;
+                  const label = result.availabilityStatus === 'taken'
+                    ? 'Taken'
+                    : result.availabilityStatus === 'unavailable'
+                      ? 'Unavailable'
+                      : result.availabilityStatus === 'unknown'
+                        ? canRetryAvailability ? 'Check availability' : 'Could not verify'
+                        : result.currency.toUpperCase() !== 'USD'
+                          ? 'USD checkout unavailable'
+                          : result.tier.toLowerCase() === 'premium'
+                            ? 'Premium registration unavailable'
+                            : !canSelect
+                              ? 'Pricing unavailable'
+                              : 'Available';
+                  const detail = result.availabilityStatus === 'unknown'
+                    ? 'Check again from the registration page.'
+                    : result.availabilityStatus === 'unavailable'
+                      ? result.reason || 'This extension cannot be registered through AfuCloud.'
+                      : result.availabilityStatus === 'taken'
+                        ? 'This domain is already registered or reserved.'
+                        : canSelect
+                          ? `${money(result.retailPrice, result.currency)} first year · ${money(result.renewalRetailPrice, result.currency)} renewal`
+                          : 'This domain cannot be purchased through AfuCloud checkout right now.';
+
+                  return canSelect || canRetryAvailability ? (
+                    <Link
+                      key={result.domainName}
+                      href={`/domains/register?domainName=${encodeURIComponent(result.domainName)}`}
+                      data-testid={`link-register-domain-${result.domainName}`}
+                      className="flex items-center justify-between gap-3 p-3 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold">{result.domainName}</span>
+                        <span className="mt-1 block text-xs text-muted-foreground">{detail}</span>
+                      </span>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
+                        canSelect
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
+                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
+                      }`}>
+                        {label}
+                      </span>
+                    </Link>
+                  ) : (
+                    <div key={result.domainName} className="flex items-center justify-between gap-3 p-3">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold">{result.domainName}</span>
+                        <span className="mt-1 block text-xs text-muted-foreground">{detail}</span>
+                      </span>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
+                        result.availabilityStatus === 'taken'
+                          ? 'bg-muted text-muted-foreground'
+                          : result.availabilityStatus === 'unknown'
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
+                            : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {label}
+                      </span>
+                    </div>
+                  );
+                })()
               ))}
             </div>
           )}
-          {results.length > 0 && <p className="text-xs text-muted-foreground">Search availability and prices may be cached. The quote step checks current registry availability and prices.</p>}
+          {!registrationPage && results.length > 0 && <p className="text-xs text-muted-foreground">Availability is checked live before a domain can be selected. Pricing is confirmed again on the registration page.</p>}
 
+          {registrationPage && !initialDomainName && !order && !new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search).get('registrationOrder') && (
+            <p className="text-sm text-muted-foreground">Choose an available domain from the search results to begin registration.</p>
+          )}
           {quote && (
             <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
               <div className="flex items-start justify-between gap-3">
@@ -648,14 +874,31 @@ export function DomainRegistrationPanel() {
 
           {order.status === 'pending_payment' && (
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <p className="text-sm text-muted-foreground">Complete payment in Whop, then return here to continue registration.</p>
+              <p className="text-sm text-muted-foreground">Continue payment in Whop. Your registrant form stays in this browser session for the return.</p>
               {purchaseUrl && (
-                <a href={purchaseUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                <a
+                  href={purchaseUrl}
+                  target={checkoutOpenInNewTab ? '_blank' : undefined}
+                  rel={checkoutOpenInNewTab ? 'noopener noreferrer' : undefined}
+                  className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
                   Open secure checkout <ArrowUpRight className="h-4 w-4" />
                 </a>
               )}
               <Button type="button" variant="outline" size="sm" onClick={() => void loadOrder(order.id)} disabled={busy === 'order'}>
                 {busy === 'order' ? 'Checking…' : 'Check payment'}
+              </Button>
+            </div>
+          )}
+
+          {autoRegistrationError && (
+            <p role="alert" className="mt-3 text-sm text-amber-700 dark:text-amber-300">{autoRegistrationError}</p>
+          )}
+          {order.status === 'paid' && !requirements && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <p className="text-sm text-muted-foreground">Payment is confirmed. AfuCloud must reload the registry form before registration can continue.</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void loadOrder(order.id)} disabled={busy === 'order'}>
+                {busy === 'order' ? 'Loading…' : 'Retry'}
               </Button>
             </div>
           )}
@@ -688,7 +931,7 @@ export function DomainRegistrationPanel() {
         </div>
       )}
 
-      {(ordersQuery.data?.length ?? 0) > 0 && (
+      {!registrationPage && (ordersQuery.data?.length ?? 0) > 0 && (
         <div className="border-t border-border p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
             <div>
@@ -720,7 +963,7 @@ export function DomainRegistrationPanel() {
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {item.status === 'pending_payment' && item.purchaseUrl && (
-                      <a href={item.purchaseUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                      <a href={item.purchaseUrl} className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
                         Open checkout <ArrowUpRight className="h-4 w-4" />
                       </a>
                     )}
@@ -735,13 +978,13 @@ export function DomainRegistrationPanel() {
         </div>
       )}
 
-      {ordersQuery.isError && (
+      {!registrationPage && ordersQuery.isError && (
         <p role="alert" className="border-t border-border px-5 py-4 text-sm text-destructive sm:px-6">
           Could not load your previous domain orders. Refresh the page to try again.
         </p>
       )}
 
-      {expiryNotices.length > 0 && (
+      {!registrationPage && expiryNotices.length > 0 && (
         <div className="border-t border-amber-200 bg-amber-50/70 px-5 py-4 dark:border-amber-900 dark:bg-amber-950/30 sm:px-6" role="status">
           <h3 className="text-sm font-semibold text-amber-950 dark:text-amber-100">Domain expiry reminders</h3>
           <ul className="mt-2 space-y-1 text-xs text-amber-900 dark:text-amber-200">

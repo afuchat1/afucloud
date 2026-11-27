@@ -409,9 +409,20 @@ export interface ActivityLog {
   createdAt: string;
 }
 
+export type DomainRegistrationSearchResultAvailabilityStatus = typeof DomainRegistrationSearchResultAvailabilityStatus[keyof typeof DomainRegistrationSearchResultAvailabilityStatus];
+
+
+export const DomainRegistrationSearchResultAvailabilityStatus = {
+  available: 'available',
+  taken: 'taken',
+  unavailable: 'unavailable',
+  unknown: 'unknown',
+} as const;
+
 export interface DomainRegistrationSearchResult {
   domainName: string;
   available: boolean;
+  availabilityStatus: DomainRegistrationSearchResultAvailabilityStatus;
   registrable: boolean;
   tier: string;
   /** @nullable */

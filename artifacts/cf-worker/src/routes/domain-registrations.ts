@@ -8,6 +8,12 @@ import {
   registrationRequirements,
   validateContactExtensions,
 } from "../lib/domain-registrar";
+import {
+  buildDomainSearchResults,
+  domainSearchCandidateNames,
+  parseDomainSearchInput,
+  type DomainSearchQuote,
+} from "../lib/domain-search";
 import { requireAccountAuth, requireAuth } from "../middleware/auth";
 
 const registrations = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
@@ -16,7 +22,7 @@ const WHOP_API = "https://api.whop.com/api/v1";
 // The native payments API removed checkout-configuration filters in 2026-09-02-1.
 const WHOP_PAYMENT_LIST_API_VERSION = "2026-08-31";
 const DEFAULT_MARKUP_PERCENT = 20;
-const CHECKOUT_RETURN_URL = "https://cloud.afuchat.com/domains";
+const CHECKOUT_RETURN_URL = "https://cloud.afuchat.com/domains/register";
 
 registrations.use("*", requireAuth, requireAccountAuth);
 
@@ -79,31 +85,50 @@ async function cloudflareRequest(env: Env, path: string, method: "GET" | "POST",
   return { result: payload.result, status: response.status };
 }
 
-async function checkDomain(env: Env, hostname: string) {
-  const { result } = await cloudflareRequest(env, "/domain-check", "POST", { domains: [hostname] });
-  const item = Array.isArray(result) ? result[0] : result?.domains?.[0] ?? result;
-  if (!item || typeof item !== "object") throw new ProviderError("Cloudflare returned no availability result.");
-
-  const pricing = item.pricing ?? {};
-  const registrationCost = priceAmount(pricing.registration_cost);
-  const renewalCost = priceAmount(pricing.renewal_cost);
-  const currency = String(pricing.currency ?? "USD").toUpperCase();
-  const tier = String(item.tier ?? "standard").toLowerCase();
-  const registrable = item.registrable === true;
+async function checkDomains(env: Env, hostnames: string[]): Promise<Array<DomainSearchQuote | null>> {
+  const uniqueHostnames = [...new Set(hostnames)];
+  if (uniqueHostnames.length === 0) return [];
+  const { result } = await cloudflareRequest(env, "/domain-check", "POST", { domains: uniqueHostnames });
+  const items = Array.isArray(result)
+    ? result
+    : Array.isArray(result?.domains)
+      ? result.domains
+      : Array.isArray(result?.results)
+        ? result.results
+        : result && typeof result === "object"
+          ? [result]
+          : [];
   const percent = markupPercent(env);
 
-  return {
-    domainName: String(item.domain_name ?? item.name ?? hostname),
-    registrable,
-    tier,
-    reason: item.reason ? String(item.reason) : null,
-    currency,
-    markupPercent: percent,
-    registrarCost: registrationCost,
-    renewalRegistrarCost: renewalCost,
-    retailPrice: registrationCost === null ? null : retailPrice(registrationCost, percent),
-    renewalRetailPrice: renewalCost === null ? null : retailPrice(renewalCost, percent),
-  };
+  return uniqueHostnames.map((hostname, index) => {
+    const matchingItem = items.find((candidate: any) =>
+      String(candidate?.domain_name ?? candidate?.name ?? "").toLowerCase() === hostname,
+    );
+    const item = matchingItem ??
+      (items.length === uniqueHostnames.length || uniqueHostnames.length === 1 ? items[index] : undefined);
+    if (!item || typeof item !== "object") return null;
+    const pricing = item.pricing && typeof item.pricing === "object" ? item.pricing : {};
+    const registrationCost = priceAmount(pricing.registration_cost);
+    const renewalCost = priceAmount(pricing.renewal_cost);
+    return {
+      domainName: String(item.domain_name ?? item.name ?? hostname),
+      registrable: item.registrable === true,
+      tier: String(item.tier ?? "standard").toLowerCase(),
+      reason: item.reason ? String(item.reason) : null,
+      currency: String(pricing.currency ?? "USD").toUpperCase(),
+      markupPercent: percent,
+      registrarCost: registrationCost,
+      renewalRegistrarCost: renewalCost,
+      retailPrice: registrationCost === null ? null : retailPrice(registrationCost, percent),
+      renewalRetailPrice: renewalCost === null ? null : retailPrice(renewalCost, percent),
+    };
+  });
+}
+
+async function checkDomain(env: Env, hostname: string) {
+  const result = (await checkDomains(env, [hostname]))[0];
+  if (!result) throw new ProviderError("Cloudflare returned no availability result.");
+  return result;
 }
 
 function providerData(payload: any): any {
@@ -364,37 +389,65 @@ async function refundWhopPayment(env: Env, paymentId: string): Promise<boolean> 
 
 registrations.get("/search", async (c) => {
   const query = (c.req.query("q") ?? "").trim().toLowerCase();
-  const domainQuery = query.includes(".") ? normalizeDomain(query) : query;
-  if (!domainQuery || domainQuery.length > 253 || !/^[a-z0-9.-]+$/.test(domainQuery)) {
+  const parsed = parseDomainSearchInput(query);
+  if (!parsed) {
     return c.json({ error: "Enter a name using letters, numbers, or hyphens." }, 400);
   }
   try {
-    const { result } = await cloudflareRequest(
-      c.env,
-      `/domain-search?q=${encodeURIComponent(domainQuery)}`,
-      "GET",
-    );
-    const results = Array.isArray(result) ? result : result?.domains ?? result?.matches ?? result?.results ?? [];
-    const percent = markupPercent(c.env);
+    let suggestions: unknown[] = [];
+    let searchError: unknown = null;
+    try {
+      const response = await cloudflareRequest(
+        c.env,
+        `/domain-search?q=${encodeURIComponent(parsed.keyword)}`,
+        "GET",
+      );
+      const result = response.result;
+      const candidates = Array.isArray(result)
+        ? result
+        : result?.domains ?? result?.matches ?? result?.results ?? [];
+      suggestions = Array.isArray(candidates) ? candidates : [];
+    } catch (error) {
+      searchError = error;
+    }
+
+    const candidateNames = domainSearchCandidateNames(parsed.keyword, suggestions, parsed.exactDomain);
+    let quotes: DomainSearchQuote[] = [];
+    let availabilityCheckFailed = false;
+    if (candidateNames.length > 0) {
+      try {
+        quotes = (await checkDomains(c.env, candidateNames))
+          .filter((quote): quote is DomainSearchQuote => quote !== null);
+      } catch {
+        availabilityCheckFailed = true;
+      }
+    }
+    const db = createDbClient(c.env);
+    const [prefixOrders, exactOrders] = await Promise.all([
+      db.getActiveDomainRegistrationOrdersByPrefix(parsed.keyword),
+      parsed.exactDomain
+        ? db.getActiveDomainRegistrationOrdersByHostname(parsed.exactDomain)
+        : Promise.resolve([]),
+    ]);
+    const activeOrders = [...prefixOrders, ...exactOrders];
+
+    if (searchError && suggestions.length === 0 && !parsed.exactDomain && activeOrders.length === 0) {
+      throw searchError;
+    }
+    if (searchError && candidateNames.length === 0 && activeOrders.length === 0) {
+      throw searchError;
+    }
+
     return c.json({
-      results: results.map((item: any) => {
-        const pricing = item.pricing ?? {};
-        const registrationCost = priceAmount(pricing.registration_cost);
-        const renewalCost = priceAmount(pricing.renewal_cost);
-        return {
-          domainName: String(item.domain_name ?? item.name ?? item.domain ?? ""),
-          available: item.available === true || item.available_to_register === true || item.registrable === true,
-          registrable: item.registrable === true || item.available_to_register === true || item.available === true,
-          tier: String(item.tier ?? "standard").toLowerCase(),
-          reason: item.reason ?? null,
-          currency: String(pricing.currency ?? "USD").toUpperCase(),
-          markupPercent: percent,
-          registrarCost: registrationCost,
-          renewalRegistrarCost: renewalCost,
-          retailPrice: registrationCost === null ? null : retailPrice(registrationCost, percent),
-          renewalRetailPrice: renewalCost === null ? null : retailPrice(renewalCost, percent),
-        };
-      }).filter((item: any) => item.domainName),
+      results: buildDomainSearchResults({
+        keyword: parsed.keyword,
+        suggestions,
+        quotes,
+        exactDomain: parsed.exactDomain,
+        activeOrders,
+        markupPercent: markupPercent(c.env),
+        availabilityCheckFailed,
+      }),
     });
   } catch (error) {
     const status = error instanceof ProviderError ? error.status : 502;

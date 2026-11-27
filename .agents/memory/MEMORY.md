@@ -18,7 +18,7 @@
 - [AfuCloud Cloudflare runtime](afucloud-cloudflare-runtime.md) — keep Next.js SSR on an OpenNext Worker; deploy the API Worker separately
 - [Whop trial entitlements](whop-trial-entitlements.md) — trialing memberships can grant access before a payment record exists; bind them by exact server-authored AfuCloud user metadata
 - [AfuCloud auth redirect intent](auth-redirect-intent.md) — generic sign-in defaults to dashboard; only protected-page returns and explicit paid-plan intents override it
-- [AfuCloud domain sales model](afucloud-domain-sales-model.md) — build AfuCloud's domain sales flow around a registrar API, customer payment, AfuCloud margin, and provider settlement
+- [AfuCloud domain sales model](afucloud-domain-sales-model.md) — keep Cloudflare Registrar, Whop checkout, and customer Cloudflare DNS; verify live availability and merge active orders
 - [Cloudflare smoke-test client](cloudflare-smoke-test-client.md) — set an explicit curl-like User-Agent; Python urllib's default UA received 403s from the live API
 - [AfuCloud Supabase email](afucloud-supabase-email.md) — Supabase Auth uses Resend SMTP and a branded confirmation template from `no-reply@afuchat.com`
 - [Supabase Auth REST responses](supabase-auth-rest-response.md) — direct Auth REST calls must accept both top-level user objects and SDK-style nested users

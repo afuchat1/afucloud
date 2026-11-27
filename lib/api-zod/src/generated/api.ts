@@ -857,6 +857,7 @@ export const SearchDomainRegistrationsResponse = zod.object({
   "results": zod.array(zod.object({
   "domainName": zod.string(),
   "available": zod.boolean(),
+  "availabilityStatus": zod.enum(['available', 'taken', 'unavailable', 'unknown']),
   "registrable": zod.boolean(),
   "tier": zod.string(),
   "reason": zod.string().nullable(),

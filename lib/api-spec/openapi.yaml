@@ -1735,12 +1735,15 @@ components:
 
     DomainRegistrationSearchResult:
       type: object
-      required: [domainName, available, registrable, tier, reason, currency, markupPercent, registrarCost, renewalRegistrarCost, retailPrice, renewalRetailPrice]
+      required: [domainName, available, availabilityStatus, registrable, tier, reason, currency, markupPercent, registrarCost, renewalRegistrarCost, retailPrice, renewalRetailPrice]
       properties:
         domainName:
           type: string
         available:
           type: boolean
+        availabilityStatus:
+          type: string
+          enum: [available, taken, unavailable, unknown]
         registrable:
           type: boolean
         tier:
