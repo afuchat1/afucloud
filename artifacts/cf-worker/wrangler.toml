@@ -26,6 +26,7 @@ AFU_CUSTOM_HOSTNAME_TARGET = "verify.afuchat.com"
 CLOUDFLARE_R2_ACCESS_KEY_ID = "40916680c4892042d4ce49396ef62819"
 API_BASE_URL = "https://api.afuchat.com"
 PUBLIC_SITE_URL = "https://cloud.afuchat.com"
+TURNSTILE_SITE_KEY = "0x4AAAAAAGVN8UiqWTHzhCO6"
 CLOUDFLARE_OAUTH_REDIRECT_URI = "https://api.afuchat.com/v1/cloudflare/callback"
 NODE_ENV = "production"
 # Comma-separated exact dashboard origins outside the default *.afuchat.com allowlist.
@@ -46,7 +47,8 @@ WHOP_BUSINESS_PLAN_ID = "plan_rHNQbmHe5SLw1"
 # CLOUDFLARE_TOKEN_ENCRYPTION_KEY — 32-byte base64url key for stored OAuth tokens
 # CLOUDFLARE_REGISTRAR_API_TOKEN — account API token with Registrar Write permission
 # WHOP_API_KEY — server-side API key for the existing Whop account
+# TURNSTILE_SECRET_KEY — server-side Turnstile Siteverify secret
 
 # ── Dev environment overrides ─────────────────────────────────────────────────
 [env.dev]
-vars = { NODE_ENV = "development" }
+vars = { NODE_ENV = "development", TURNSTILE_SITE_KEY = "1x00000000000000000000AA" }

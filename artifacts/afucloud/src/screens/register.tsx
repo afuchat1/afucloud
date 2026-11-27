@@ -8,6 +8,7 @@ import { PasswordInput } from '@/components/ui/password-input';
 import { useToast } from '@/hooks/use-toast';
 import { AlertCircle, MailCheck } from 'lucide-react';
 import { AuthHeader } from '@/components/auth-header';
+import { TurnstileWidget } from '@/components/turnstile-widget';
 import { authHrefWithCurrentIntent, dashboardSessionRequest, postAuthDestination } from '@/lib/auth-session';
 
 function confirmationMayHaveBeenSent(error: unknown): boolean {
@@ -29,6 +30,8 @@ export default function RegisterPage() {
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
   const [confirmationMayBeSent, setConfirmationMayBeSent] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const [loginHref, setLoginHref] = useState('/login');
 
   useEffect(() => {
@@ -37,7 +40,11 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    if (!turnstileToken) {
+      setRegisterError('Complete Cloudflare human verification before creating an account.');
+      return;
+    }
+
     if (password.length < 8) {
       toast({
         title: 'Invalid password',
@@ -53,7 +60,7 @@ export default function RegisterPage() {
     try {
       const result = await dashboardSessionRequest<{ confirmationRequired?: boolean; email?: string }>('register', {
         method: 'POST',
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, turnstileToken }),
       });
       queryClient.clear();
       if (result.confirmationRequired) {
@@ -78,16 +85,18 @@ export default function RegisterPage() {
       toast({ title: 'Registration failed', description: message, variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
+      setTurnstileToken(null);
+      setTurnstileResetSignal((signal) => signal + 1);
     }
   };
 
   const handleResendConfirmation = async () => {
-    if (!confirmationEmail) return;
+    if (!confirmationEmail || !turnstileToken) return;
     setIsResendingConfirmation(true);
     try {
       await dashboardSessionRequest('resend-confirmation', {
         method: 'POST',
-        body: JSON.stringify({ email: confirmationEmail }),
+        body: JSON.stringify({ email: confirmationEmail, turnstileToken }),
       });
       toast({
         title: 'Confirmation email requested',
@@ -101,6 +110,8 @@ export default function RegisterPage() {
       });
     } finally {
       setIsResendingConfirmation(false);
+      setTurnstileToken(null);
+      setTurnstileResetSignal((signal) => signal + 1);
     }
   };
 
@@ -141,12 +152,17 @@ export default function RegisterPage() {
                   )}
                 </p>
               </div>
+              <TurnstileWidget
+                action="afu_resend"
+                onToken={setTurnstileToken}
+                resetSignal={turnstileResetSignal}
+              />
               <Button
                 type="button"
                 variant="outline"
                 className="w-full"
                 onClick={handleResendConfirmation}
-                disabled={isResendingConfirmation}
+                disabled={isResendingConfirmation || !turnstileToken}
               >
                 {isResendingConfirmation ? 'Sending email...' : 'Resend confirmation email'}
               </Button>
@@ -214,6 +230,12 @@ export default function RegisterPage() {
               <p className="text-xs text-muted-foreground">Must be at least 8 characters</p>
             </div>
 
+            <TurnstileWidget
+              action="afu_register"
+              onToken={setTurnstileToken}
+              resetSignal={turnstileResetSignal}
+            />
+
             {registerError && (
               <div className="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -224,7 +246,7 @@ export default function RegisterPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !turnstileToken}
               data-testid="button-submit"
             >
               {isSubmitting ? 'Creating account...' : 'Create account'}

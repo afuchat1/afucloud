@@ -7,7 +7,7 @@
     "dev": "wrangler dev --port $PORT",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/auth-flow.test.mjs"
+    "test": "node --experimental-strip-types --test test/*.test.mjs"
   },
   "dependencies": {
     "@workspace/cloudflare-integration": "workspace:*",

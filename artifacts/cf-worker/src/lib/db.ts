@@ -81,6 +81,7 @@ export function createDbClient(env: Env) {
       return linkUnlinkedUser(id, userId, email);
     },
     async createUser(data: {
+      id?: string;
       user_id: string;
       email: string;
       name: string;

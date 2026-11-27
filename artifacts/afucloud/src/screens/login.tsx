@@ -8,6 +8,7 @@ import { PasswordInput } from '@/components/ui/password-input';
 import { useToast } from '@/hooks/use-toast';
 import { AlertCircle, CheckCircle2, MailCheck } from 'lucide-react';
 import { AuthHeader } from '@/components/auth-header';
+import { TurnstileWidget } from '@/components/turnstile-widget';
 import { authHrefWithCurrentIntent, dashboardSessionRequest, postAuthDestination } from '@/lib/auth-session';
 
 export default function LoginPage() {
@@ -20,6 +21,10 @@ export default function LoginPage() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [canResendConfirmation, setCanResendConfirmation] = useState(false);
   const [isResendingConfirmation, setIsResendingConfirmation] = useState(false);
+  const [loginTurnstileToken, setLoginTurnstileToken] = useState<string | null>(null);
+  const [loginTurnstileResetSignal, setLoginTurnstileResetSignal] = useState(0);
+  const [resendTurnstileToken, setResendTurnstileToken] = useState<string | null>(null);
+  const [resendTurnstileResetSignal, setResendTurnstileResetSignal] = useState(0);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
   const [registerHref, setRegisterHref] = useState('/register');
 
@@ -30,14 +35,18 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    if (!loginTurnstileToken) {
+      setLoginError('Complete Cloudflare human verification before signing in.');
+      return;
+    }
+
     setIsSubmitting(true);
     setLoginError(null);
     setCanResendConfirmation(false);
     try {
       await dashboardSessionRequest('login', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, turnstileToken: loginTurnstileToken }),
       });
       queryClient.clear();
       toast({ title: 'Welcome back', description: 'Successfully logged in' });
@@ -53,15 +62,18 @@ export default function LoginPage() {
       });
     } finally {
       setIsSubmitting(false);
+      setLoginTurnstileToken(null);
+      setLoginTurnstileResetSignal((signal) => signal + 1);
     }
   };
 
   const handleResendConfirmation = async () => {
+    if (!resendTurnstileToken) return;
     setIsResendingConfirmation(true);
     try {
       await dashboardSessionRequest('resend-confirmation', {
         method: 'POST',
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, turnstileToken: resendTurnstileToken }),
       });
       toast({
         title: 'Confirmation email requested',
@@ -75,6 +87,8 @@ export default function LoginPage() {
       });
     } finally {
       setIsResendingConfirmation(false);
+      setResendTurnstileToken(null);
+      setResendTurnstileResetSignal((signal) => signal + 1);
     }
   };
 
@@ -142,6 +156,12 @@ export default function LoginPage() {
               />
             </div>
 
+            <TurnstileWidget
+              action="afu_login"
+              onToken={setLoginTurnstileToken}
+              resetSignal={loginTurnstileResetSignal}
+            />
+
             {loginError && (
               <div className="space-y-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
                 <div className="flex items-start gap-2">
@@ -149,16 +169,23 @@ export default function LoginPage() {
                   <span>{loginError}</span>
                 </div>
                 {canResendConfirmation && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={handleResendConfirmation}
-                    disabled={isResendingConfirmation || !email}
-                  >
-                    <MailCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-                    {isResendingConfirmation ? 'Sending email...' : 'Resend confirmation email'}
-                  </Button>
+                  <div className="space-y-3">
+                    <TurnstileWidget
+                      action="afu_resend"
+                      onToken={setResendTurnstileToken}
+                      resetSignal={resendTurnstileResetSignal}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleResendConfirmation}
+                      disabled={isResendingConfirmation || !email || !resendTurnstileToken}
+                    >
+                      <MailCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+                      {isResendingConfirmation ? 'Sending email...' : 'Resend confirmation email'}
+                    </Button>
+                  </div>
                 )}
               </div>
             )}
@@ -166,7 +193,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !loginTurnstileToken}
               data-testid="button-submit"
             >
               {isSubmitting ? 'Signing in...' : 'Sign in'}

@@ -2,6 +2,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
+import { getTurnstileSiteKey, verifyTurnstileToken } from "../lib/turnstile";
 import {
   resendSignupConfirmation,
   signInWithSupabase,
@@ -201,7 +202,7 @@ auth.get("/csrf", rejectDeveloperCredential, async (c) => {
     ? existing
     : generateSecureToken();
   setCookie(c, DASHBOARD_CSRF_COOKIE, csrfToken, sessionCookieOptions(c, false, REFRESH_COOKIE_MAX_AGE));
-  return c.json({ csrfToken });
+  return c.json({ csrfToken, turnstileSiteKey: getTurnstileSiteKey(c.env) });
 });
 
 auth.post("/register", rejectDeveloperCredential, requireCsrf, async (c) => {
@@ -216,6 +217,20 @@ auth.post("/register", rejectDeveloperCredential, requireCsrf, async (c) => {
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return c.json({ error: "Enter a valid email address." }, 400);
   if (password.length < 8) return c.json({ error: "Password must be at least 8 characters" }, 400);
+
+  const verification = await verifyTurnstileToken(
+    c.env,
+    body.turnstileToken,
+    "afu_register",
+    c.req.header("CF-Connecting-IP"),
+  );
+  if (verification !== "verified") {
+    return c.json({
+      error: verification === "unavailable"
+        ? "Human verification is temporarily unavailable. Please try again shortly."
+        : "Complete the Cloudflare human verification and try again.",
+    }, verification === "unavailable" ? 503 : 403);
+  }
 
   const db = createDbClient(c.env);
   let existing;
@@ -275,6 +290,20 @@ auth.post("/resend-confirmation", rejectDeveloperCredential, requireCsrf, async 
     return c.json({ error: "Enter a valid email address." }, 400);
   }
 
+  const verification = await verifyTurnstileToken(
+    c.env,
+    body.turnstileToken,
+    "afu_resend",
+    c.req.header("CF-Connecting-IP"),
+  );
+  if (verification !== "verified") {
+    return c.json({
+      error: verification === "unavailable"
+        ? "Human verification is temporarily unavailable. Please try again shortly."
+        : "Complete the Cloudflare human verification and try again.",
+    }, verification === "unavailable" ? 503 : 403);
+  }
+
   try {
     await resendSignupConfirmation(c.env, email, confirmationRedirectUrl(c.env));
   } catch (error) {
@@ -327,10 +356,27 @@ auth.post("/confirm-email", rejectDeveloperCredential, requireCsrf, async (c) =>
 });
 
 auth.post("/login", rejectDeveloperCredential, requireCsrf, async (c) => {
-  const body = await c.req.json().catch(() => ({}));
+  const payload = await c.req.json().catch(() => null);
+  const body = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? payload as Record<string, unknown>
+    : {};
   const { password } = body;
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!email || typeof password !== "string") return c.json({ error: "email and password are required" }, 400);
+
+  const verification = await verifyTurnstileToken(
+    c.env,
+    body.turnstileToken,
+    "afu_login",
+    c.req.header("CF-Connecting-IP"),
+  );
+  if (verification !== "verified") {
+    return c.json({
+      error: verification === "unavailable"
+        ? "Human verification is temporarily unavailable. Please try again shortly."
+        : "Complete the Cloudflare human verification and try again.",
+    }, verification === "unavailable" ? 503 : 403);
+  }
 
   const db = createDbClient(c.env);
   let sharedAuthUser;

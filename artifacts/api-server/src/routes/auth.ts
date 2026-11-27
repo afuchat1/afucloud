@@ -19,6 +19,7 @@ import {
   type AuthRequest,
 } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { getTurnstileSiteKey, verifyTurnstileToken } from "../lib/turnstile";
 import crypto from "crypto";
 
 const router: IRouter = Router();
@@ -57,7 +58,7 @@ router.get("/v1/dashboard/session/csrf", rejectDeveloperCredential, (req: AuthRe
     ? existing
     : generateSecureToken();
   res.cookie(DASHBOARD_CSRF_COOKIE, csrfToken, sessionCookieOptions(false, REFRESH_COOKIE_MAX_AGE));
-  res.json({ csrfToken });
+  res.json({ csrfToken, turnstileSiteKey: getTurnstileSiteKey() });
 });
 
 type AuthMetadata = Record<string, unknown>;
@@ -80,6 +81,22 @@ function authUnavailable(res: Parameters<Parameters<typeof router.post>[1]>[1], 
     message: error instanceof Error ? error.message : String(error),
   }, "Authentication dependency unavailable");
   res.status(503).json({ error: "Authentication service temporarily unavailable" });
+}
+
+async function requireHumanVerification(
+  res: Parameters<Parameters<typeof router.post>[1]>[1],
+  token: unknown,
+  action: string,
+  remoteIp?: string,
+): Promise<boolean> {
+  const verification = await verifyTurnstileToken(token, action, remoteIp);
+  if (verification === "verified") return true;
+  res.status(verification === "unavailable" ? 503 : 403).json({
+    error: verification === "unavailable"
+      ? "Human verification is temporarily unavailable. Please try again shortly."
+      : "Complete the Cloudflare human verification and try again.",
+  });
+  return false;
 }
 
 async function ensureAfuCloudProfile(authUser: typeof authUsersTable.$inferSelect) {
@@ -204,14 +221,16 @@ async function findSharedAuthUser(email: string) {
 router.post("/v1/dashboard/session/register", rejectDeveloperCredential, requireCsrf, async (req, res): Promise<void> => {
   const { password, name } = req.body ?? {};
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
-  if (!email || !password || !name) {
+  if (!email || typeof password !== "string" || typeof name !== "string" || !name.trim()) {
     res.status(400).json({ error: "email, password, and name are required" });
     return;
   }
-  if (typeof password !== "string" || password.length < 8) {
+  if (password.length < 8) {
     res.status(400).json({ error: "Password must be at least 8 characters" });
     return;
   }
+  if (!(await requireHumanVerification(res, req.body?.turnstileToken, "afu_register", req.ip))) return;
+
   const existing = await findSharedAuthUser(email);
   if (existing) {
     res.status(409).json({ error: "Email already registered" });
@@ -245,10 +264,12 @@ router.post("/v1/dashboard/session/register", rejectDeveloperCredential, require
 router.post("/v1/dashboard/session/login", rejectDeveloperCredential, requireCsrf, async (req, res): Promise<void> => {
   const { password } = req.body ?? {};
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
-  if (!email || !password) {
+  if (!email || typeof password !== "string" || !password) {
     res.status(400).json({ error: "email and password are required" });
     return;
   }
+  if (!(await requireHumanVerification(res, req.body?.turnstileToken, "afu_login", req.ip))) return;
+
   try {
     const sharedAuthUser = await findSharedAuthUser(email);
     if (!sharedAuthUser) {
