@@ -1,0 +1,13 @@
+{
+  "name": "@workspace/hosting-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "node --experimental-strip-types --test test/*.test.mjs"
+  }
+}
