@@ -2,7 +2,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
-import { getTurnstileSiteKey, verifyTurnstileToken } from "../lib/turnstile";
+import { getTurnstileSiteKey, isTurnstileEnforced, verifyTurnstileToken } from "../lib/turnstile";
 import {
   resendSignupConfirmation,
   signInWithSupabase,
@@ -218,12 +218,10 @@ auth.post("/register", rejectDeveloperCredential, requireCsrf, async (c) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return c.json({ error: "Enter a valid email address." }, 400);
   if (password.length < 8) return c.json({ error: "Password must be at least 8 characters" }, 400);
 
-  const verification = await verifyTurnstileToken(
-    c.env,
-    body.turnstileToken,
-    "afu_register",
-    c.req.header("CF-Connecting-IP"),
-  );
+  const verification = !isTurnstileEnforced(c.env)
+    && (typeof body.turnstileToken !== "string" || body.turnstileToken.length === 0)
+    ? "verified"
+    : await verifyTurnstileToken(c.env, body.turnstileToken, "afu_register", c.req.header("CF-Connecting-IP"));
   if (verification !== "verified") {
     return c.json({
       error: verification === "unavailable"
@@ -290,12 +288,10 @@ auth.post("/resend-confirmation", rejectDeveloperCredential, requireCsrf, async 
     return c.json({ error: "Enter a valid email address." }, 400);
   }
 
-  const verification = await verifyTurnstileToken(
-    c.env,
-    body.turnstileToken,
-    "afu_resend",
-    c.req.header("CF-Connecting-IP"),
-  );
+  const verification = !isTurnstileEnforced(c.env)
+    && (typeof body.turnstileToken !== "string" || body.turnstileToken.length === 0)
+    ? "verified"
+    : await verifyTurnstileToken(c.env, body.turnstileToken, "afu_resend", c.req.header("CF-Connecting-IP"));
   if (verification !== "verified") {
     return c.json({
       error: verification === "unavailable"
@@ -364,12 +360,10 @@ auth.post("/login", rejectDeveloperCredential, requireCsrf, async (c) => {
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!email || typeof password !== "string") return c.json({ error: "email and password are required" }, 400);
 
-  const verification = await verifyTurnstileToken(
-    c.env,
-    body.turnstileToken,
-    "afu_login",
-    c.req.header("CF-Connecting-IP"),
-  );
+  const verification = !isTurnstileEnforced(c.env)
+    && (typeof body.turnstileToken !== "string" || body.turnstileToken.length === 0)
+    ? "verified"
+    : await verifyTurnstileToken(c.env, body.turnstileToken, "afu_login", c.req.header("CF-Connecting-IP"));
   if (verification !== "verified") {
     return c.json({
       error: verification === "unavailable"

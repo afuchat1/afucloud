@@ -6,6 +6,10 @@ const DEVELOPMENT_SECRET_KEY = "1x0000000000000000000000000000000AA";
 
 export type TurnstileVerification = "verified" | "invalid" | "unavailable";
 
+export function isTurnstileEnforced(env: Env): boolean {
+  return env.TURNSTILE_ENFORCEMENT_ENABLED?.trim().toLowerCase() !== "false";
+}
+
 export function getTurnstileSiteKey(env: Env): string {
   const configured = env.TURNSTILE_SITE_KEY?.trim();
   if (configured) return configured;

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getTurnstileSiteKey,
+  isTurnstileEnforced,
   verifyTurnstileToken,
 } from "../src/lib/turnstile.ts";
 
@@ -23,6 +24,18 @@ test("Turnstile uses the documented test site key only outside production", () =
     NODE_ENV: "production",
     TURNSTILE_SITE_KEY: "public-site-key",
   }), "public-site-key");
+});
+
+test("Turnstile enforcement stays on unless the rollout flag explicitly disables it", () => {
+  assert.equal(isTurnstileEnforced({ NODE_ENV: "production" }), true);
+  assert.equal(isTurnstileEnforced({
+    NODE_ENV: "production",
+    TURNSTILE_ENFORCEMENT_ENABLED: "false",
+  }), false);
+  assert.equal(isTurnstileEnforced({
+    NODE_ENV: "production",
+    TURNSTILE_ENFORCEMENT_ENABLED: "true",
+  }), true);
 });
 
 test("production verification rejects missing secrets and malformed tokens without a network call", async () => {

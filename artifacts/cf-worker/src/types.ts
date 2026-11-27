@@ -12,6 +12,7 @@ export interface Env {
   API_BASE_URL?: string;
   PUBLIC_SITE_URL?: string;
   TURNSTILE_SITE_KEY?: string;
+  TURNSTILE_ENFORCEMENT_ENABLED?: string;
   DASHBOARD_ALLOWED_ORIGINS?: string;
   NODE_ENV: string;
   AFU_CUSTOM_HOSTNAME_TARGET?: string;
