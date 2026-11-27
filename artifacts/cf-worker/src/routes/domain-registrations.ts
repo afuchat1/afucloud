@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AuthVariables, Env } from "../types";
 import { createDbClient } from "../lib/db";
+import { enqueueDomainEmail } from "../lib/email-outbox";
 import {
   normalizeRegistrant,
   quoteForRegistrationYears,
@@ -157,6 +158,40 @@ function apiOrder(order: any) {
   };
 }
 
+async function queueRegistrationEmail(
+  db: ReturnType<typeof createDbClient>,
+  userId: string,
+  order: any,
+): Promise<void> {
+  const template = order?.status === "registered"
+    ? "domain_registered"
+    : order?.status === "manual_review"
+      ? "domain_registration_review"
+      : order?.status === "refunded"
+        ? "domain_registration_refunded"
+        : null;
+  if (!template || typeof order?.id !== "string" || typeof order?.hostname !== "string") return;
+
+  try {
+    await enqueueDomainEmail(
+      db,
+      userId,
+      order.hostname,
+      template,
+      `domain-registration:${order.id}:${order.status}`,
+      {
+        registrationYears: Number(order.registration_years ?? 1),
+        expiresAt: order.registration_expires_at ?? null,
+      },
+    );
+  } catch {
+    console.error("[AfuCloud Email] domain registration message could not be queued", {
+      orderId: order.id,
+      status: order.status,
+    });
+  }
+}
+
 async function getExtensionRequirements(env: Env, hostname: string) {
   const labels = hostname.split(".");
   const candidates = [...new Set([labels.slice(-2).join("."), labels.at(-1)].filter(
@@ -264,13 +299,15 @@ async function refreshRegistrationStatus(env: Env, db: ReturnType<typeof createD
   const expiresAt = registration.expires_at ?? result?.expires_at ?? result?.expiration_date ?? null;
 
   if (state === "succeeded" || String(registration.status ?? "").toLowerCase() === "active") {
-    return await db.updateDomainRegistrationOrder(order.id, userId, {
+    const updated = await db.updateDomainRegistrationOrder(order.id, userId, {
       status: "registered",
       cloudflare_registration_status: registrationStatus ?? "active",
       registration_created_at: registration.created_at ?? result?.created_at ?? null,
       registration_expires_at: expiresAt,
       error_message: null,
     }, "processing") ?? await db.getDomainRegistrationOrder(order.id, userId) ?? order;
+    await queueRegistrationEmail(db, userId, updated);
+    return updated;
   }
 
   if (state === "failed") {
@@ -287,21 +324,25 @@ async function refreshRegistrationStatus(env: Env, db: ReturnType<typeof createD
     const errorMessage = refunded
       ? "Cloudflare could not complete the registration. Whop confirmed a refund."
       : "Cloudflare could not complete the registration and AfuCloud could not confirm a refund. Support review is required.";
-    return await db.updateDomainRegistrationOrder(order.id, userId, {
+    const updated = await db.updateDomainRegistrationOrder(order.id, userId, {
       status,
       cloudflare_registration_status: registrationStatus ?? "failed",
       error_message: errorMessage,
     }, "manual_review") ?? await db.getDomainRegistrationOrder(order.id, userId) ?? claimed;
+    await queueRegistrationEmail(db, userId, updated);
+    return updated;
   }
 
   if (state === "action_required" || state === "blocked") {
     const detail = typeof result?.error?.message === "string" ? ` ${result.error.message}` : "";
     const errorMessage = `Cloudflare requires additional action before registration can finish.${detail}`;
-    return await db.updateDomainRegistrationOrder(order.id, userId, {
+    const updated = await db.updateDomainRegistrationOrder(order.id, userId, {
       status: "manual_review",
       cloudflare_registration_status: registrationStatus ?? state,
       error_message: errorMessage,
     }, "processing") ?? await db.getDomainRegistrationOrder(order.id, userId) ?? order;
+    await queueRegistrationEmail(db, userId, updated);
+    return updated;
   }
 
   if (registrationStatus === order.cloudflare_registration_status && !expiresAt) return order;
@@ -564,7 +605,10 @@ registrations.post("/orders/:orderId/register", async (c) => {
   try {
     let order = await db.getDomainRegistrationOrder(c.req.param("orderId"), c.get("userId"));
     if (!order) return c.json({ error: "Domain order not found." }, 404);
-    if (order.status === "registered" || order.status === "processing") return c.json(apiOrder(order));
+    if (order.status === "registered" || order.status === "processing") {
+      await queueRegistrationEmail(db, c.get("userId"), order);
+      return c.json(apiOrder(order));
+    }
 
     order = await refreshOrderPayment(c.env, db, order, c.get("userId"));
     if (order.status !== "paid") return c.json({ error: "Payment has not been confirmed by Whop yet." }, 402);
@@ -609,6 +653,7 @@ registrations.post("/orders/:orderId/register", async (c) => {
           ? "The domain became unavailable or its registration price changed after payment. Whop confirmed a refund."
           : "The domain became unavailable or its registration price changed after payment. AfuCloud must review this order.",
       });
+      await queueRegistrationEmail(db, c.get("userId"), failed ?? { ...order, status });
       return c.json(apiOrder(failed ?? { ...order, status }), 409);
     }
 
@@ -650,6 +695,7 @@ registrations.post("/orders/:orderId/register", async (c) => {
           status: "manual_review",
           error_message: "Cloudflare’s registration result could not be confirmed. Do not submit another order; AfuCloud will review it.",
         });
+        await queueRegistrationEmail(db, c.get("userId"), manual ?? { ...order, status: "manual_review" });
         return c.json(apiOrder(manual ?? { ...order, status: "manual_review" }), 202);
       }
       const paymentId = order.whop_payment_id;
@@ -661,6 +707,7 @@ registrations.post("/orders/:orderId/register", async (c) => {
           ? "Cloudflare rejected the registration. Whop confirmed a refund."
           : "Cloudflare rejected the registration and AfuCloud could not confirm a refund. Support review is required.",
       });
+      await queueRegistrationEmail(db, c.get("userId"), failed ?? { ...order, status });
       return c.json(apiOrder(failed ?? { ...order, status }), 409);
     }
 
@@ -684,6 +731,7 @@ registrations.post("/orders/:orderId/register", async (c) => {
         registration_created_at: registeredAt,
         error_message: errorMessage,
       });
+      await queueRegistrationEmail(db, c.get("userId"), failed ?? { ...order, status });
       return c.json(apiOrder(failed ?? { ...order, status, error_message: errorMessage }), 409);
     }
 
@@ -704,10 +752,11 @@ registrations.post("/orders/:orderId/register", async (c) => {
         ? "Cloudflare requires additional action or returned an unrecognized registration state. AfuCloud will review this order."
         : null,
     });
+    await queueRegistrationEmail(db, c.get("userId"), updated ?? { ...order, status: nextStatus });
     return c.json(apiOrder(updated ?? { ...order, status: nextStatus }), registration.status === 202 ? 202 : 200);
   } catch (error) {
     if (claimedOrderId) {
-      await db.updateDomainRegistrationOrder(
+      const reviewed = await db.updateDomainRegistrationOrder(
         claimedOrderId,
         c.get("userId"),
         {
@@ -716,6 +765,7 @@ registrations.post("/orders/:orderId/register", async (c) => {
         },
         "registering",
       ).catch(() => null);
+      await queueRegistrationEmail(db, c.get("userId"), reviewed);
     }
     const status = error instanceof ProviderError ? error.status : 502;
     return c.json({ error: error instanceof Error ? error.message : "Could not complete domain registration." }, status as 400);

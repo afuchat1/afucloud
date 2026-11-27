@@ -41,6 +41,7 @@ export default defineConfig({
     "storage_containers",
     "storage_objects",
     "domain_registration_orders",
+    "email_outbox",
   ],
   dbCredentials: {
     url: dbUrl,

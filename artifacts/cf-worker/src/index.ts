@@ -3,6 +3,8 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import type { Env } from "./types";
+import { createDbClient } from "./lib/db";
+import { sendTransactionalEmail } from "./lib/transactional-email";
 
 import authRoutes from "./routes/auth";
 import projectRoutes from "./routes/projects";
@@ -18,6 +20,7 @@ import storageContainerRoutes from "./routes/storage-containers";
 import domainRegistrationRoutes from "./routes/domain-registrations";
 import billingRoutes from "./routes/billing";
 import { cloudflareRoutes, cloudflareDnsRoutes } from "./routes/cloudflare";
+import { runScheduledEmailJobs } from "./lib/email-outbox";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -137,4 +140,13 @@ app.onError((err, c) => {
   );
 });
 
-export default app;
+export default {
+  fetch: (request: Request, env: Env, ctx: ExecutionContext) => app.fetch(request, env, ctx),
+  scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(
+      runScheduledEmailJobs(controller.cron, env, createDbClient(env), sendTransactionalEmail).catch(() => {
+        console.error("[AfuCloud Email] scheduled email work failed");
+      }),
+    );
+  },
+};

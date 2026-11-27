@@ -405,6 +405,91 @@ export function createDbClient(env: Env) {
       const rows = await r.json() as any[];
       return rows[0] ?? null;
     },
+    async listRegisteredOrdersExpiringBetween(from: string, through: string) {
+      const query = new URLSearchParams({
+        status: "eq.registered",
+        and: `(registration_expires_at.gte.${from},registration_expires_at.lte.${through})`,
+        select: "id,user_id,hostname,registration_years,registration_expires_at",
+        order: "registration_expires_at.asc",
+        limit: "1000",
+      });
+      const r = await request(`/domain_registration_orders?${query.toString()}`);
+      if (!r.ok) throw new Error(`Domain expiration lookup failed: HTTP ${r.status}`);
+      return r.json() as Promise<any[]>;
+    },
+
+    // ── Transactional email outbox ──────────────────────────────────────────
+    async enqueueEmailOutbox(data: Record<string, unknown>) {
+      const r = await request(
+        "/email_outbox?on_conflict=event_key",
+        "POST",
+        data,
+        { Prefer: "resolution=ignore-duplicates,return=representation" },
+      );
+      if (!r.ok) throw new Error(`Transactional email could not be queued: HTTP ${r.status}`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async listDueEmailOutbox(now: string, limit = 20) {
+      const query = new URLSearchParams({
+        status: "eq.pending",
+        available_at: `lte.${now}`,
+        order: "available_at.asc,created_at.asc",
+        limit: String(limit),
+      });
+      const r = await request(`/email_outbox?${query.toString()}`);
+      if (!r.ok) throw new Error(`Transactional email queue lookup failed: HTTP ${r.status}`);
+      return r.json() as Promise<any[]>;
+    },
+    async claimEmailOutbox(id: string, attempts: number, now: string) {
+      const r = await request(
+        `/email_outbox?id=eq.${encodeURIComponent(id)}&status=eq.pending&available_at=lte.${encodeURIComponent(now)}`,
+        "PATCH",
+        { status: "processing", attempts: attempts + 1, last_attempt_at: now, updated_at: now },
+        { Prefer: "return=representation" },
+      );
+      if (!r.ok) throw new Error(`Transactional email could not be claimed: HTTP ${r.status}`);
+      const rows = await r.json() as any[];
+      return rows[0] ?? null;
+    },
+    async markEmailOutboxSent(id: string, now: string) {
+      const r = await request(
+        `/email_outbox?id=eq.${encodeURIComponent(id)}&status=eq.processing`,
+        "PATCH",
+        { status: "sent", sent_at: now, updated_at: now, last_error: null },
+        { Prefer: "return=representation" },
+      );
+      if (!r.ok) throw new Error(`Transactional email completion could not be saved: HTTP ${r.status}`);
+    },
+    async retryEmailOutbox(id: string, availableAt: string, errorCode: string, now: string) {
+      const r = await request(
+        `/email_outbox?id=eq.${encodeURIComponent(id)}&status=eq.processing`,
+        "PATCH",
+        { status: "pending", available_at: availableAt, last_error: errorCode, updated_at: now },
+        { Prefer: "return=representation" },
+      );
+      if (!r.ok) throw new Error(`Transactional email retry could not be scheduled: HTTP ${r.status}`);
+    },
+    async failEmailOutbox(id: string, errorCode: string, now: string) {
+      const r = await request(
+        `/email_outbox?id=eq.${encodeURIComponent(id)}&status=eq.processing`,
+        "PATCH",
+        { status: "failed", last_error: errorCode, updated_at: now },
+        { Prefer: "return=representation" },
+      );
+      if (!r.ok) throw new Error(`Transactional email failure could not be recorded: HTTP ${r.status}`);
+    },
+    async recoverStaleEmailOutbox(staleBefore: string, now: string) {
+      const r = await request(
+        `/email_outbox?status=eq.processing&updated_at=lt.${encodeURIComponent(staleBefore)}`,
+        "PATCH",
+        { status: "pending", available_at: now, updated_at: now, last_error: "stale_claim_recovered" },
+        { Prefer: "return=representation" },
+      );
+      if (!r.ok) throw new Error(`Stale transactional emails could not be recovered: HTTP ${r.status}`);
+      const rows = await r.json() as any[];
+      return rows.length;
+    },
     async getBillingSubscription(userId: string) {
       const r = await request(`/billing_subscriptions?user_id=eq.${encodeURIComponent(userId)}&limit=1`);
       if (!r.ok) throw new Error(`Billing subscription lookup failed: HTTP ${r.status}`);

@@ -112,7 +112,8 @@ test("signup network failures are classified without exposing provider details",
 test("confirmation email template links only to AfuCloud", async () => {
   const template = await readFile(new URL("../email-templates/confirmation.html", import.meta.url), "utf8");
   assert.match(template, /https:\/\/cloud\.afuchat\.com\/auth\/confirm#token_hash=\{\{ \.TokenHash \}\}/);
-  assert.doesNotMatch(template, /ConfirmationURL|supabase\.co/i);
+  assert.match(template, /https:\/\/cloud\.afuchat\.com\/afucloud-email-logo\.png/);
+  assert.doesNotMatch(template, /ConfirmationURL|supabase\.co|resend/i);
 });
 
 test("profile creation recovers a duplicate only for the same Auth user", async () => {

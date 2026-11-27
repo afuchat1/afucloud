@@ -23,6 +23,7 @@ export interface Env {
   WHOP_PRODUCT_ID?: string;
   WHOP_PRO_PLAN_ID?: string;
   WHOP_BUSINESS_PLAN_ID?: string;
+  RESEND_API_KEY?: string;
 
   // Secrets
   SUPABASE_SERVICE_KEY: string;

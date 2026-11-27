@@ -2,6 +2,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
+import { enqueueEmailForUser } from "../lib/email-outbox";
 import { getTurnstileSiteKey, isTurnstileEnforced, verifyTurnstileToken } from "../lib/turnstile";
 import {
   resendSignupConfirmation,
@@ -341,8 +342,20 @@ auth.post("/confirm-email", rejectDeveloperCredential, requireCsrf, async (c) =>
     return c.json({ error: "We couldn't confirm your email right now. Please try again shortly." }, 503);
   }
 
+  const db = createDbClient(c.env);
   try {
-    await ensureAfuCloudProfile(createDbClient(c.env), authUser);
+    const profile = await ensureAfuCloudProfile(db, authUser);
+    if (authUser.email_confirmed_at && profile.email_verified) {
+      try {
+        await enqueueEmailForUser(db, {
+          eventKey: `account-welcome:${authUser.id}`,
+          userId: authUser.id,
+          template: "welcome",
+        });
+      } catch {
+        console.error("[AfuCloud Email] welcome message could not be queued");
+      }
+    }
   } catch {
     // The Supabase token is one-time. Keep the confirmation successful and let
     // sign-in retry shared-profile provisioning if the database is unavailable.

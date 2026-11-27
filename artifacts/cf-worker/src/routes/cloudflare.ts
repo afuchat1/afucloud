@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { DbClient, Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
+import { enqueueDomainEmail } from "../lib/email-outbox";
 import { requireAccountAuth, requireAuth } from "../middleware/auth";
 import {
   assertCloudflareId,
@@ -702,12 +703,25 @@ dns.post("/:domainId/auto-configure", requireAuth, requireAccountAuth, async c =
       created = true;
     }
 
-    await db.updateDomain(domain.id, c.get("userId"), {
+    const updated = await db.updateDomain(domain.id, c.get("userId"), {
       verification_status: "verified",
       ssl_status: "pending",
       dns_status: "configured",
       verified_at: new Date().toISOString(),
     });
+    if (updated) {
+      try {
+        await enqueueDomainEmail(
+          db,
+          c.get("userId"),
+          domain.hostname,
+          "domain_verified",
+          `domain-verified:${domain.id}`,
+        );
+      } catch {
+        console.error("[AfuCloud Email] domain verification message could not be queued");
+      }
+    }
     let answers: string[] = [];
     try {
       answers = await publicDnsAnswers(recordName, "TXT");

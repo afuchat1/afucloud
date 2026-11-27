@@ -49,6 +49,10 @@ WHOP_BUSINESS_PLAN_ID = "plan_rHNQbmHe5SLw1"
 # CLOUDFLARE_REGISTRAR_API_TOKEN — account API token with Registrar Write permission
 # WHOP_API_KEY — server-side API key for the existing Whop account
 # TURNSTILE_SECRET_KEY — server-side Turnstile Siteverify secret
+# RESEND_API_KEY — first-party AfuCloud transactional email sender
+
+[triggers]
+crons = ["*/5 * * * *", "0 6 * * *"]
 
 # ── Dev environment overrides ─────────────────────────────────────────────────
 [env.dev]

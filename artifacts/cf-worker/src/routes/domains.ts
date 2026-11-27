@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
+import { enqueueDomainEmail } from "../lib/email-outbox";
 import { requireAccountAuth, requireAuth } from "../middleware/auth";
 
 const domains = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
@@ -180,6 +181,19 @@ domains.post("/:id/verify", requireAuth, async (c) => {
     dns_status: "configured",
     verified_at: new Date().toISOString(),
   });
+  if (updated) {
+    try {
+      await enqueueDomainEmail(
+        db,
+        c.get("userId"),
+        domain.hostname,
+        "domain_verified",
+        `domain-verified:${domain.id}`,
+      );
+    } catch {
+      console.error("[AfuCloud Email] domain verification message could not be queued");
+    }
+  }
   return c.json(apiDomain(updated, await db.getHostnames(domain.id, c.get("userId")), c.env));
 });
 
