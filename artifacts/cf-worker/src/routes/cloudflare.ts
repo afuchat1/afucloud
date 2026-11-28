@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { DbClient, Env, AuthVariables } from "../types";
 import { createDbClient } from "../lib/db";
 import { enqueueDomainEmail } from "../lib/email-outbox";
+import { getCloudflareUserAccessToken } from "../lib/cloudflare-account-token";
 import { requireAccountAuth, requireAuth } from "../middleware/auth";
 import {
   assertCloudflareId,
@@ -21,7 +22,6 @@ import {
   revokeCloudflareToken,
   verifyOAuthStateClaims,
   type CloudflareApiEnvelope,
-  type CloudflareTokenResponse,
   type OAuthEnvironment,
 } from "@workspace/cloudflare-integration";
 
@@ -106,43 +106,6 @@ function safeHttpStatus(error: unknown): number | undefined {
   if (!(error instanceof Error)) return undefined;
   const match = error.message.match(/\bHTTP ([1-5]\d{2})\b/);
   return match ? Number(match[1]) : undefined;
-}
-
-async function getAccessToken(db: DbClient, userId: string, env: Env): Promise<string> {
-  if (!env.CLOUDFLARE_TOKEN_ENCRYPTION_KEY) {
-    throw new CloudflareRequestError("Cloudflare token encryption is not configured", 503);
-  }
-  const connection = await db.getCloudflareConnection(userId);
-  if (!connection) throw new CloudflareRequestError("Connect a Cloudflare account first", 401);
-
-  const expiresAt = Date.parse(connection.access_expires_at);
-  if (!Number.isFinite(expiresAt)) {
-    throw new CloudflareRequestError("Cloudflare connection is invalid. Reconnect Cloudflare.", 401);
-  }
-  if (expiresAt <= Date.now() + 60_000) {
-    if (!connection.encrypted_refresh_token) {
-      throw new CloudflareRequestError("Cloudflare access expired. Reconnect Cloudflare.", 401);
-    }
-    const settings = oauthConfiguration(env);
-    const refreshToken = await decryptToken(connection.encrypted_refresh_token, settings);
-    let refreshed: CloudflareTokenResponse;
-    try {
-      refreshed = await refreshCloudflareToken(refreshToken, settings);
-    } catch {
-      throw new CloudflareRequestError("Cloudflare access expired. Reconnect Cloudflare.", 401);
-    }
-    const nextRefreshToken = refreshed.refresh_token ?? refreshToken;
-    await db.updateCloudflareConnection(userId, {
-      encrypted_access_token: await encryptToken(refreshed.access_token, settings),
-      encrypted_refresh_token: await encryptToken(nextRefreshToken, settings),
-      access_expires_at: new Date(Date.now() + refreshed.expires_in * 1000).toISOString(),
-      scopes: refreshed.scope ? refreshed.scope.split(/\s+/).filter(Boolean) : connection.scopes,
-      updated_at: new Date().toISOString(),
-    });
-    return refreshed.access_token;
-  }
-
-  return decryptToken(connection.encrypted_access_token, oauthEnv(env));
 }
 
 async function listZones(accessToken: string): Promise<CloudflareZone[]> {
@@ -348,7 +311,7 @@ cloudflare.delete("/connection", requireAuth, requireAccountAuth, async c => {
 
 cloudflare.get("/zones", requireAuth, requireAccountAuth, async c => {
   try {
-    const token = await getAccessToken(createDbClient(c.env), c.get("userId"), c.env);
+    const token = await getCloudflareUserAccessToken(createDbClient(c.env), c.get("userId"), c.env);
     const zones = await listZones(token);
     return c.json(zones.map(zone => ({ id: zone.id, name: zone.name, status: zone.status })));
   } catch (error) {
@@ -360,7 +323,7 @@ cloudflare.get("/zones", requireAuth, requireAccountAuth, async c => {
 dns.get("/:domainId/dns-records", requireAuth, requireAccountAuth, async c => {
   try {
     const db = createDbClient(c.env);
-    const token = await getAccessToken(db, c.get("userId"), c.env);
+    const token = await getCloudflareUserAccessToken(db, c.get("userId"), c.env);
     const { domain, zone } = await ownedDomainContext(db, c.get("userId"), c.req.param("domainId"), token);
     if (!domain) return c.json({ error: "Domain not found" }, 404);
     if (!zone) return c.json({ error: "This domain is not an accessible Cloudflare zone for the connected account" }, 409);
@@ -395,7 +358,7 @@ dns.post("/:domainId/hostnames/auto-configure", requireAuth, requireAccountAuth,
     const hostnames = (await db.getHostnames(domain.id, userId))
       .filter(hostname => hostname.service === "cdn");
     const target = hostnameDnsTarget(c.env);
-    const token = await getAccessToken(db, userId, c.env);
+    const token = await getCloudflareUserAccessToken(db, userId, c.env);
     const zone = await findZone(token, domain.hostname);
     if (!zone) return c.json({ error: "This domain is not an accessible Cloudflare zone for the connected account" }, 409);
 
@@ -572,7 +535,7 @@ dns.post("/:domainId/hostnames/auto-configure", requireAuth, requireAccountAuth,
 dns.post("/:domainId/dns-records", requireAuth, requireAccountAuth, async c => {
   try {
     const db = createDbClient(c.env);
-    const token = await getAccessToken(db, c.get("userId"), c.env);
+    const token = await getCloudflareUserAccessToken(db, c.get("userId"), c.env);
     const { domain, zone } = await ownedDomainContext(db, c.get("userId"), c.req.param("domainId"), token);
     if (!domain) return c.json({ error: "Domain not found" }, 404);
     if (!zone) return c.json({ error: "This domain is not an accessible Cloudflare zone for the connected account" }, 409);
@@ -596,7 +559,7 @@ dns.post("/:domainId/dns-records", requireAuth, requireAccountAuth, async c => {
 dns.patch("/:domainId/dns-records/:recordId", requireAuth, requireAccountAuth, async c => {
   try {
     const db = createDbClient(c.env);
-    const token = await getAccessToken(db, c.get("userId"), c.env);
+    const token = await getCloudflareUserAccessToken(db, c.get("userId"), c.env);
     const { domain, zone } = await ownedDomainContext(db, c.get("userId"), c.req.param("domainId"), token);
     if (!domain) return c.json({ error: "Domain not found" }, 404);
     if (!zone) return c.json({ error: "This domain is not an accessible Cloudflare zone for the connected account" }, 409);
@@ -623,7 +586,7 @@ dns.patch("/:domainId/dns-records/:recordId", requireAuth, requireAccountAuth, a
 dns.delete("/:domainId/dns-records/:recordId", requireAuth, requireAccountAuth, async c => {
   try {
     const db = createDbClient(c.env);
-    const token = await getAccessToken(db, c.get("userId"), c.env);
+    const token = await getCloudflareUserAccessToken(db, c.get("userId"), c.env);
     const { domain, zone } = await ownedDomainContext(db, c.get("userId"), c.req.param("domainId"), token);
     if (!domain) return c.json({ error: "Domain not found" }, 404);
     if (!zone) return c.json({ error: "This domain is not an accessible Cloudflare zone for the connected account" }, 409);
@@ -645,7 +608,7 @@ dns.delete("/:domainId/dns-records/:recordId", requireAuth, requireAccountAuth, 
 dns.post("/:domainId/dns-records/:recordId/verify", requireAuth, requireAccountAuth, async c => {
   try {
     const db = createDbClient(c.env);
-    const token = await getAccessToken(db, c.get("userId"), c.env);
+    const token = await getCloudflareUserAccessToken(db, c.get("userId"), c.env);
     const { domain, zone } = await ownedDomainContext(db, c.get("userId"), c.req.param("domainId"), token);
     if (!domain) return c.json({ error: "Domain not found" }, 404);
     if (!zone) return c.json({ error: "This domain is not an accessible Cloudflare zone for the connected account" }, 409);
@@ -673,7 +636,7 @@ dns.post("/:domainId/dns-records/:recordId/verify", requireAuth, requireAccountA
 dns.post("/:domainId/auto-configure", requireAuth, requireAccountAuth, async c => {
   try {
     const db = createDbClient(c.env);
-    const token = await getAccessToken(db, c.get("userId"), c.env);
+    const token = await getCloudflareUserAccessToken(db, c.get("userId"), c.env);
     const domain = await db.getDomain(c.req.param("domainId"), c.get("userId"));
     if (!domain) return c.json({ error: "Domain not found" }, 404);
     const zone = await findZone(token, domain.hostname);

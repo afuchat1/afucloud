@@ -19,8 +19,10 @@ import domainRoutes from "./routes/domains";
 import storageContainerRoutes from "./routes/storage-containers";
 import domainRegistrationRoutes from "./routes/domain-registrations";
 import billingRoutes from "./routes/billing";
+import hostingRoutes from "./routes/hosting";
 import { cloudflareRoutes, cloudflareDnsRoutes } from "./routes/cloudflare";
 import { runScheduledEmailJobs } from "./lib/email-outbox";
+import { runScheduledHostingJobs } from "./lib/hosting-jobs";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -90,6 +92,7 @@ function mountApiRoutes(prefix: string) {
   app.route(`${prefix}/domains/registrations`, domainRegistrationRoutes);
   app.route(`${prefix}/cloudflare`, cloudflareRoutes);
   app.route(`${prefix}/billing`, billingRoutes);
+  app.route(`${prefix}/hosting`, hostingRoutes);
   app.route(`${prefix}/storage-containers`, storageContainerRoutes);
 
   // Images: /{prefix}/projects/:projectId/images/*
@@ -143,10 +146,13 @@ app.onError((err, c) => {
 export default {
   fetch: (request: Request, env: Env, ctx: ExecutionContext) => app.fetch(request, env, ctx),
   scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(
-      runScheduledEmailJobs(controller.cron, env, createDbClient(env), sendTransactionalEmail).catch(() => {
-        console.error("[AfuCloud Email] scheduled email work failed");
-      }),
-    );
+    const db = createDbClient(env);
+    ctx.waitUntil(Promise.allSettled([
+      runScheduledEmailJobs(controller.cron, env, db, sendTransactionalEmail),
+      runScheduledHostingJobs(env, db),
+    ]).then((results) => {
+      if (results[0].status === "rejected") console.error("[AfuCloud Email] scheduled email work failed");
+      if (results[1].status === "rejected") console.error("[AfuCloud Hosting] scheduled deployment work failed");
+    }));
   },
 };

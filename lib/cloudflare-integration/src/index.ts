@@ -4,9 +4,12 @@ const decoder = new TextDecoder();
 export const CLOUDFLARE_DASHBOARD_ORIGIN = "https://cloud.afuchat.com";
 
 export const CLOUDFLARE_OAUTH_SCOPES = [
+  "account.read",
   "zone.read",
   "dns.read",
   "dns.write",
+  "page.read",
+  "page.write",
   "offline_access",
 ] as const;
 

@@ -24,6 +24,10 @@ export interface Env {
   WHOP_PRO_PLAN_ID?: string;
   WHOP_BUSINESS_PLAN_ID?: string;
   RESEND_API_KEY?: string;
+  GITHUB_APP_ID?: string;
+  GITHUB_APP_SLUG?: string;
+  GITHUB_APP_CLIENT_ID?: string;
+  GITHUB_APP_AUTH_CALLBACK_URL?: string;
 
   // Secrets
   SUPABASE_SERVICE_KEY: string;
@@ -36,6 +40,10 @@ export interface Env {
   CLOUDFLARE_TOKEN_ENCRYPTION_KEY?: string;
   CLOUDFLARE_REGISTRAR_API_TOKEN?: string;
   WHOP_API_KEY?: string;
+  GITHUB_APP_PRIVATE_KEY?: string;
+  GITHUB_APP_CLIENT_SECRET?: string;
+  GITHUB_WEBHOOK_SECRET?: string;
+  HOSTING_ENCRYPTION_KEY?: string;
 
   // Bindings
   IMAGES_BUCKET: R2Bucket;

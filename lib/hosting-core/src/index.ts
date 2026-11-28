@@ -141,12 +141,18 @@ export interface GitHubRepository {
   name: string;
   private: boolean;
   default_branch: string;
-  owner: { login: string };
+  owner: { login: string; id?: number };
+}
+
+export interface GitHubInstallation {
+  id: number;
+  account: { login: string; type: string };
 }
 
 async function githubJson<T>(url: string, token: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     ...init,
+    signal: init.signal ?? AbortSignal.timeout(12_000),
     headers: {
       accept: "application/vnd.github+json",
       authorization: `Bearer ${token}`,
@@ -159,6 +165,30 @@ async function githubJson<T>(url: string, token: string, init: RequestInit = {})
     throw new Error(`GitHub request failed with HTTP ${response.status}`);
   }
   return response.json() as Promise<T>;
+}
+
+export async function getGitHubUser(token: string): Promise<{ id: number; login: string }> {
+  const user = await githubJson<{ id?: number; login?: string }>("https://api.github.com/user", token);
+  if (!Number.isSafeInteger(user.id) || typeof user.login !== "string") {
+    throw new Error("GitHub user authorization returned an incomplete identity");
+  }
+  return { id: user.id as number, login: user.login };
+}
+
+export async function userCanAccessGitHubInstallation(
+  token: string,
+  installationId: string,
+): Promise<boolean> {
+  for (let page = 1; page <= 10; page += 1) {
+    const result = await githubJson<{ installations?: Array<{ id?: number }> }>(
+      `https://api.github.com/user/installations?per_page=100&page=${page}`,
+      token,
+    );
+    const installations = Array.isArray(result.installations) ? result.installations : [];
+    if (installations.some(item => String(item.id) === installationId)) return true;
+    if (installations.length < 100) return false;
+  }
+  return false;
 }
 
 export async function createGitHubInstallationToken(
@@ -178,12 +208,30 @@ export async function createGitHubInstallationToken(
   );
 }
 
-export async function listGitHubInstallationRepositories(token: string): Promise<GitHubRepository[]> {
-  const response = await githubJson<{ repositories?: GitHubRepository[] }>(
-    "https://api.github.com/installation/repositories?per_page=100",
-    token,
+export async function getGitHubInstallationDetails(
+  appId: string,
+  privateKey: string,
+  installationId: string,
+): Promise<GitHubInstallation> {
+  const appJwt = await createGitHubAppJwt(appId, privateKey);
+  return githubJson<GitHubInstallation>(
+    `https://api.github.com/app/installations/${encodeURIComponent(installationId)}`,
+    appJwt,
   );
-  return Array.isArray(response.repositories) ? response.repositories : [];
+}
+
+export async function listGitHubInstallationRepositories(token: string): Promise<GitHubRepository[]> {
+  const repositories: GitHubRepository[] = [];
+  for (let page = 1; page <= 10; page += 1) {
+    const response = await githubJson<{ repositories?: GitHubRepository[] }>(
+      `https://api.github.com/installation/repositories?per_page=100&page=${page}`,
+      token,
+    );
+    const batch = Array.isArray(response.repositories) ? response.repositories : [];
+    repositories.push(...batch);
+    if (batch.length < 100) return repositories;
+  }
+  return repositories;
 }
 
 export async function listGitHubRepositoryBranches(
@@ -194,11 +242,71 @@ export async function listGitHubRepositoryBranches(
   if (!owner || !name || repositoryFullName.split("/").length !== 2) {
     throw new Error("Invalid GitHub repository name");
   }
-  const branches = await githubJson<Array<{ name?: string }>>(
-    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/branches?per_page=100`,
+  const names: string[] = [];
+  for (let page = 1; page <= 10; page += 1) {
+    const branches = await githubJson<Array<{ name?: string }>>(
+      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/branches?per_page=100&page=${page}`,
+      token,
+    );
+    names.push(...branches.flatMap(branch => typeof branch.name === "string" ? [branch.name] : []));
+    if (branches.length < 100) return names;
+  }
+  return names;
+}
+
+export async function getGitHubRepositoryBranch(
+  token: string,
+  repositoryFullName: string,
+  branchName: string,
+): Promise<{ name: string; commitSha: string }> {
+  const [owner, name] = repositoryFullName.split("/");
+  if (!owner || !name || repositoryFullName.split("/").length !== 2 || !branchName || branchName.length > 255) {
+    throw new Error("Invalid GitHub branch");
+  }
+  const branch = await githubJson<{
+    name?: string;
+    commit?: { sha?: string };
+  }>(
+    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/branches/${encodeURIComponent(branchName)}`,
     token,
   );
-  return branches.flatMap(branch => typeof branch.name === "string" ? [branch.name] : []);
+  if (typeof branch.name !== "string" || typeof branch.commit?.sha !== "string") {
+    throw new Error("GitHub branch details were incomplete");
+  }
+  return { name: branch.name, commitSha: branch.commit.sha };
+}
+
+export async function readGitHubRepositoryFile(
+  token: string,
+  repositoryFullName: string,
+  filePath: string,
+): Promise<string | null> {
+  const [owner, name] = repositoryFullName.split("/");
+  if (!owner || !name || repositoryFullName.split("/").length !== 2 || !isSafeRelativePath(filePath)) {
+    throw new Error("Invalid GitHub repository file path");
+  }
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/contents/${filePath.split("/").map(encodeURIComponent).join("/")}`;
+  const response = await fetch(url, {
+    headers: {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${token}`,
+      "x-github-api-version": "2022-11-28",
+      "user-agent": "AfuCloud-Hosting",
+    },
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`GitHub file lookup failed with HTTP ${response.status}`);
+  const result = await response.json() as { type?: unknown; size?: unknown; encoding?: unknown; content?: unknown };
+  if (result.type !== "file" || result.encoding !== "base64" || typeof result.content !== "string") {
+    return null;
+  }
+  if (typeof result.size === "number" && result.size > 128_000) return null;
+  try {
+    return decoder.decode(base64UrlToBytes(result.content.replace(/\+/g, "-").replace(/\//g, "_").replace(/\s/g, "").replace(/=+$/g, "")));
+  } catch {
+    return null;
+  }
 }
 
 export function isSafeRelativePath(value: string): boolean {

@@ -46,6 +46,11 @@ export function createDbClient(env: Env) {
     }
   }
 
+  async function checkedRows<T>(response: Response, operation: string): Promise<T[]> {
+    if (!response.ok) throw new Error(`${operation} failed: HTTP ${response.status}`);
+    return response.json() as Promise<T[]>;
+  }
+
   async function getUserById(id: string) {
     const r = await request(`/profiles?user_id=eq.${id}&limit=1`, "GET", undefined, undefined, "accounts");
     if (!r.ok) throw new Error(`Shared profile lookup failed: HTTP ${r.status}`);
@@ -649,6 +654,197 @@ export function createDbClient(env: Env) {
     },
     async deleteStorageObject(id: string, containerId: string, userId: string) {
       await request(`/storage_objects?id=eq.${encodeURIComponent(id)}&container_id=eq.${encodeURIComponent(containerId)}&user_id=eq.${encodeURIComponent(userId)}`, "DELETE");
+    },
+
+    // ── Application hosting ──────────────────────────────────────────────────
+    async getGithubInstallations(userId: string) {
+      const r = await request(`/github_installations?user_id=eq.${encodeURIComponent(userId)}&active=eq.true&order=created_at.desc`);
+      return checkedRows<any>(r, "GitHub installation lookup");
+    },
+    async getGithubInstallation(id: string, userId: string) {
+      const r = await request(`/github_installations?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&active=eq.true&limit=1`);
+      return (await checkedRows<any>(r, "GitHub installation lookup"))[0] ?? null;
+    },
+    async getGithubInstallationByInstallationId(installationId: string) {
+      const r = await request(`/github_installations?installation_id=eq.${encodeURIComponent(installationId)}&limit=1`);
+      return (await checkedRows<any>(r, "GitHub installation lookup"))[0] ?? null;
+    },
+    async createGithubInstallation(data: Record<string, unknown>) {
+      const r = await request("/github_installations", "POST", data, { Prefer: "return=representation" });
+      return (await checkedRows<any>(r, "GitHub installation save"))[0] ?? null;
+    },
+    async updateGithubInstallation(id: string, data: Record<string, unknown>) {
+      const r = await request(`/github_installations?id=eq.${encodeURIComponent(id)}`, "PATCH", data, { Prefer: "return=representation" });
+      return (await checkedRows<any>(r, "GitHub installation update"))[0] ?? null;
+    },
+    async createHostingOAuthState(data: Record<string, unknown>) {
+      const r = await request("/hosting_oauth_states", "POST", data);
+      if (!r.ok) throw new Error(`Hosting authorization state save failed: HTTP ${r.status}`);
+    },
+    async consumeHostingOAuthState(stateHash: string) {
+      const params = new URLSearchParams({
+        state_hash: `eq.${stateHash}`,
+        consumed_at: "is.null",
+        expires_at: `gt.${new Date().toISOString()}`,
+      });
+      const r = await request(`/hosting_oauth_states?${params}`, "PATCH", {
+        consumed_at: new Date().toISOString(),
+      }, { Prefer: "return=representation" });
+      return (await checkedRows<any>(r, "Hosting authorization state"))[0] ?? null;
+    },
+    async clearHostingOAuthStateToken(stateHash: string) {
+      const r = await request(`/hosting_oauth_states?state_hash=eq.${encodeURIComponent(stateHash)}`, "PATCH", {
+        github_access_token_encrypted: null,
+      });
+      if (!r.ok) throw new Error(`Hosting authorization state cleanup failed: HTTP ${r.status}`);
+    },
+    async getHostingProjects(userId: string) {
+      const r = await request(`/hosting_projects?user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc`);
+      return checkedRows<any>(r, "Hosting project lookup");
+    },
+    async getHostingProject(id: string, userId: string) {
+      const r = await request(`/hosting_projects?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`);
+      return (await checkedRows<any>(r, "Hosting project lookup"))[0] ?? null;
+    },
+    async getHostingProjectByRepository(userId: string, repositoryId: string) {
+      const r = await request(`/hosting_projects?user_id=eq.${encodeURIComponent(userId)}&github_repository_id=eq.${encodeURIComponent(repositoryId)}&limit=1`);
+      return (await checkedRows<any>(r, "Hosting repository lookup"))[0] ?? null;
+    },
+    async createHostingProject(data: Record<string, unknown>) {
+      const r = await request("/hosting_projects", "POST", data, { Prefer: "return=representation" });
+      return (await checkedRows<any>(r, "Hosting project save"))[0] ?? null;
+    },
+    async updateHostingProject(id: string, userId: string, data: Record<string, unknown>) {
+      const r = await request(`/hosting_projects?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, "PATCH", data, { Prefer: "return=representation" });
+      return (await checkedRows<any>(r, "Hosting project update"))[0] ?? null;
+    },
+    async deleteHostingProject(id: string, userId: string) {
+      const r = await request(`/hosting_projects?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, "DELETE");
+      if (!r.ok) throw new Error(`Hosting project removal failed: HTTP ${r.status}`);
+    },
+    async getHostingDeployments(projectId: string, userId: string) {
+      const r = await request(`/hosting_deployments?project_id=eq.${encodeURIComponent(projectId)}&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=100`);
+      return checkedRows<any>(r, "Hosting deployment lookup");
+    },
+    async getHostingDeployment(id: string, userId: string) {
+      const r = await request(`/hosting_deployments?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`);
+      return (await checkedRows<any>(r, "Hosting deployment lookup"))[0] ?? null;
+    },
+    async getHostingDeploymentBySourceDelivery(projectId: string, deliveryId: string) {
+      const r = await request(`/hosting_deployments?project_id=eq.${encodeURIComponent(projectId)}&source_delivery_id=eq.${encodeURIComponent(deliveryId)}&limit=1`);
+      return (await checkedRows<any>(r, "Hosting deployment lookup"))[0] ?? null;
+    },
+    async getActiveHostingDeployments(limit = 100) {
+      const r = await request(`/hosting_deployments?status=in.${encodeURIComponent("(queued,running,deploying)")}&order=created_at.asc&limit=${Math.min(200, Math.max(1, limit))}`);
+      return checkedRows<any>(r, "Active hosting deployment lookup");
+    },
+    async createHostingDeployment(data: Record<string, unknown>) {
+      const r = await request("/hosting_deployments", "POST", data, { Prefer: "return=representation" });
+      return (await checkedRows<any>(r, "Hosting deployment save"))[0] ?? null;
+    },
+    async updateHostingDeployment(id: string, userId: string, data: Record<string, unknown>) {
+      const r = await request(`/hosting_deployments?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, "PATCH", data, { Prefer: "return=representation" });
+      return (await checkedRows<any>(r, "Hosting deployment update"))[0] ?? null;
+    },
+    async updateHostingDeploymentByLease(id: string, leaseTokenHash: string, data: Record<string, unknown>) {
+      const r = await request(`/hosting_deployments?id=eq.${encodeURIComponent(id)}&status=eq.running&lease_token_hash=eq.${encodeURIComponent(leaseTokenHash)}`, "PATCH", data, { Prefer: "return=representation" });
+      return (await checkedRows<any>(r, "Hosting deployment lease update"))[0] ?? null;
+    },
+    async claimHostingDeployment(leaseTokenHash: string) {
+      const r = await request("/rpc/claim_hosting_deployment", "POST", { p_lease_token_hash: leaseTokenHash });
+      return (await checkedRows<any>(r, "Hosting deployment claim"))[0] ?? null;
+    },
+    async claimHostingDeploymentById(id: string, leaseTokenHash: string) {
+      const r = await request("/rpc/claim_hosting_deployment_by_id", "POST", {
+        p_deployment_id: id,
+        p_lease_token_hash: leaseTokenHash,
+      });
+      return (await checkedRows<any>(r, "Hosting deployment claim"))[0] ?? null;
+    },
+    async recoverStaleHostingDeployments() {
+      const r = await request("/rpc/recover_stale_hosting_deployments", "POST", {});
+      if (!r.ok) throw new Error(`Stale hosting deployment recovery failed: HTTP ${r.status}`);
+      return r.json() as Promise<number>;
+    },
+    async getHostingDeploymentLogs(deploymentId: string) {
+      const r = await request(`/hosting_deployment_logs?deployment_id=eq.${encodeURIComponent(deploymentId)}&order=sequence.asc&limit=500`);
+      return checkedRows<any>(r, "Hosting deployment log lookup");
+    },
+    async insertHostingDeploymentLogs(rows: Array<Record<string, unknown>>) {
+      if (!rows.length) return;
+      const r = await request("/hosting_deployment_logs?on_conflict=deployment_id,sequence", "POST", rows, {
+        Prefer: "resolution=ignore-duplicates,return=minimal",
+      });
+      if (!r.ok) throw new Error(`Hosting deployment log save failed: HTTP ${r.status}`);
+    },
+    async getHostingEnvironmentVariables(projectId: string, userId: string, environment?: string) {
+      const params = new URLSearchParams({
+        project_id: `eq.${projectId}`,
+        user_id: `eq.${userId}`,
+        order: "name.asc",
+      });
+      if (environment) params.set("environment", `eq.${environment}`);
+      const r = await request(`/hosting_environment_variables?${params}`);
+      return checkedRows<any>(r, "Hosting environment variable lookup");
+    },
+    async upsertHostingEnvironmentVariable(data: Record<string, unknown>) {
+      const r = await request(
+        "/hosting_environment_variables?on_conflict=project_id,environment,name",
+        "POST",
+        data,
+        { Prefer: "resolution=merge-duplicates,return=representation" },
+      );
+      return (await checkedRows<any>(r, "Hosting environment variable save"))[0] ?? null;
+    },
+    async deleteHostingEnvironmentVariable(id: string, projectId: string, userId: string) {
+      const r = await request(`/hosting_environment_variables?id=eq.${encodeURIComponent(id)}&project_id=eq.${encodeURIComponent(projectId)}&user_id=eq.${encodeURIComponent(userId)}`, "DELETE");
+      if (!r.ok) throw new Error(`Hosting environment variable removal failed: HTTP ${r.status}`);
+    },
+    async getHostingDomains(projectId: string, userId: string) {
+      const r = await request(`/hosting_domains?project_id=eq.${encodeURIComponent(projectId)}&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc`);
+      return checkedRows<any>(r, "Hosting domain lookup");
+    },
+    async getHostingDomain(id: string, userId: string) {
+      const r = await request(`/hosting_domains?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`);
+      return (await checkedRows<any>(r, "Hosting domain lookup"))[0] ?? null;
+    },
+    async createHostingDomain(data: Record<string, unknown>) {
+      const r = await request("/hosting_domains", "POST", data, { Prefer: "return=representation" });
+      return (await checkedRows<any>(r, "Hosting domain save"))[0] ?? null;
+    },
+    async updateHostingDomain(id: string, userId: string, data: Record<string, unknown>) {
+      const r = await request(`/hosting_domains?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, "PATCH", data, { Prefer: "return=representation" });
+      return (await checkedRows<any>(r, "Hosting domain update"))[0] ?? null;
+    },
+    async deleteHostingDomain(id: string, userId: string) {
+      const r = await request(`/hosting_domains?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, "DELETE");
+      if (!r.ok) throw new Error(`Hosting domain removal failed: HTTP ${r.status}`);
+    },
+    async claimHostingWebhookDelivery(deliveryId: string, event: string, installationId: string | null) {
+      const r = await request("/rpc/claim_hosting_webhook_delivery", "POST", {
+        p_delivery_id: deliveryId,
+        p_event: event,
+        p_installation_id: installationId,
+      });
+      if (!r.ok) throw new Error(`Hosting webhook claim failed: HTTP ${r.status}`);
+      const result = await r.json();
+      return typeof result === "boolean" ? result : false;
+    },
+    async updateHostingWebhookDelivery(deliveryId: string, status: string) {
+      const r = await request(`/hosting_webhook_deliveries?delivery_id=eq.${encodeURIComponent(deliveryId)}`, "PATCH", {
+        status,
+        processed_at: status === "processing" ? null : new Date().toISOString(),
+      });
+      if (!r.ok) throw new Error(`Hosting webhook update failed: HTTP ${r.status}`);
+    },
+    async consumeHostingRateLimit(bucketKey: string, limit: number) {
+      const r = await request("/rpc/consume_hosting_rate_limit", "POST", {
+        p_bucket_key: bucketKey,
+        p_limit: limit,
+      });
+      if (!r.ok) throw new Error(`Hosting rate limit check failed: HTTP ${r.status}`);
+      const result = await r.json();
+      return typeof result === "boolean" ? result : false;
     },
 
     // ── Activity Logs ───────────────────────────────────────────────────────
